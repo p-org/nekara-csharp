@@ -1,0 +1,3 @@
+[submodule "Dependencies/nekara"]
+path = Dependencies/nekara
+url = https://github.com/p-org/nekara.git
