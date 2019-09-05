@@ -1,0 +1,4 @@
+[submodule "PSharp"]
+	path = PSharp
+	url = https://github.com/p-org/PSharp.git
+	branch = master

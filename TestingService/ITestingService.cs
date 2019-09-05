@@ -4,8 +4,10 @@ using System.Text;
 
 namespace TestingService
 {
-    interface ITestable
+    public interface ITestingService
     {
+        void CreateTask();
+
         void StartTask(int taskId);
 
         void EndTask(int taskId);
@@ -14,6 +16,8 @@ namespace TestingService
 
         void DeleteResource(int resourceId);
 
+        void ContextSwitch();
+
         void BlockedOnResource(int resourceId);
 
         void SignalUpdatedResource(int resourceId);
@@ -21,5 +25,7 @@ namespace TestingService
         bool CreateNondetBool();
 
         int CreateNondetInteger(int maxValue);
+
+        void Assert(bool value, string message);
     }
 }
