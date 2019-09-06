@@ -13,6 +13,7 @@ namespace TestingService
     class Program
     {
         static Assembly assembly;
+        static int SchedulingSeed = 0;
 
         public static void Main(string[] args)
         {
@@ -22,9 +23,16 @@ namespace TestingService
                 return;
             }
 
-            if(args.Any(s => s == "/break"))
+            foreach(var arg in args)
             {
-                System.Diagnostics.Debugger.Launch();
+                if (arg == "/break")
+                {
+                    System.Diagnostics.Debugger.Launch();
+                }
+                if (arg.StartsWith("/seed:"))
+                {
+                    SchedulingSeed = Int32.Parse(arg.Substring("/seed:".Length));
+                }
             }
 
             // Load assembly
@@ -100,10 +108,11 @@ namespace TestingService
                 .WithNumberOfIterations(100)
                 .WithMaxSteps(100)
                 .WithVerbosityEnabled();
+
+            configuration.RandomSchedulingSeed = SchedulingSeed == 0 ? DateTime.Now.Millisecond : SchedulingSeed;
             
             var engine = TestingEngineFactory.CreateBugFindingEngine(configuration, r =>
             {
-                r.SetLogger(new Microsoft.PSharp.IO.ConsoleLogger());
                 r.CreateMachine(typeof(TopLevelMachine), new TopLevelMachineInitEvent { testMethod = testMethod });
             });
             engine.Run();

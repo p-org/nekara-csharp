@@ -100,7 +100,7 @@ namespace TestingService
             lock(programState)
             {
                 runtime.Assert(!programState.taskStatus.ContainsKey(programState.currentTask), 
-                    $"Illegal operation, task {programState.currentTask} already blocked on resource {programState.taskStatus[programState.currentTask]}");
+                    $"Illegal operation, task {programState.currentTask} already blocked on a resource");
                 programState.taskStatus[programState.currentTask] = resourceId;
             }
 

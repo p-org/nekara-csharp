@@ -54,12 +54,12 @@ namespace ProgramUnderTest
         {
             testingService.StartTask(2);
 
-            Acquire();
+            //Acquire();
 
             testingService.ContextSwitch();
             x = 1;
 
-            Release();
+            //Release();
 
             testingService.EndTask(2);
         }
