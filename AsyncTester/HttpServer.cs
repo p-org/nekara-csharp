@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,6 +7,7 @@ using System.Threading.Tasks;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace AsyncTester
 {
@@ -32,14 +34,42 @@ namespace AsyncTester
     }
 
     // light wrapper around the native HttpListenerRequest class to hide away the low-level details
+    // this may not be necessary as the native class is pretty high-level, but keeping it for now in case we need that extra level of indirection.
     class Request
     {
         private HttpListenerRequest request;
+        private string _body;
 
         public Request(HttpListenerRequest request)
         {
             this.request = request;
+
+            if (request.HasEntityBody)
+            {
+                Stream body = request.InputStream;
+                Encoding encoding = request.ContentEncoding;
+                StreamReader reader = new StreamReader(body, encoding);
+                if (request.ContentType != null)
+                {
+                    Console.WriteLine("Client data content type {0}", request.ContentType);
+                }
+                Console.WriteLine("Client data content length {0}", request.ContentLength64);
+
+                // Console.WriteLine("Start of client data:");
+                // Convert the data to a string and display it on the console.
+                this._body = reader.ReadToEnd();
+                // Console.WriteLine(s);
+                // Console.WriteLine("End of client data:");
+                body.Close();
+                reader.Close();
+            }
+            else this._body = "";
         }
+
+        public string method { get { return this.request.HttpMethod; } }
+        public string path { get { return this.request.Url.PathAndQuery; } }
+        public string body { get { return this._body; } }
+        public CookieCollection cookies { get { return this.request.Cookies; } }
     }
 
     // light wrapper around the native HttpListenerResponse class to hide away the low-level details
@@ -69,6 +99,8 @@ namespace AsyncTester
     }
 
     // This is an HTTP Server providing an asynchronous API like Express.js
+    // It should run strictly on a single thread, otherwise things like
+    // session data will be under race condition.
     class HttpServer : Router
     {
         private string host;
@@ -84,15 +116,18 @@ namespace AsyncTester
             this.listener.Prefixes.Add("http://" + host + ":" + port.ToString() + "/");
         }
 
+        // Listen returns immediately, and the "listening" is done asynchronously via Task loop.
         public void Listen()
         {
             listener.Start();
             Console.WriteLine("Listening...");
 
-            while (true)
-            {
-                HandleRequest();
-            }
+            Helpers.AsyncLoop(HandleRequest);
+
+            // while (true)
+            // {
+            // HandleRequest();
+            // }
         }
 
         private void HandleRequest()
@@ -102,6 +137,9 @@ namespace AsyncTester
             Request request = new Request(context.Request);
             Response response = new Response(context.Response);
             Action next = null;
+
+            // Get some information about the request
+
 
             int current = 0;
             next = () => {

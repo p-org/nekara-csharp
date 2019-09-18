@@ -69,12 +69,13 @@ namespace AsyncTester
 
                 // Expose the service
                 server.Use((Request request, Response response, Action next) => {
-                    Console.WriteLine("Just Received a Request!");
+                    Console.WriteLine("Received {0} {1}", request.method, request.path);
+                    Console.WriteLine(request.body);
                     next();
                 });
 
                 server.Use((Request request, Response response, Action next) => {
-                    response.Send(200, "<HTML><BODY> Hello world!</BODY></HTML>");
+                    response.Send(200, "You said: " + request.body);
                     next();
                 });
 
@@ -117,19 +118,54 @@ namespace AsyncTester
     // Used when the system is operating in a network setting.
     class TesterServiceProxy
     {
-        public Task<Object> Request(HttpClient client)
+        private string serverUri;
+        private HttpClient client;
+
+        public TesterServiceProxy(string serverUri)
+        {
+            this.serverUri = serverUri;
+
+            // Create the client
+            this.client = new HttpClient();
+        }
+
+        public async Task<Object> GetRequest(string path)
         {
             var tcs = new TaskCompletionSource<Object>();
             // Call asynchronous network methods in a try/catch block to handle exceptions.
             try
             {
-                HttpResponseMessage response = client.GetAsync("http://localhost:8080").Result;
-                response.EnsureSuccessStatusCode();
-
-                string responseBody = response.Content.ReadAsStringAsync().Result;
-
+                // HttpResponseMessage response = await this.client.GetAsync(this.serverUri + path);
+                // response.EnsureSuccessStatusCode();
+                // string responseBody = await response.Content.ReadAsStringAsync();
                 // Above three lines can be replaced with new helper method below
                 // string responseBody = await client.GetStringAsync(uri);
+
+                string responseBody = await this.client.GetStringAsync(this.serverUri + path);
+
+                Console.WriteLine(responseBody);
+
+                tcs.SetResult(responseBody);
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine("\nException Caught!");
+                Console.WriteLine("Message :{0} ", e.Message);
+            }
+
+            return tcs.Task;
+        }
+
+        public async Task<Object> PostRequest(string path, string payload)
+        {
+            var tcs = new TaskCompletionSource<Object>();
+            // Call asynchronous network methods in a try/catch block to handle exceptions.
+            try
+            {
+                Console.WriteLine("Sending {0}", payload);
+                HttpResponseMessage response = await this.client.PostAsync(this.serverUri + path, new StringContent(payload));
+                response.EnsureSuccessStatusCode();
+                string responseBody = await response.Content.ReadAsStringAsync();
 
                 Console.WriteLine(responseBody);
 
@@ -187,31 +223,22 @@ namespace AsyncTester
             }
             else if (this.config.transport == Transport.HTTP)
             {
-                // Create and register the IPC channel
-                HttpClient client = new HttpClient();
-
                 // Create the proxy object -- an interface to the service
-                TesterServiceProxy service = new TesterServiceProxy();
+                TesterServiceProxy service = new TesterServiceProxy("http://localhost:8080/");
 
-                while (true)
+                Helpers.AsyncTaskLoop(() =>
                 {
-                    Console.WriteLine("Next Seed? ");
+                    Console.Write("Say Something To Server: ");
                     string input = Console.ReadLine();
-                    if (input == "q") break;
+                    if (input == "exit" || input == "quit") Environment.Exit(0);
 
-                    int seed;
+                    // service.GetRequest("/" + seed.ToString());
+                    return service.PostRequest("/cmd", input);
+                });
 
-                    try
-                    {
-                        seed = Int32.Parse(input);
-                    }
-                    catch (System.FormatException e)
-                    {
-                        seed = 0;
-                    }
-                    Console.WriteLine("Using seed: " + seed.ToString());
-                    service.Request(client);
-                    // Console.WriteLine(service.Count);
+                // block the main thread here to prevent exiting - as AsyncTaskLoop will return immediately
+                while (true)
+                {   
                 }
             }
         }
