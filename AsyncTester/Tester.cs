@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.Remoting;
@@ -9,7 +10,6 @@ using System.Runtime.Remoting.Channels;
 using System.Runtime.Remoting.Channels.Ipc;
 // using System.Web;
 using System.Net;
-using System.Net.Http;
 
 namespace AsyncTester
 {
@@ -38,6 +38,9 @@ namespace AsyncTester
         }
     }
 
+    // This is the main "host" object that is created by the server process.
+    // It does not contain the testing logic - that resides in the TesterService and the Runtime objects
+    // (the actual tester should perhaps call into the existing psharp tester)
     class TesterServer
     {
         private TesterConfiguration config;
@@ -74,10 +77,32 @@ namespace AsyncTester
                     next();
                 });
 
+                server.Post("createTask/", (Request request, Response response, Action next) =>
+                {
+                    response.Send(200, request.body);
+                });
+
+                server.Post("startTask/", (Request request, Response response, Action next) =>
+                {
+                    response.Send(200, request.body);
+                });
+
+                server.Post("endTask/", (Request request, Response response, Action next) =>
+                {
+                    response.Send(200, request.body);
+                });
+
+                server.Post("echo/", (Request request, Response response, Action next) =>
+                {
+                    response.Send(200, request.body);
+                });
+
+                /*
                 server.Use((Request request, Response response, Action next) => {
                     response.Send(200, "You said: " + request.body);
                     next();
                 });
+                */
 
                 server.Listen();
 
@@ -118,66 +143,12 @@ namespace AsyncTester
     // Used when the system is operating in a network setting.
     class TesterServiceProxy
     {
-        private string serverUri;
-        private HttpClient client;
+        public HttpClient client;
 
         public TesterServiceProxy(string serverUri)
         {
-            this.serverUri = serverUri;
-
             // Create the client
-            this.client = new HttpClient();
-        }
-
-        public async Task<Object> GetRequest(string path)
-        {
-            var tcs = new TaskCompletionSource<Object>();
-            // Call asynchronous network methods in a try/catch block to handle exceptions.
-            try
-            {
-                // HttpResponseMessage response = await this.client.GetAsync(this.serverUri + path);
-                // response.EnsureSuccessStatusCode();
-                // string responseBody = await response.Content.ReadAsStringAsync();
-                // Above three lines can be replaced with new helper method below
-                // string responseBody = await client.GetStringAsync(uri);
-
-                string responseBody = await this.client.GetStringAsync(this.serverUri + path);
-
-                Console.WriteLine(responseBody);
-
-                tcs.SetResult(responseBody);
-            }
-            catch (HttpRequestException e)
-            {
-                Console.WriteLine("\nException Caught!");
-                Console.WriteLine("Message :{0} ", e.Message);
-            }
-
-            return tcs.Task;
-        }
-
-        public async Task<Object> PostRequest(string path, string payload)
-        {
-            var tcs = new TaskCompletionSource<Object>();
-            // Call asynchronous network methods in a try/catch block to handle exceptions.
-            try
-            {
-                Console.WriteLine("Sending {0}", payload);
-                HttpResponseMessage response = await this.client.PostAsync(this.serverUri + path, new StringContent(payload));
-                response.EnsureSuccessStatusCode();
-                string responseBody = await response.Content.ReadAsStringAsync();
-
-                Console.WriteLine(responseBody);
-
-                tcs.SetResult(responseBody);
-            }
-            catch (HttpRequestException e)
-            {
-                Console.WriteLine("\nException Caught!");
-                Console.WriteLine("Message :{0} ", e.Message);
-            }
-
-            return tcs.Task;
+            this.client = new HttpClient(serverUri);
         }
     }
 
@@ -228,12 +199,25 @@ namespace AsyncTester
 
                 Helpers.AsyncTaskLoop(() =>
                 {
-                    Console.Write("Say Something To Server: ");
+                    Console.Write("HTTP: ");
                     string input = Console.ReadLine();
-                    if (input == "exit" || input == "quit") Environment.Exit(0);
+                    input = Regex.Replace(input, @"[ \t]+", " ");
 
-                    // service.GetRequest("/" + seed.ToString());
-                    return service.PostRequest("/cmd", input);
+                    string[] tokens = input.Split(' ');
+                    if (tokens.Length > 0)
+                    {
+                        if (tokens[0] == "exit" || tokens[0] == "quit") Environment.Exit(0);
+                        else if (tokens[0].ToUpper() == "GET")
+                        {
+                            return service.client.Get(tokens[1]);
+                        }
+                        else if (tokens[0].ToUpper() == "POST")
+                        {
+                            return service.client.Post(tokens[1], String.Join(" ", tokens.Skip(2)));
+                        }
+                    }
+
+                    return Task.Run(() => { });
                 });
 
                 // block the main thread here to prevent exiting - as AsyncTaskLoop will return immediately

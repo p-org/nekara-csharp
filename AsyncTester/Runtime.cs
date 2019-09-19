@@ -21,10 +21,6 @@ namespace AsyncTester
         public Runtime(RuntimeConfiguation config)
         {
             this.config = config;
-
-            var defer = GetDelayed(1000, 5);
-            defer.ContinueWith(prev => Console.WriteLine("Deferred Object returned {0}", defer.Result));
-            // Console.WriteLine(defer.Result.ToString());
             Console.WriteLine("    Created New Runtime");
         }
 
@@ -46,19 +42,6 @@ namespace AsyncTester
             Schedule schedule = new Schedule(seed);
 
             return schedule;
-        }
-
-        // Testing Task Behaviour
-        public Task<Object> GetDelayed (int delay, Object thing)
-        {
-            var tcs = new TaskCompletionSource<Object>();
-            var timer = new Timer((state) =>
-            {
-                Console.WriteLine("Running Task {0} on Thread {1}", Task.CurrentId, Thread.CurrentThread.ManagedThreadId);
-                tcs.SetResult(thing);
-            }, null, delay, Timeout.Infinite);
-
-            return tcs.Task;
         }
     }
 }

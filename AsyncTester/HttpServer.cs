@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Reflection;
+using System.Security.Policy;
 
 namespace AsyncTester
 {
@@ -15,11 +16,36 @@ namespace AsyncTester
 
     class Router
     {
-        protected List<Middleware> middlewares;
-
+        private protected List<Middleware> middlewares;
+        private protected Dictionary<string, List<Middleware>> methodMiddlewares;
+        private protected Dictionary<string, Router> routeMap;
+        
         public Router()
         {
             this.middlewares = new List<Middleware>();
+            this.methodMiddlewares = new Dictionary<string, List<Middleware>>();
+            this.methodMiddlewares.Add("OPTIONS", new List<Middleware>());
+            this.methodMiddlewares.Add("GET", new List<Middleware>());
+            this.methodMiddlewares.Add("POST", new List<Middleware>());
+            this.methodMiddlewares.Add("PUT", new List<Middleware>());
+            this.methodMiddlewares.Add("DELETE", new List<Middleware>());
+            this.routeMap = new Dictionary<string, Router>();
+        }
+
+        public Router Route(string path)
+        {
+            Router router;
+            if (this.routeMap.TryGetValue(path, out router))
+            {
+                return router;
+            }
+            else
+            {
+                router = new Router();
+                this.routeMap.Add(path, router);
+                Console.WriteLine("    Added new Router at: {0}", path);
+                return router;
+            }
         }
 
         public void Use(Middleware middleware)
@@ -27,9 +53,77 @@ namespace AsyncTester
             this.middlewares.Add(middleware);
         }
 
-        public Router Route(string path)
+        public void Use(string path, Middleware middleware)
         {
-            return new Router();
+            Router router = this.Route(path);
+            router.Use(middleware);
+            // this.middlewares.Add(middleware);
+            Console.WriteLine("    Added new middleware at: {0}", path);
+        }
+
+        protected void UseOnMethod(string method, Middleware middleware)
+        {
+            this.methodMiddlewares[method].Add(middleware);
+        }
+
+        public void Options(string path, Middleware middleware)
+        {
+            Router router = this.Route(path);
+            router.UseOnMethod("OPTIONS", middleware);
+        }
+
+        public void Get(string path, Middleware middleware)
+        {
+            Router router = this.Route(path);
+            router.UseOnMethod("GET", middleware);
+        }
+
+        public void Post(string path, Middleware middleware)
+        {
+            Router router = this.Route(path);
+            router.UseOnMethod("POST", middleware);
+        }
+
+        public void Put(string path, Middleware middleware)
+        {
+            Router router = this.Route(path);
+            router.UseOnMethod("PUT", middleware);
+        }
+
+        public void Delete(string path, Middleware middleware)
+        {
+            Router router = this.Route(path);
+            router.UseOnMethod("DELETE", middleware);
+        }
+
+        protected void HandleRequest(string[] pathSegments, Request request, Response response)
+        {
+            if (pathSegments.Length == 0)
+            {
+                Action next = null;
+                int index = 0;          // these variables are captured by "next" closure
+                int methodIndex = 0;    // these variables are captured by "next" closure
+                next = () => {
+                    if (index < this.middlewares.Count)
+                    {
+                        Middleware handler = this.middlewares[index];
+                        index++;
+                        handler(request, response, next);
+                    }
+                    else if (methodIndex < this.methodMiddlewares[request.method].Count)
+                    {
+                        Middleware handler = this.methodMiddlewares[request.method][methodIndex];
+                        methodIndex++;
+                        handler(request, response, next);
+                    }
+                };
+                next();
+            }
+            else
+            {
+                Router router = this.routeMap[pathSegments[0]];
+                router.HandleRequest(pathSegments.Skip(1).ToArray(), request, response);
+            }
         }
     }
 
@@ -49,11 +143,21 @@ namespace AsyncTester
                 Stream body = request.InputStream;
                 Encoding encoding = request.ContentEncoding;
                 StreamReader reader = new StreamReader(body, encoding);
+                /*
                 if (request.ContentType != null)
                 {
                     Console.WriteLine("Client data content type {0}", request.ContentType);
                 }
                 Console.WriteLine("Client data content length {0}", request.ContentLength64);
+                */
+
+                // Print some meta info
+                Console.WriteLine("HTTP: {0} {1}", request.HttpMethod, request.Url.PathAndQuery);
+                if (request.ContentType != null)
+                {
+                    Console.WriteLine("    Content-Type: {0}", request.ContentType);
+                    Console.WriteLine("    Payload Size: {0}", request.ContentLength64);
+                }
 
                 // Console.WriteLine("Start of client data:");
                 // Convert the data to a string and display it on the console.
@@ -68,6 +172,7 @@ namespace AsyncTester
 
         public string method { get { return this.request.HttpMethod; } }
         public string path { get { return this.request.Url.PathAndQuery; } }
+        public string[] pathSegments { get { return this.request.Url.Segments; } }
         public string body { get { return this._body; } }
         public CookieCollection cookies { get { return this.request.Cookies; } }
     }
@@ -130,28 +235,18 @@ namespace AsyncTester
             // }
         }
 
+        // top-level request handler, should wrap low-level API
+        // and call subsequent handlers
         private void HandleRequest()
         {
             HttpListenerContext context = listener.GetContext();
 
             Request request = new Request(context.Request);
             Response response = new Response(context.Response);
-            Action next = null;
 
-            // Get some information about the request
-
-
-            int current = 0;
-            next = () => {
-                if (current < this.middlewares.Count)
-                {
-                    Middleware handler = this.middlewares[current];
-                    current++;
-                    handler(request, response, next);
-                }
-            };
-
-            next();
+            // Before passing the request on to user-defined middleware functions,
+            // route the request depending on the request method and path
+            base.HandleRequest(request.pathSegments.Skip(1).ToArray(), request, response);
         }
     }
 }
