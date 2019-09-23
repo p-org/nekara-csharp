@@ -12,27 +12,14 @@ namespace AsyncTester
     // Wrapping the native ClientWebSocket class to provide a different high-level interface
     class WebSocketClient
     {
-        public class Message : EventArgs
-        {
-            public readonly string payload;
-            public Message(string payload)
-            {
-                this.payload = payload;
-            }
-        }
-
         private string serverUri;
         private ClientWebSocket socket;
-        public event EventHandler<Message> onMessage;
+        public event Action<string> onMessage;
 
         public WebSocketClient(string serverUri)
         {
             this.serverUri = serverUri;
             this.socket = new ClientWebSocket();
-            /*this.onMessage = (string message) =>
-            {
-                Console.WriteLine(message);
-            };*/
 
             this.socket.ConnectAsync(new Uri(this.serverUri), CancellationToken.None)
                 .ContinueWith(prev =>
@@ -54,8 +41,11 @@ namespace AsyncTester
                         {
                             try
                             {
-                                string payload = (new ArraySegment<byte>(buffer, 0, prev.Result.Count)).ToString();
-                                this.onMessage?.Invoke(this, new Message(payload));
+                                string payload = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
+                                if (this.onMessage != null)
+                                {
+                                    this.onMessage(payload);
+                                }
                             }
                             catch (AggregateException ae)
                             {

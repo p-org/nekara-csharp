@@ -14,6 +14,11 @@ using Grpc.Core;
 using System.Threading;
 using System.Security.Principal;
 
+/*
+ * TODO:
+ *   - Need Sessions (Cookie-based for HTTP): cannot currently distinguish between different requests
+ */
+
 namespace AsyncTester
 {
     delegate void Middleware(Request request, Response response, Action next);
@@ -238,7 +243,6 @@ namespace AsyncTester
         private string host;
         private int port;
         private HttpListener listener;
-        private WebSocketServer wss;
 
         public HttpServer(string host, int port) : base()
         {
@@ -247,8 +251,6 @@ namespace AsyncTester
 
             this.listener = new HttpListener();
             this.listener.Prefixes.Add("http://" + host + ":" + port.ToString() + "/");
-
-            this.wss = new WebSocketServer();
         }
 
         // Listen returns immediately, and the "listening" is done asynchronously via Task loop.
@@ -267,14 +269,16 @@ namespace AsyncTester
             HttpListenerContext context = listener.GetContext();
             
             // First check if this is a websocket handshake
-            if (context.Request.IsWebSocketRequest)
+            if (!context.Request.IsWebSocketRequest)
             {
+                /*
                 Console.WriteLine("WebSocket Request Received!!!");
                 context.AcceptWebSocketAsync(null)
                     .ContinueWith(prev => this.wss.AddClient(prev.Result));
             }
             else
             {
+                */
                 Request request = new Request(context.Request);
                 Response response = new Response(context.Response);
 

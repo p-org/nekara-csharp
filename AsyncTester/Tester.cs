@@ -40,7 +40,7 @@ namespace AsyncTester
 
         public TesterConfiguration()
         {
-            this._transport = Transport.HTTP;
+            this._transport = Transport.WS;
         }
 
         public Transport transport
@@ -188,16 +188,21 @@ namespace AsyncTester
 
         private void SetupTransportWS()
         {
-            // Create an HttpServer and bind to network socket
-            HttpServer server = new HttpServer("localhost", 8080);
+            // Create a WebSocket Server
+            WebSocketServer server = new WebSocketServer("localhost", 8080, "ws/");
 
             /* Expose the service */
-
-            // Top-level middleware function - just print some things for debugging
-            server.Use((Request request, Response response, Action next) => {
-                Console.WriteLine("Received {0} {1}", request.method, request.path);
-                Console.WriteLine(request.body);
-                next();
+            server.OnNewClient((WebSocketClientHandle client) =>
+            {
+                client.OnMessage((string data) => {
+                    RequestMessage message = JsonConvert.DeserializeObject<RequestMessage>(data);
+                    HandleRequest(message)
+                    .ContinueWith(prev =>
+                    {
+                        ResponseMessage reply = prev.Result;
+                        client.Send(reply);
+                    });
+                });
             });
 
             server.Listen();
@@ -281,18 +286,22 @@ namespace AsyncTester
 
         private void SetupTransportGRPC()
         {
-            WebSocketClient client = new WebSocketClient("http://localhost:8080/ws/");
+            
+        }
+
+        private void SetupTransportWS()
+        {
+            WebSocketClient client = new WebSocketClient("ws://localhost:8080/ws/");
+            client.onMessage += (string data) =>
+            {
+                Console.WriteLine(data);
+            };
 
             // Assign the appropriate Request method
             this.SendRequest = (string func, string args) =>
             {
                 return client.Send(new RequestMessage(func, args));
             };
-        }
-
-        private void SetupTransportWS()
-        {
-
         }
 
         private void SetupTransportTCP()

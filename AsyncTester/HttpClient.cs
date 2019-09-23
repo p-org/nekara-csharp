@@ -23,12 +23,6 @@ namespace AsyncTester
 
             // Create the client
             this.client = new System.Net.Http.HttpClient();
-
-            // Create WebSocket client (connects asynchronously);
-            this.websocket = new WebSocketClient("ws://localhost:8080/ws/");
-            this.websocket.onMessage += (object sender, WebSocketClient.Message e) => {
-                Console.WriteLine(e.payload);
-            };
         }
 
         public async Task<Object> Get(string path)
@@ -37,12 +31,6 @@ namespace AsyncTester
             // Call asynchronous network methods in a try/catch block to handle exceptions.
             try
             {
-                // HttpResponseMessage response = await this.client.GetAsync(this.serverUri + path);
-                // response.EnsureSuccessStatusCode();
-                // string responseBody = await response.Content.ReadAsStringAsync();
-                // Above three lines can be replaced with new helper method below
-                // string responseBody = await client.GetStringAsync(uri);
-
                 string responseBody = await this.client.GetStringAsync(this.serverUri + path);
 
                 Console.WriteLine(responseBody);
