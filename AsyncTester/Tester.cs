@@ -10,15 +10,27 @@ using System.Runtime.Remoting.Channels;
 using System.Runtime.Remoting.Channels.Ipc;
 // using System.Web;
 using System.Net;
+using System.Runtime.Serialization;
+using Newtonsoft.Json;
+using System.Runtime.CompilerServices;
 
 namespace AsyncTester
 {
     // AsyncTester could be used in a network setting. Easily switch between transports with this config flag.
     //   IPC - Inter-process communication (.net native)
-    //   HTTP - HyperText Transport Protocol
-    //   TCP - Raw TCP (Transmission Control Protocol)
+    //   HTTP - HyperText Transport Protocol (HTTP/1)
+    //   GRPC - gRPC Remote Procedure Calls (implemented over HTTP/2)
     //   WS - WebSocket (implemented over HTTP - this has a different communication pattern as the server-side can "push" to the client)
-    public enum Transport { IPC, HTTP, TCP, WS }
+    //   TCP - Raw TCP (Transmission Control Protocol)
+    public enum Transport { IPC, HTTP, GRPC, WS, TCP }
+
+    public delegate Task<object> RemoteMethodAsync(object kwargs);
+
+    public class RemoteMethodAttribute : Attribute
+    {
+        public string name;
+        public string description;
+    }
 
     public class TesterConfiguration
     {
@@ -44,74 +56,341 @@ namespace AsyncTester
     class TesterServer
     {
         private TesterConfiguration config;
+        private TesterService service;
+        private Dictionary<string, RemoteMethodAsync> remoteMethods;
 
         public TesterServer(TesterConfiguration config)
         {
             this.config = config;
+            this.remoteMethods = new Dictionary<string, RemoteMethodAsync>();
 
             // Initialize a test runtime
-            Runtime runtime = new Runtime(new RuntimeConfiguation());
+            // Runtime runtime = new Runtime(new RuntimeConfiguation());
+
+            // Initialize the testing service before setting up the transport
+            // (if it is IPC, it will be initialized differently)
+            if (this.config.transport != Transport.IPC)
+            {
+                this.service = new TesterService();
+                RegisterRemoteMethods(this.service);
+            }
 
             // Depending on the transport, create the appropriate communication interface
-            if (this.config.transport == Transport.IPC)
+            switch (this.config.transport)
             {
-                // Create and register the IPC channel
-                IpcServerChannel channel = new IpcServerChannel("tester");
-                ChannelServices.RegisterChannel(channel, false);
-
-                // Expose an object -- an interface to the service
-                RemotingConfiguration.RegisterWellKnownServiceType(typeof(TesterService), "service", WellKnownObjectMode.Singleton);
-
-                // Wait for calls
-                Console.WriteLine("... Tester Server Listening on IPC Channel: " + channel.GetChannelUri());
+                case Transport.IPC: SetupTransportIPC();
+                    break;
+                case Transport.HTTP: SetupTransportHTTP();
+                    break;
+                case Transport.GRPC: SetupTransportGRPC();
+                    break;
+                case Transport.WS: SetupTransportWS();
+                    break;
+                case Transport.TCP: SetupTransportTCP();
+                    break;
+                default: throw new TesterConfigurationException();
             }
-            else if (this.config.transport == Transport.HTTP)
+        }
+
+        private Task<ResponseMessage> HandleRequest (RequestMessage message)
+        {
+            Console.WriteLine("Client Request: {0} ({1})", message.func, message.args);
+
+            // this is a "meta" remote method, mostly for testing; should be removed later
+            if (message.func == "echo")
             {
-                // Create an HttpServer and bind to network socket
-                HttpServer server = new HttpServer("localhost", 8080);
+                return Task.FromResult(new ResponseMessage(message.id, message.args));
+            }
+            else if (this.remoteMethods.ContainsKey(message.func))
+            {
+                return this.remoteMethods[message.func](message.args)
+                    .ContinueWith(prev => {
+                        if (prev.Result != null) return new ResponseMessage(message.id, prev.Result.ToString());
+                        else return new ResponseMessage(message.id, "OK");
+                    });
+            }
+            else
+            {
+                return Task.FromResult(new ResponseMessage(message.id, "ERROR: Could not understand func " + message.func));
+            }
+        }
 
-                // Expose the service
-                server.Use((Request request, Response response, Action next) => {
-                    Console.WriteLine("Received {0} {1}", request.method, request.path);
-                    Console.WriteLine(request.body);
-                    next();
-                });
-
-                server.Post("createTask/", (Request request, Response response, Action next) =>
+        private void RegisterRemoteMethods(object service)
+        {
+            var methods = service.GetType().GetMethods()
+                    .Where(m => m.GetCustomAttributes(false).OfType<RemoteMethodAttribute>().Any())
+                    .ToDictionary(a => a.Name);
+            foreach (var item in methods)
+            {
+                RemoteMethodAsync method = new RemoteMethodAsync((object kwargs) =>
                 {
-                    response.Send(200, request.body);
+                    Console.WriteLine("    Invoking Remote Method {0} ({1})", item.Key, kwargs);
+                    return (Task<object>) item.Value.Invoke(service, new [] { kwargs });
                 });
 
-                server.Post("startTask/", (Request request, Response response, Action next) =>
+                this.remoteMethods[item.Key] = method;
+            }
+        }
+
+        private void SetupTransportIPC ()
+        {
+            // Create and register the IPC channel
+            IpcServerChannel channel = new IpcServerChannel("tester");
+            ChannelServices.RegisterChannel(channel, false);
+
+            // Expose an object -- an interface to the service
+            RemotingConfiguration.RegisterWellKnownServiceType(typeof(TesterService), "service", WellKnownObjectMode.Singleton);
+
+            // Wait for calls
+            Console.WriteLine("... Tester Server Listening on IPC Channel: " + channel.GetChannelUri());
+        }
+
+        private void SetupTransportHTTP ()
+        {
+            // Create an HttpServer and bind to network socket
+            HttpServer server = new HttpServer("localhost", 8080);
+            
+            // Top-level middleware function - just print some things for debugging
+            server.Use((Request request, Response response, Action next) => {
+                Console.WriteLine("Received {0} {1}", request.method, request.path);
+                Console.WriteLine(request.body);
+                next();
+            });
+
+            // test endpoint
+            server.Post("echo/", (Request request, Response response, Action next) =>
+            {
+                response.Send(200, request.body);
+            });
+
+            /* Expose the service */
+            server.Post("rpc/", (Request request, Response response, Action next) =>
+            {
+                RequestMessage message = JsonConvert.DeserializeObject<RequestMessage>(request.body);
+                HandleRequest(message)
+                .ContinueWith(prev =>
                 {
-                    response.Send(200, request.body);
+                    ResponseMessage reply = prev.Result;
+                    response.Send(200, reply);
                 });
+            });
 
-                server.Post("endTask/", (Request request, Response response, Action next) =>
+            server.Listen();
+
+            // Wait for calls
+            Console.WriteLine("... Tester Server Listening on HTTP Port: 8080");
+        }
+
+        private void SetupTransportGRPC()
+        {
+
+        }
+
+        private void SetupTransportWS()
+        {
+            // Create an HttpServer and bind to network socket
+            HttpServer server = new HttpServer("localhost", 8080);
+
+            /* Expose the service */
+
+            // Top-level middleware function - just print some things for debugging
+            server.Use((Request request, Response response, Action next) => {
+                Console.WriteLine("Received {0} {1}", request.method, request.path);
+                Console.WriteLine(request.body);
+                next();
+            });
+
+            server.Listen();
+
+            // Wait for calls
+            Console.WriteLine("... WebSocket Server Listening on HTTP Port: 8080");
+        }
+
+        private void SetupTransportTCP()
+        {
+
+        }
+    }
+
+    // This object will "connect" the communication mechanism and the service proxy object.
+    // The separation between the transport architecture and the logical, abstract model is intentional.
+    public class TesterClient
+    {
+        private TesterConfiguration config;
+        private Func<string, string, Task> SendRequest;
+
+        // private Func<string, Task> Subscribe;  // using topic-based Publish-Subscribe
+        // private Func<string, string, Task> Publish;    // using topic-based Publish-Subscribe
+
+        public TesterClient(TesterConfiguration config)
+        {
+            this.config = config;
+
+            // Depending on the transport, create the appropriate communication interface
+            switch (this.config.transport)
+            {
+                case Transport.IPC:
+                    SetupTransportIPC();
+                    break;
+                case Transport.HTTP:
+                    SetupTransportHTTP();
+                    break;
+                case Transport.GRPC:
+                    SetupTransportGRPC();
+                    break;
+                case Transport.WS:
+                    SetupTransportWS();
+                    break;
+                case Transport.TCP:
+                    SetupTransportTCP();
+                    break;
+                default: throw new Exception(); // make a proper exception later
+            }
+
+            __testStart();
+        }
+
+        private void SetupTransportIPC()
+        {
+            // Create and register the IPC channel
+            IpcClientChannel channel = new IpcClientChannel();
+            ChannelServices.RegisterChannel(channel, false);
+
+            // Fetch the proxy object -- an interface to the service
+            RemotingConfiguration.RegisterWellKnownClientType(typeof(TesterService), "ipc://tester/service");
+
+            TesterService service = new TesterService();
+
+            this.SendRequest = (string func, string args) =>
+            {
+                // TODO: this function is incomplete - work on it later
+                return service.GetResult(0);
+            };
+        }
+
+        private void SetupTransportHTTP()
+        {
+            HttpClient client = new HttpClient("http://localhost:8080/");
+
+            // Assign the appropriate Request method
+            this.SendRequest = (string func, string args) =>
+            {
+                return client.Post("rpc/", new RequestMessage(func, args));
+            };
+        }
+
+        private void SetupTransportGRPC()
+        {
+            WebSocketClient client = new WebSocketClient("http://localhost:8080/ws/");
+
+            // Assign the appropriate Request method
+            this.SendRequest = (string func, string args) =>
+            {
+                return client.Send(new RequestMessage(func, args));
+            };
+        }
+
+        private void SetupTransportWS()
+        {
+
+        }
+
+        private void SetupTransportTCP()
+        {
+
+        }
+
+        // Using this method only during the early stages of development
+        // Will be removed after everything is setup
+        private void __testStart ()
+        {
+
+            Helpers.AsyncTaskLoop(() =>
+            {
+                Console.Write("HTTP: ");
+                string input = Console.ReadLine();
+                input = Regex.Replace(input, @"[ \t]+", " ");
+
+                string[] tokens = input.Split(' ');
+                if (tokens.Length > 0)
                 {
-                    response.Send(200, request.body);
-                });
+                    string cmd = tokens[0].ToLower();
+                    if (cmd == "exit" || cmd == "quit") Environment.Exit(0);
+                    else if (tokens.Length > 2)
+                    {
+                        if (cmd == "echo")
+                        {
+                            return this.SendRequest(cmd, String.Join(" ", tokens.Skip(1)));
+                        }
+                        else if (cmd == "do")
+                        {
+                            string func = tokens[1];
+                            string args = String.Join(" ", tokens.Skip(2));
+                            return this.SendRequest(func, args);
+                        }
+                    }
+                }
 
-                server.Post("echo/", (Request request, Response response, Action next) =>
-                {
-                    response.Send(200, request.body);
-                });
+                return Task.Run(() => { });
+            });
 
-                /*
-                server.Use((Request request, Response response, Action next) => {
-                    response.Send(200, "You said: " + request.body);
-                    next();
-                });
-                */
-
-                server.Listen();
-
-                // Wait for calls
-                Console.WriteLine("... Tester Server Listening on HTTP Port: 8080");
+            // block the main thread here to prevent exiting - as AsyncTaskLoop will return immediately
+            while (true)
+            {
             }
         }
     }
 
+    // This Message construct is 1 layer above the communication layer
+    // This extra level of abstraction is useful for remaining protocol-agnostic,
+    // so that we can plug-in application layer transport protocols
+    [DataContract]
+    class RequestMessage
+    {
+        [DataMember]
+        internal string id;
+
+        [DataMember]
+        internal string func;
+
+        [DataMember]
+        internal string args;
+
+        public RequestMessage(string func, string args)
+        {
+            this.id = "req-" + Helpers.RandomString(16);
+            this.func = func;
+            this.args = args;
+        }
+    }
+
+    // This Message construct is 1 layer above the communication layer
+    // This extra level of abstraction is useful for remaining protocol-agnostic,
+    // so that we can plug-in application layer transport protocols
+    [DataContract]
+    class ResponseMessage
+    {
+        [DataMember]
+        internal string id;
+
+        [DataMember]
+        internal string responseTo;
+
+        [DataMember]
+        internal string data;
+
+        public ResponseMessage(string requestId, string data)
+        {
+            this.id = "res-" + Helpers.RandomString(16);
+            this.responseTo = requestId;
+            this.data = data;
+        }
+    }
+
+    /* The objects below are transport-agnostic and deals only with the user-facing testing API.
+     * The only thing related to the transport mechanism is the RemoteMethodAttribute
+     */
+    
     // This is the service object exposed to the client, and hosted on the server-side
     // The API should be defined on this object.
     class TesterService : MarshalByRefObject
@@ -137,94 +416,80 @@ namespace AsyncTester
             // tcs.Task.Start();
             return tcs.Task;
         }
+
+        [RemoteMethod(name = "CreateTask", description = "Creates a new task")]
+        public Task<object> CreateTask(object kwargs)
+        {
+            return Task.FromResult((object) null);
+        }
+
+        [RemoteMethod(name = "StartTask", description = "Signals the start of a given task")]
+        public Task<object> StartTask(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "EndTask", description = "Signals the end of a given task")]
+        public Task<object> EndTask(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "CreateResource", description = "Notifies the creation of a new resource")]
+        public Task<object> CreateResource(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "DeleteResource", description = "Signals the deletion of a given resource")]
+        public Task<object> DeleteResource(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "ContextSwitch", description = "Signals the deletion of a given resource")]
+        public Task<object> ContextSwitch(object kwargs) {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "BlockedOnResource", description = "")]
+        public Task<object> BlockedOnResource(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "SignalUpdatedResource", description = "")]
+        public Task<object> SignalUpdatedResource(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "CreateNondetBool", description = "")]
+        public Task<object> CreateNondetBool(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "CreateNondetInteger", description = "")]
+        public Task<object> CreateNondetInteger(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
+
+        [RemoteMethod(name = "Assert", description = "")]
+        public Task<object> Assert(object kwargs)
+        {
+            return Task.FromResult((object)null);
+        }
     }
 
     // This is the client-side proxy of the tester service.
     // Used when the system is operating in a network setting.
     class TesterServiceProxy
     {
-        public HttpClient client;
-
         public TesterServiceProxy(string serverUri)
         {
-            // Create the client
-            this.client = new HttpClient(serverUri);
-        }
-    }
-
-    public class TesterClient
-    {
-        private TesterConfiguration config;
-
-        public TesterClient(TesterConfiguration config)
-        {
-            this.config = config;
-
-            // Depending on the transport, create the appropriate communication interface
-            if (this.config.transport == Transport.IPC)
-            {
-                // Create and register the IPC channel
-                IpcClientChannel channel = new IpcClientChannel();
-                ChannelServices.RegisterChannel(channel, false);
-
-                // Fetch the proxy object -- an interface to the service
-                RemotingConfiguration.RegisterWellKnownClientType(typeof(TesterService), "ipc://tester/service");
-
-                TesterService service = new TesterService();
-                while (true)
-                {
-                    Console.WriteLine("Next Seed? ");
-                    string input = Console.ReadLine();
-                    if (input == "q") break;
-
-                    int seed;
-
-                    try
-                    {
-                        seed = Int32.Parse(input);
-                    }
-                    catch (System.FormatException e)
-                    {
-                        seed = 0;
-                    }
-                    Console.WriteLine("Using seed: " + seed.ToString());
-                    service.GetResult(seed);
-                    // Console.WriteLine(service.Count);
-                }
-            }
-            else if (this.config.transport == Transport.HTTP)
-            {
-                // Create the proxy object -- an interface to the service
-                TesterServiceProxy service = new TesterServiceProxy("http://localhost:8080/");
-
-                Helpers.AsyncTaskLoop(() =>
-                {
-                    Console.Write("HTTP: ");
-                    string input = Console.ReadLine();
-                    input = Regex.Replace(input, @"[ \t]+", " ");
-
-                    string[] tokens = input.Split(' ');
-                    if (tokens.Length > 0)
-                    {
-                        if (tokens[0] == "exit" || tokens[0] == "quit") Environment.Exit(0);
-                        else if (tokens[0].ToUpper() == "GET")
-                        {
-                            return service.client.Get(tokens[1]);
-                        }
-                        else if (tokens[0].ToUpper() == "POST")
-                        {
-                            return service.client.Post(tokens[1], String.Join(" ", tokens.Skip(2)));
-                        }
-                    }
-
-                    return Task.Run(() => { });
-                });
-
-                // block the main thread here to prevent exiting - as AsyncTaskLoop will return immediately
-                while (true)
-                {   
-                }
-            }
+            
         }
     }
 }

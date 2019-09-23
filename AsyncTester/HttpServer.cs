@@ -9,6 +9,10 @@ using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Reflection;
 using System.Security.Policy;
+using Newtonsoft.Json;
+using Grpc.Core;
+using System.Threading;
+using System.Security.Principal;
 
 namespace AsyncTester
 {
@@ -132,17 +136,19 @@ namespace AsyncTester
     class Request
     {
         private HttpListenerRequest request;
-        private string _body;
+        private readonly string _body;
 
         public Request(HttpListenerRequest request)
         {
             this.request = request;
 
+            Console.WriteLine("HTTP: {0} {1}", request.HttpMethod, request.Url.PathAndQuery);
+
             if (request.HasEntityBody)
             {
-                Stream body = request.InputStream;
+                Stream stream = request.InputStream;
                 Encoding encoding = request.ContentEncoding;
-                StreamReader reader = new StreamReader(body, encoding);
+                StreamReader reader = new StreamReader(stream, encoding);
                 /*
                 if (request.ContentType != null)
                 {
@@ -152,7 +158,6 @@ namespace AsyncTester
                 */
 
                 // Print some meta info
-                Console.WriteLine("HTTP: {0} {1}", request.HttpMethod, request.Url.PathAndQuery);
                 if (request.ContentType != null)
                 {
                     Console.WriteLine("    Content-Type: {0}", request.ContentType);
@@ -162,9 +167,10 @@ namespace AsyncTester
                 // Console.WriteLine("Start of client data:");
                 // Convert the data to a string and display it on the console.
                 this._body = reader.ReadToEnd();
+
                 // Console.WriteLine(s);
                 // Console.WriteLine("End of client data:");
-                body.Close();
+                stream.Close();
                 reader.Close();
             }
             else this._body = "";
@@ -201,6 +207,27 @@ namespace AsyncTester
             output.Close();
             // listener.Stop();
         }
+
+        public void Send(int statusCode, Object payload)
+        {
+            // try serializing object into JSON
+            // this will throw an exception if the payload is not a serializable object - i.e., has DataContractAttribute
+            string serialized = JsonConvert.SerializeObject(payload);
+
+            // Construct a response.
+            // string responseString = "<HTML><BODY> Hello world!</BODY></HTML>";
+            byte[] buffer = System.Text.Encoding.UTF8.GetBytes(serialized);
+
+            // Get a response stream and write the response to it.
+            this.response.ContentLength64 = buffer.Length;
+            this.response.ContentEncoding = Encoding.UTF8;
+            this.response.ContentType = "application/json; charset=utf-8";
+            System.IO.Stream output = this.response.OutputStream;
+            output.Write(buffer, 0, buffer.Length);
+            // You must close the output stream.
+            output.Close();
+            // listener.Stop();
+        }
     }
 
     // This is an HTTP Server providing an asynchronous API like Express.js
@@ -211,6 +238,7 @@ namespace AsyncTester
         private string host;
         private int port;
         private HttpListener listener;
+        private WebSocketServer wss;
 
         public HttpServer(string host, int port) : base()
         {
@@ -219,6 +247,8 @@ namespace AsyncTester
 
             this.listener = new HttpListener();
             this.listener.Prefixes.Add("http://" + host + ":" + port.ToString() + "/");
+
+            this.wss = new WebSocketServer();
         }
 
         // Listen returns immediately, and the "listening" is done asynchronously via Task loop.
@@ -228,11 +258,6 @@ namespace AsyncTester
             Console.WriteLine("Listening...");
 
             Helpers.AsyncLoop(HandleRequest);
-
-            // while (true)
-            // {
-            // HandleRequest();
-            // }
         }
 
         // top-level request handler, should wrap low-level API
@@ -240,13 +265,23 @@ namespace AsyncTester
         private void HandleRequest()
         {
             HttpListenerContext context = listener.GetContext();
+            
+            // First check if this is a websocket handshake
+            if (context.Request.IsWebSocketRequest)
+            {
+                Console.WriteLine("WebSocket Request Received!!!");
+                context.AcceptWebSocketAsync(null)
+                    .ContinueWith(prev => this.wss.AddClient(prev.Result));
+            }
+            else
+            {
+                Request request = new Request(context.Request);
+                Response response = new Response(context.Response);
 
-            Request request = new Request(context.Request);
-            Response response = new Response(context.Response);
-
-            // Before passing the request on to user-defined middleware functions,
-            // route the request depending on the request method and path
-            base.HandleRequest(request.pathSegments.Skip(1).ToArray(), request, response);
+                // Before passing the request on to user-defined middleware functions,
+                // route the request depending on the request method and path
+                base.HandleRequest(request.pathSegments.Skip(1).ToArray(), request, response);
+            }
         }
     }
 }
