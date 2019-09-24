@@ -10,13 +10,13 @@ using Newtonsoft.Json;
 namespace AsyncTester
 {
     // Wrapping the native ClientWebSocket class to provide a different high-level interface
-    class WebSocketClient
+    class WebSocketClient : JsonP2P
     {
         private string serverUri;
         private ClientWebSocket socket;
         public event Action<string> onMessage;
 
-        public WebSocketClient(string serverUri)
+        public WebSocketClient(string serverUri) : base()
         {
             this.serverUri = serverUri;
             this.socket = new ClientWebSocket();
@@ -42,9 +42,16 @@ namespace AsyncTester
                             try
                             {
                                 string payload = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
-                                if (this.onMessage != null)
+                                try
                                 {
-                                    this.onMessage(payload);
+                                    this.HandleMessage(payload);
+                                }
+                                catch (UnexpectedMessageException e)
+                                {
+                                    if (this.onMessage != null)
+                                    {
+                                        this.onMessage(payload);
+                                    }
                                 }
                             }
                             catch (AggregateException ae)
@@ -53,7 +60,8 @@ namespace AsyncTester
                                 {
                                     if (e is WebSocketException)
                                     {
-                                        Console.WriteLine("WebSocketException: {0}", e);
+                                        Console.WriteLine("WebSocketException - Connection Closed");
+                                        Console.WriteLine("    If this was unexpected, inspect the exception object here");
                                         socketDestroyer.Cancel();
                                         return true;
                                     }
@@ -76,16 +84,9 @@ namespace AsyncTester
             }, socketDestroyer.Token);
         }
 
-        public Task Send(string payload)
+        public override Task Send(string payload)
         {
             byte[] buffer = Encoding.UTF8.GetBytes(payload);
-            return this.socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
-        }
-
-        public Task Send(object payload)
-        {
-            string serialized = JsonConvert.SerializeObject(payload);
-            byte[] buffer = Encoding.UTF8.GetBytes(serialized);
             return this.socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
         }
     }

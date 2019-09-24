@@ -14,10 +14,10 @@ namespace ProgramUnderTest
         static int x = 0;
         static bool lck = false;
 
-        static TestingService.ITestingService testingService;
+        static AsyncTester.ITestingService testingService;
 
-        [TestingService.TestMethod]
-        static void Execute(TestingService.ITestingService testingService)
+        [AsyncTester.TestMethod]
+        static void Execute(AsyncTester.ITestingService testingService)
         {
             // initialize all relevant state
             Program.testingService = testingService;

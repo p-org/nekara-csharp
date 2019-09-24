@@ -125,7 +125,8 @@ namespace AsyncTester
                         }
                         catch (AggregateException ae)
                         {
-                            Console.WriteLine("Exception during async communication with Client {0}\n{1}", this.id, ae);
+                            Console.WriteLine("Exception during async communication with Client {0}", this.id);
+                            Console.WriteLine("    Connection closed... if this was not expected, inspect the AggregateException here");
                             socketDestroyer.Cancel();
                             this.onClose();
                             this.socket.Dispose();

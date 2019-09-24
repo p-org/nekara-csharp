@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -10,9 +11,11 @@ using System.Runtime.Remoting.Channels;
 using System.Runtime.Remoting.Channels.Ipc;
 // using System.Web;
 using System.Net;
-using System.Runtime.Serialization;
 using Newtonsoft.Json;
 using System.Runtime.CompilerServices;
+using System.Security.Policy;
+using Microsoft.PSharp;
+using Microsoft.PSharp.TestingServices;
 
 namespace AsyncTester
 {
@@ -23,14 +26,6 @@ namespace AsyncTester
     //   WS - WebSocket (implemented over HTTP - this has a different communication pattern as the server-side can "push" to the client)
     //   TCP - Raw TCP (Transmission Control Protocol)
     public enum Transport { IPC, HTTP, GRPC, WS, TCP }
-
-    public delegate Task<object> RemoteMethodAsync(object kwargs);
-
-    public class RemoteMethodAttribute : Attribute
-    {
-        public string name;
-        public string description;
-    }
 
     public class TesterConfiguration
     {
@@ -224,12 +219,15 @@ namespace AsyncTester
         private TesterConfiguration config;
         private Func<string, string, Task> SendRequest;
 
+        public TesterServiceProxy service;
+
         // private Func<string, Task> Subscribe;  // using topic-based Publish-Subscribe
         // private Func<string, string, Task> Publish;    // using topic-based Publish-Subscribe
 
         public TesterClient(TesterConfiguration config)
         {
             this.config = config;
+            this.service = new TesterServiceProxy();
 
             // Depending on the transport, create the appropriate communication interface
             switch (this.config.transport)
@@ -252,7 +250,7 @@ namespace AsyncTester
                 default: throw new Exception(); // make a proper exception later
             }
 
-            __testStart();
+            // __testStart();
         }
 
         private void SetupTransportIPC()
@@ -269,7 +267,7 @@ namespace AsyncTester
             this.SendRequest = (string func, string args) =>
             {
                 // TODO: this function is incomplete - work on it later
-                return service.GetResult(0);
+                return Task.FromResult(0);
             };
         }
 
@@ -294,13 +292,14 @@ namespace AsyncTester
             WebSocketClient client = new WebSocketClient("ws://localhost:8080/ws/");
             client.onMessage += (string data) =>
             {
-                Console.WriteLine(data);
+                Console.WriteLine("WSC.onMessage triggered: {0}", data);
             };
 
             // Assign the appropriate Request method
             this.SendRequest = (string func, string args) =>
             {
-                return client.Send(new RequestMessage(func, args));
+                return client.Request(func, args)
+                    .ContinueWith(prev => Console.WriteLine(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
             };
         }
 
@@ -350,80 +349,72 @@ namespace AsyncTester
         }
     }
 
-    // This Message construct is 1 layer above the communication layer
-    // This extra level of abstraction is useful for remaining protocol-agnostic,
-    // so that we can plug-in application layer transport protocols
-    [DataContract]
-    class RequestMessage
-    {
-        [DataMember]
-        internal string id;
-
-        [DataMember]
-        internal string func;
-
-        [DataMember]
-        internal string args;
-
-        public RequestMessage(string func, string args)
-        {
-            this.id = "req-" + Helpers.RandomString(16);
-            this.func = func;
-            this.args = args;
-        }
-    }
-
-    // This Message construct is 1 layer above the communication layer
-    // This extra level of abstraction is useful for remaining protocol-agnostic,
-    // so that we can plug-in application layer transport protocols
-    [DataContract]
-    class ResponseMessage
-    {
-        [DataMember]
-        internal string id;
-
-        [DataMember]
-        internal string responseTo;
-
-        [DataMember]
-        internal string data;
-
-        public ResponseMessage(string requestId, string data)
-        {
-            this.id = "res-" + Helpers.RandomString(16);
-            this.responseTo = requestId;
-            this.data = data;
-        }
-    }
-
     /* The objects below are transport-agnostic and deals only with the user-facing testing API.
      * The only thing related to the transport mechanism is the RemoteMethodAttribute
      */
-    
+
+    /// <summary>
+    /// Attribute for declaring the entry point to
+    /// a program test.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method)]
+    public sealed class TestMethodAttribute : Attribute
+    {
+    }
+
     // This is the service object exposed to the client, and hosted on the server-side
     // The API should be defined on this object.
     class TesterService : MarshalByRefObject
     {
-        private int count = 0;
-        public int Count {
-            get {
-                Console.WriteLine("Client asking for count... it is currently " + count.ToString());
-                return (count++);
-            }
+        private ITestingEngine engine;
+
+        public Task CreateEngine(object kwargs)
+        {
+            // TODO: Get configuration parameters from kwargs
+
+            // -i:100 -max-steps:100
+            var configuration = Configuration.Create()
+                .WithNumberOfIterations(100)
+                .WithMaxSteps(100)
+                .WithVerbosityEnabled();
+
+            // configuration.RandomSchedulingSeed = schedulingSeed == 0 ? DateTime.Now.Millisecond : schedulingSeed;
+            configuration.RandomSchedulingSeed = DateTime.Now.Millisecond;
+
+            this.engine = TestingEngineFactory.CreateBugFindingEngine(configuration, r =>
+            {
+                r.CreateMachine(typeof(ServerProxyMachine), new ServerProxyMachineInitEvent { testMethod = typeof(TesterService).GetMethod("ProxyTestMethod") });
+            });
+
+            return Task.CompletedTask;
         }
 
-        public Task<int> GetResult(int seed)
+        static void ProxyTestMethod(ITestingService testingService)
         {
-            var tcs = new TaskCompletionSource<int>();
-            var timer = new Timer((state) =>
-            {
-                Console.WriteLine("Running Task {0} on Thread {1}", Task.CurrentId, Thread.CurrentThread.ManagedThreadId);
-                var rand = new Random(seed);
-                tcs.SetResult(rand.Next());
-            }, null, 2500, Timeout.Infinite);
+            // initialize all relevant state
+            /*
+            Program1.testingService = testingService;
+            x = 0;
+            lck = false;
 
-            // tcs.Task.Start();
-            return tcs.Task;
+            testingService.CreateTask();
+            Task.Run(() => Foo());
+
+            testingService.CreateTask();
+            Task.Run(() => Bar());
+            */
+        }
+
+        public Task RunTest(MethodInfo testMethod, int schedulingSeed = 0)
+        {
+            engine.Run();
+
+            Console.WriteLine("Errors found: {0}", engine.TestReport.NumOfFoundBugs);
+            foreach (var bugreport in engine.TestReport.BugReports)
+            {
+                Console.WriteLine("{0}", bugreport);
+            }
+            return Task.CompletedTask;
         }
 
         [RemoteMethod(name = "CreateTask", description = "Creates a new task")]
@@ -494,11 +485,76 @@ namespace AsyncTester
 
     // This is the client-side proxy of the tester service.
     // Used when the system is operating in a network setting.
-    class TesterServiceProxy
+    public class TesterServiceProxy
     {
-        public TesterServiceProxy(string serverUri)
+        private Assembly assembly;
+
+        public TesterServiceProxy()
+        {   
+        }
+
+        public void SetAssembly(string path)
         {
-            
+            assembly = Assembly.LoadFrom(path);
+        }
+
+        public MethodInfo GetMethodToBeTested(string methodName = "")
+        {
+            // find test method
+            List<MethodInfo> testMethods = null;
+            var bindingFlags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly | BindingFlags.InvokeMethod;
+
+            try
+            {
+                testMethods = assembly.GetTypes().SelectMany(t => t.GetMethods(bindingFlags))
+                    .Where(m => m.GetCustomAttributes(typeof(TestMethodAttribute), false).Length > 0).ToList();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                foreach (var le in ex.LoaderExceptions)
+                {
+                    Console.WriteLine("{0}", le.Message);
+                }
+
+                Console.WriteLine($"Failed to load assembly '{assembly.FullName}'");
+                throw new TestMethodLoadFailureException();
+            }
+
+            if (testMethods.Count == 0)
+            {
+                Console.WriteLine("Did not find any test method");
+                throw new TestMethodLoadFailureException();
+            }
+
+            if (testMethods.Count > 1)
+            {
+                Console.WriteLine("Found multiple test methods");
+                foreach (var tm in testMethods)
+                {
+                    Console.WriteLine("Method: {0}", tm.Name);
+                }
+                Console.WriteLine("Only one test method supported");
+                throw new TestMethodLoadFailureException();
+            }
+
+            var testMethod = testMethods[0];
+
+            if (testMethod.GetParameters().Length != 1 ||
+                testMethod.GetParameters()[0].ParameterType != typeof(ITestingService))
+            {
+                Console.WriteLine("Incorrect signature of the test method");
+                throw new TestMethodLoadFailureException();
+            }
+
+            return testMethod;
+        }
+
+        public Task RunTest(MethodInfo testMethod, int schedulingSeed = 0)
+        {
+            // Initialize test session via handshake with server
+
+
+            return Task.CompletedTask;
         }
     }
 }

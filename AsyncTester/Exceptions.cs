@@ -14,9 +14,15 @@ namespace AsyncTester
     {
 
     }
+    public class TestMethodLoadFailureException : Exception { }
 
     class InvalidRequestPayloadException : Exception
     {
 
     }
+
+    class RequestTimeoutException : Exception { }
+    class UnexpectedMessageException : Exception { }
+    class UnexpectedResponseException : Exception { }
+    class UnexpectedRequestException : Exception { }
 }

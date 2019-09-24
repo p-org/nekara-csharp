@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace AsyncTester
 {
-    class Helpers
+    public class Helpers
     {
         private static Random random = new Random();
         public static string RandomString(int length)
@@ -22,7 +22,6 @@ namespace AsyncTester
 
         public static void AsyncLoop(Action action)
         {
-            Console.WriteLine("AsyncLoop Next");
             // TODO: Need to handle exceptions - either provide a way to handle it
             //       or throw the error to the main thread.
             //       Any exception thrown here will be swallowed silently!!!
@@ -31,7 +30,6 @@ namespace AsyncTester
 
         public static void AsyncTaskLoop(Func<Task> action)
         {
-            Console.WriteLine("AsyncTaskLoop0 Next");
             // TODO: Need to handle exceptions - either provide a way to handle it
             //       or throw the error to the main thread.
             //       Any exception thrown here will be swallowed silently!!!
@@ -40,7 +38,6 @@ namespace AsyncTester
 
         public static void AsyncTaskLoop(Func<Task> action, CancellationToken token)
         {
-            Console.WriteLine("AsyncTaskLoop1 Next");
             // TODO: Need to handle exceptions - either provide a way to handle it
             //       or throw the error to the main thread.
             //       Any exception thrown here will be swallowed silently!!!
