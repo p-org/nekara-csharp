@@ -15,11 +15,6 @@ namespace ClientProgram
 {
     class Program
     {
-        static Assembly assembly;
-        static int SchedulingSeed = 0;
-
-        static TesterClient client;
-
         static void Main(string[] args)
         {
             Console.WriteLine("Starting Test Client...");
@@ -44,7 +39,7 @@ namespace ClientProgram
                 // Load assembly
                 try
                 {
-                    client.service.SetAssembly(input);
+                    client.SetAssembly(input);
                 }
                 catch (FileNotFoundException ex)
                 {
@@ -55,13 +50,13 @@ namespace ClientProgram
 
                 try
                 {
-                    var testMethod = client.service.GetMethodToBeTested();
+                    var testMethod = client.GetMethodToBeTested();
                     Console.WriteLine("... found method to be tested: [{0}]", testMethod.Name);
 
                     Console.Write("Start test (y/n)? ");
                     input = Console.ReadLine();
 
-                    if (input == "y") return client.service.RunTest(testMethod);
+                    if (input == "y") return client.RunTest(testMethod);
                     else if (input == "n")
                     {
                         cancellation.Cancel();
@@ -72,7 +67,7 @@ namespace ClientProgram
                 catch (Exception ex)
                 {
                     Console.WriteLine("{0}", ex.Message);
-                    Console.WriteLine($"Failed to load assembly '{assembly.FullName}'");
+                    //Console.WriteLine($"Failed to load assembly '{assembly.FullName}'");
                     cancellation.Cancel();
                     return Task.CompletedTask;
                 }
@@ -82,6 +77,7 @@ namespace ClientProgram
             while (true)
             {
                 if (cancellation.IsCancellationRequested) break;
+                Thread.Sleep(1000);
             }
         }
     }

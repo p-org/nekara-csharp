@@ -36,7 +36,7 @@ namespace AsyncTester
         public MethodInfo testMethod;
     }
 
-    class ClientTestMachine
+    class ClientProxyRuntime
     {
     }
 }

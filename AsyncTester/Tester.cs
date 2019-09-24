@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -219,15 +220,19 @@ namespace AsyncTester
         private TesterConfiguration config;
         private Func<string, string, Task> SendRequest;
 
-        public TesterServiceProxy service;
-
+        // public TesterServiceProxy service;
         // private Func<string, Task> Subscribe;  // using topic-based Publish-Subscribe
         // private Func<string, string, Task> Publish;    // using topic-based Publish-Subscribe
+
+        private Assembly assembly;
+        private TesterServiceProxy service;
 
         public TesterClient(TesterConfiguration config)
         {
             this.config = config;
-            this.service = new TesterServiceProxy();
+            this.assembly = null;
+            this.service = null;
+            // this.service = new TesterServiceProxy();
 
             // Depending on the transport, create the appropriate communication interface
             switch (this.config.transport)
@@ -306,6 +311,78 @@ namespace AsyncTester
         private void SetupTransportTCP()
         {
 
+        }
+
+        /* API for managing test sessions */
+        public void SetAssembly(string path)
+        {
+            Console.WriteLine("Loading program at {0}", path);
+            assembly = Assembly.LoadFrom(path);
+
+            // TODO: communicate to the server here to notify the start of a test and initialize the test session
+
+            string sessionId = Helpers.RandomString(16); // not using MachineId; use serializable tokens everywhere for now
+
+            service = new TesterServiceProxy(sessionId);
+        }
+
+        public MethodInfo GetMethodToBeTested(string methodName = "")
+        {
+            // find test method
+            List<MethodInfo> testMethods = null;
+            var bindingFlags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly | BindingFlags.InvokeMethod;
+
+            try
+            {
+                testMethods = assembly.GetTypes().SelectMany(t => t.GetMethods(bindingFlags))
+                    .Where(m => m.GetCustomAttributes(typeof(TestMethodAttribute), false).Length > 0).ToList();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                foreach (var le in ex.LoaderExceptions)
+                {
+                    Console.WriteLine("{0}", le.Message);
+                }
+
+                Console.WriteLine($"Failed to load assembly '{assembly.FullName}'");
+                throw new TestMethodLoadFailureException();
+            }
+
+            if (testMethods.Count == 0)
+            {
+                Console.WriteLine("Did not find any test method");
+                throw new TestMethodLoadFailureException();
+            }
+
+            if (testMethods.Count > 1)
+            {
+                Console.WriteLine("Found multiple test methods");
+                foreach (var tm in testMethods)
+                {
+                    Console.WriteLine("Method: {0}", tm.Name);
+                }
+                Console.WriteLine("Only one test method supported");
+                throw new TestMethodLoadFailureException();
+            }
+
+            var testMethod = testMethods[0];
+
+            if (testMethod.GetParameters().Length != 1 ||
+                testMethod.GetParameters()[0].ParameterType != typeof(ITestingService))
+            {
+                Console.WriteLine("Incorrect signature of the test method");
+                throw new TestMethodLoadFailureException();
+            }
+
+            return testMethod;
+        }
+
+        public Task RunTest(MethodInfo testMethod, int schedulingSeed = 0)
+        {
+            // Initialize test session via handshake with server
+            testMethod.Invoke(null, new[] { this.service });
+
+            return this.service.IsFinished();
         }
 
         // Using this method only during the early stages of development
@@ -485,76 +562,221 @@ namespace AsyncTester
 
     // This is the client-side proxy of the tester service.
     // Used when the system is operating in a network setting.
-    public class TesterServiceProxy
+    public class TesterServiceProxy : ITestingService
     {
-        private Assembly assembly;
+        // MachineId topLevelMachineId;
+        string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
+        ProgramState programState;
+        // IMachineRuntime runtime;
+        TaskCompletionSource<bool> IterFinished;
+        int numPendingTaskCreations;
 
-        public TesterServiceProxy()
-        {   
-        }
-
-        public void SetAssembly(string path)
+        // ad-hoc Assert method - because there is no actual MachineRuntime in the client side
+        public void Assert(bool predicate, string s)
         {
-            assembly = Assembly.LoadFrom(path);
-        }
-
-        public MethodInfo GetMethodToBeTested(string methodName = "")
-        {
-            // find test method
-            List<MethodInfo> testMethods = null;
-            var bindingFlags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly | BindingFlags.InvokeMethod;
-
-            try
+            if (!predicate)
             {
-                testMethods = assembly.GetTypes().SelectMany(t => t.GetMethods(bindingFlags))
-                    .Where(m => m.GetCustomAttributes(typeof(TestMethodAttribute), false).Length > 0).ToList();
+                throw new AssertionFailureException();
             }
-            catch (ReflectionTypeLoadException ex)
+        }
+
+        public TesterServiceProxy(string sessionId)
+        {
+            this.sessionId = sessionId;
+            this.programState = new ProgramState();
+            // this.topLevelMachineId = topLevelMachineId;
+            // this.runtime = topLevelMachineId.Runtime;
+            this.IterFinished = new TaskCompletionSource<bool>();
+
+            this.programState.taskToTcs.Add(0, new TaskCompletionSource<bool>());
+            this.numPendingTaskCreations = 0;
+        }
+
+        public void CreateTask()
+        {
+            Console.WriteLine("CreateTask\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            lock (programState)
             {
-                foreach (var le in ex.LoaderExceptions)
+                this.numPendingTaskCreations++;
+            }
+        }
+
+        public void StartTask(int taskId)
+        {
+            Console.WriteLine("StartTask {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            var tcs = new TaskCompletionSource<bool>();
+
+            lock (programState)
+            {
+                // runtime.Assert(!programState.taskToTcs.ContainsKey(taskId), $"Duplicate declaration of task: {taskId}");
+                Assert(!programState.taskToTcs.ContainsKey(taskId), $"Duplicate declaration of task: {taskId}");
+
+                programState.taskToTcs.Add(taskId, tcs);
+                numPendingTaskCreations--;
+            }
+
+            tcs.Task.Wait();
+        }
+
+        public void EndTask(int taskId)
+        {
+            Console.WriteLine("EndTask {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            WaitForPendingTaskCreations();
+
+            lock (programState)
+            {
+                // runtime.Assert(programState.taskToTcs.ContainsKey(taskId), $"EndTask called on unknown task: {taskId}");
+                Assert(programState.taskToTcs.ContainsKey(taskId), $"EndTask called on unknown task: {taskId}");
+                programState.taskToTcs.Remove(taskId);
+            }
+
+            ContextSwitch();
+        }
+
+        void WaitForPendingTaskCreations()
+        {
+            Console.WriteLine("WaitForPendingTaskCreations\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            while (true)
+            {
+                lock (programState)
                 {
-                    Console.WriteLine("{0}", le.Message);
+                    if (numPendingTaskCreations == 0)
+                    {
+                        return;
+                    }
                 }
 
-                Console.WriteLine($"Failed to load assembly '{assembly.FullName}'");
-                throw new TestMethodLoadFailureException();
+                Thread.Sleep(10);
             }
-
-            if (testMethods.Count == 0)
-            {
-                Console.WriteLine("Did not find any test method");
-                throw new TestMethodLoadFailureException();
-            }
-
-            if (testMethods.Count > 1)
-            {
-                Console.WriteLine("Found multiple test methods");
-                foreach (var tm in testMethods)
-                {
-                    Console.WriteLine("Method: {0}", tm.Name);
-                }
-                Console.WriteLine("Only one test method supported");
-                throw new TestMethodLoadFailureException();
-            }
-
-            var testMethod = testMethods[0];
-
-            if (testMethod.GetParameters().Length != 1 ||
-                testMethod.GetParameters()[0].ParameterType != typeof(ITestingService))
-            {
-                Console.WriteLine("Incorrect signature of the test method");
-                throw new TestMethodLoadFailureException();
-            }
-
-            return testMethod;
         }
 
-        public Task RunTest(MethodInfo testMethod, int schedulingSeed = 0)
+        public void ContextSwitch()
         {
-            // Initialize test session via handshake with server
+            Console.WriteLine("ContextSwitch\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            WaitForPendingTaskCreations();
 
+            var tcs = new TaskCompletionSource<bool>();
+            List<int> enabledTasks;
+            int next;
+            int currentTask;
+            bool currentTaskEnabled = false;
 
-            return Task.CompletedTask;
+            lock (programState)
+            {
+                currentTask = programState.currentTask;
+                currentTaskEnabled = programState.taskToTcs.ContainsKey(currentTask);
+
+                // pick next one to execute
+                enabledTasks = new List<int>(
+                    programState.taskToTcs.Keys
+                    .Where(k => !programState.taskStatus.ContainsKey(k))
+                    );
+
+                if (enabledTasks.Count == 0)
+                {
+                    // runtime.Assert(programState.taskToTcs.Count == 0, "Deadlock detected");
+                    Assert(programState.taskToTcs.Count == 0, "Deadlock detected");
+
+                    // all-done
+                    IterFinished.SetResult(true);
+                    return;
+                }
+
+                next = Helpers.RandomInt(enabledTasks.Count);
+                // next = runtime.RandomInteger(enabledTasks.Count);
+            }
+
+            if (enabledTasks[next] == currentTask)
+            {
+                // no-op
+            }
+            else
+            {
+                TaskCompletionSource<bool> nextTcs;
+
+                lock (programState)
+                {
+                    nextTcs = programState.taskToTcs[enabledTasks[next]];
+                    if (currentTaskEnabled)
+                    {
+                        programState.taskToTcs[programState.currentTask] = tcs;
+                    }
+                    programState.currentTask = enabledTasks[next];
+                }
+
+                nextTcs.SetResult(true);
+
+                if (currentTaskEnabled)
+                {
+                    tcs.Task.Wait();
+                }
+            }
+        }
+
+        public void BlockedOnResource(int resourceId)
+        {
+            Console.WriteLine("BlockedOnResource {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            lock (programState)
+            {
+                Assert(!programState.taskStatus.ContainsKey(programState.currentTask),
+                    $"Illegal operation, task {programState.currentTask} already blocked on a resource");
+                programState.taskStatus[programState.currentTask] = resourceId;
+            }
+
+            ContextSwitch();
+        }
+
+        public void SignalUpdatedResource(int resourceId)
+        {
+            Console.WriteLine("SignalUpdateResource {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            lock (programState)
+            {
+                var enabledTasks = programState.taskStatus.Where(tup => tup.Value == resourceId).Select(tup => tup.Key).ToList();
+                foreach (var k in enabledTasks)
+                {
+                    programState.taskStatus.Remove(k);
+                }
+            }
+
+            // ContextSwitch();
+        }
+
+        public bool CreateNondetBool()
+        {
+            Console.WriteLine("CreateNondetBool\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            return Helpers.RandomBool();
+        }
+
+        public int CreateNondetInteger(int maxValue)
+        {
+            Console.WriteLine("CreateNondetInteger\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            return Helpers.RandomInt(maxValue);
+        }
+
+        public void CreateResource(int resourceId)
+        {
+            Console.WriteLine("CreateResource {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            lock (programState)
+            {
+                Assert(!programState.resourceSet.Contains(resourceId), $"Duplicate declaration of resource: {resourceId}");
+                programState.resourceSet.Add(resourceId);
+            }
+        }
+
+        public void DeleteResource(int resourceId)
+        {
+            Console.WriteLine("DeleteResource {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            lock (programState)
+            {
+                Assert(programState.resourceSet.Contains(resourceId), $"DeleteResource called on unknown resource: {resourceId}");
+                programState.resourceSet.Remove(resourceId);
+            }
+        }
+
+        public Task IsFinished()
+        {
+            Console.WriteLine("Test Finished\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            return IterFinished.Task;
         }
     }
 }

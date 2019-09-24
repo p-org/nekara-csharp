@@ -12,12 +12,27 @@ namespace AsyncTester
 {
     public class Helpers
     {
-        private static Random random = new Random();
+        private static Random random = new Random(DateTime.Now.Millisecond);
         public static string RandomString(int length)
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             return new string(Enumerable.Repeat(chars, length)
               .Select(s => s[random.Next(s.Length)]).ToArray());
+        }
+
+        public static int RandomInt(int maxValue)
+        {
+            return random.Next(maxValue);
+        }
+
+        public static bool RandomBool()
+        {
+            bool result = false;
+            if (random.Next(2) == 0)
+            {
+                result = true;
+            }
+            return result;
         }
 
         public static void AsyncLoop(Action action)

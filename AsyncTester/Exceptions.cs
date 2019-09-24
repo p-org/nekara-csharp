@@ -10,11 +10,18 @@ namespace AsyncTester
     {
     }
 
+    /* Test related */
+    class AssertionFailureException : Exception { }
+
+    /* Config related */
+
     class TesterConfigurationException : Exception
     {
 
     }
     public class TestMethodLoadFailureException : Exception { }
+
+    /* Communication related */
 
     class InvalidRequestPayloadException : Exception
     {
