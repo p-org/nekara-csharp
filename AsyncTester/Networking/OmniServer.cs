@@ -203,13 +203,21 @@ namespace AsyncTester.Core
             server.OnNewClient((WebSocketClientHandle client) =>
             {
                 client.OnMessage((string data) => {
-                    RequestMessage message = JsonConvert.DeserializeObject<RequestMessage>(data);
-                    HandleRequest(message)
-                    .ContinueWith(prev =>
+
+                    // Spawning a new task to make the message handler "non-blocking"
+                    // TODO: Errors thrown inside here will become silent, so that needs to be handled
+                    // Also, now that the single execution flow is broken, the requests are under race conditions
+                    Task.Run(() =>
                     {
-                        ResponseMessage reply = prev.Result;
-                        client.Send(reply);
+                        RequestMessage message = JsonConvert.DeserializeObject<RequestMessage>(data);
+                        HandleRequest(message)
+                        .ContinueWith(prev =>
+                        {
+                            ResponseMessage reply = prev.Result;
+                            client.Send(reply);
+                        });
                     });
+
                 });
             });
 
