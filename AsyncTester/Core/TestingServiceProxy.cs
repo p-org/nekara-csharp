@@ -113,7 +113,17 @@ namespace AsyncTester.Core
         public Promise RunTest(MethodInfo testMethod, int schedulingSeed = 0)
         {
             // Invoke the main test function, passing in the API
-            return Promise.Resolve(testMethod.Invoke(null, new[] { this.testingAPI }));
+            return new Promise((resolve, reject) =>
+            {
+                testMethod.Invoke(null, new[] { this.testingAPI });
+
+                // by this time server should have initialized main task 0
+                this.testingAPI.EndTask(0);
+
+                this.testingAPI.IsFinished().Wait();
+
+                resolve(null);
+            });
         }
     }
 

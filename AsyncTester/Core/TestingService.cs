@@ -22,6 +22,8 @@ namespace AsyncTester.Core
     // The API should be defined on this object.
     public class TestingService : MarshalByRefObject, ITestingService
     {
+        public static int count = 0;
+
         string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
         ProgramState programState;
         TaskCompletionSource<bool> IterFinished;
@@ -56,18 +58,20 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "CreateTask", description = "Creates a new task")]
         public void CreateTask()
         {
-            Console.WriteLine("CreateTask \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            Console.WriteLine("{0}\tCreateTask()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             lock (programState)
             {
                 this.numPendingTaskCreations++;
             }
+            Console.WriteLine("{0}\tCreateTask()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         [RemoteMethod(name = "StartTask", description = "Signals the start of a given task")]
         public void StartTask(JToken taskId)
         {
-            Console.WriteLine("[Remote] StartTask {2} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            Console.WriteLine("{0}\tStartTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
             this.StartTask(taskId.ToObject<int>());
+            Console.WriteLine("{0}\tStartTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
         }
         public void StartTask(int taskId)
         {
@@ -86,8 +90,9 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "EndTask", description = "Signals the end of a given task")]
         public void EndTask(JToken taskId)
         {
-            Console.WriteLine("[Remote] EndTask {2} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            Console.WriteLine("{0}\tEndTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
             this.EndTask(taskId.ToObject<int>());
+            Console.WriteLine("{0}\tEndTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
         }
         public void EndTask(int taskId)
         {
@@ -105,8 +110,9 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "CreateResource", description = "Notifies the creation of a new resource")]
         public void CreateResource(JToken resourceId)
         {
-            Console.WriteLine("[Remote] CreateResource {2} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tCreateResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.CreateResource(resourceId.ToObject<int>());
+            Console.WriteLine("{0}\tCreateResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
         public void CreateResource(int resourceId)
         {
@@ -120,8 +126,9 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "DeleteResource", description = "Signals the deletion of a given resource")]
         public void DeleteResource(JToken resourceId)
         {
-            Console.WriteLine("[Remote] DeleteResource {2} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tDeleteResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.DeleteResource(resourceId.ToObject<int>());
+            Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
         public void DeleteResource(int resourceId)
         {
@@ -135,8 +142,9 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "BlockedOnResource", description = "")]
         public void BlockedOnResource(JToken resourceId)
         {
-            Console.WriteLine("[Remote] BlockedOnResource {2} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tBlockedOnResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.BlockedOnResource(resourceId.ToObject<int>());
+            Console.WriteLine("{0}\tBlockedOnResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
         public void BlockedOnResource(int resourceId)
         {
@@ -153,8 +161,9 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "SignalUpdatedResource", description = "")]
         public void SignalUpdatedResource(JToken resourceId)
         {
-            Console.WriteLine("[Remote] SignalUpdatedResource {2} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tSignalUpdatedResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.SignalUpdatedResource(resourceId.ToObject<int>());
+            Console.WriteLine("{0}\tSignalUpdatedResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
         public void SignalUpdatedResource(int resourceId)
         {
@@ -171,14 +180,14 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "CreateNondetBool", description = "")]
         public bool CreateNondetBool()
         {
-            Console.WriteLine("[Remote] CreateNondetBool {2} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            Console.WriteLine("{0}\tCreateNondetBool()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             return Helpers.RandomBool();
         }
 
         [RemoteMethod(name = "CreateNondetInteger", description = "")]
         public int CreateNondetInteger(JToken maxValue)
         {
-            Console.WriteLine("[Remote] CreateNondetInteger {2} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, maxValue);
+            Console.WriteLine("{0}\tCreateNondetInteger()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             return this.CreateNondetInteger(maxValue.ToObject<int>());
         }
         public int CreateNondetInteger(int maxValue)
@@ -189,7 +198,7 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "Assert", description = "")]
         public void Assert(JToken value, JToken message)
         {
-            Console.WriteLine("[Remote] Assert {2},{3} \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, value, message);
+            Console.WriteLine("{0}\tAssert\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.Assert(value.ToObject<bool>(), message.ToObject<string>());
         }
         public void Assert(bool value, string message)
@@ -200,7 +209,7 @@ namespace AsyncTester.Core
         [RemoteMethod(name = "ContextSwitch", description = "Signals the deletion of a given resource")]
         public void ContextSwitch()
         {
-            Console.WriteLine("[Remote] ContextSwitch \t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            Console.WriteLine("{0}\tContextSwitch()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             WaitForPendingTaskCreations();
 
             var tcs = new TaskCompletionSource<bool>();
@@ -257,10 +266,12 @@ namespace AsyncTester.Core
                     tcs.Task.Wait();
                 }
             }
+            Console.WriteLine("{0}\tContextSwitch()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         void WaitForPendingTaskCreations()
         {
+            Console.WriteLine("{0}\tWaitForPendingTaskCreations()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             while (true)
             {
                 lock (programState)
