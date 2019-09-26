@@ -60,14 +60,14 @@ namespace AsyncTester
                                 {
                                     if (e is WebSocketException)
                                     {
-                                        Console.WriteLine("WebSocketException - Connection Closed");
-                                        Console.WriteLine("    If this was unexpected, inspect the exception object here");
+                                        Console.WriteLine("!!! WebSocketException - Connection Closed");
+                                        Console.WriteLine("!!! If this was unexpected, inspect the exception object here");
                                         socketDestroyer.Cancel();
                                         return true;
                                     }
                                     else
                                     {
-                                        Console.WriteLine("Unexpected Exception: {0}", e);
+                                        Console.WriteLine("!!! Unexpected Exception: {0}", e);
                                         socketDestroyer.Cancel();
                                         return false;
                                     }
@@ -77,14 +77,14 @@ namespace AsyncTester
                 }
                 else
                 {
-                    Console.WriteLine("WebSocket Connection Dropped!");
+                    Console.WriteLine("!!! WebSocket Connection Dropped!");
                     socketDestroyer.Cancel();
                     return Task.CompletedTask;
                 }
             }, socketDestroyer.Token);
         }
 
-        public override Task Send(string payload)
+        public override Task Send(string recipient, string payload)
         {
             byte[] buffer = Encoding.UTF8.GetBytes(payload);
             return this.socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);

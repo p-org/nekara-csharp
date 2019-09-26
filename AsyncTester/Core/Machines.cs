@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.PSharp;
 
-namespace AsyncTester
+namespace AsyncTester.Core
 {
     class ServerProxyMachine : Machine
     {
@@ -28,6 +28,13 @@ namespace AsyncTester
             testingService.EndTask(0);
 
             await testingService.IsFinished();
+        }
+
+        static void ProxyTestMethod(ITestingService testingService)
+        {
+            // This method is the entry point of the server-side test runtime
+            // and not the actual target method.
+
         }
     }
 

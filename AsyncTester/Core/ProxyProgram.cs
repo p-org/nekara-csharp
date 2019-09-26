@@ -6,7 +6,11 @@ using System.Threading.Tasks;
 
 namespace AsyncTester
 {
-    class TestingService
+    public class ProxyProgram
     {
+        public ProxyProgram()
+        {
+
+        }
     }
 }

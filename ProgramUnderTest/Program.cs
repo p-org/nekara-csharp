@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using AsyncTester.Core;
 
 namespace ProgramUnderTest
 {
@@ -14,10 +15,10 @@ namespace ProgramUnderTest
         static int x = 0;
         static bool lck = false;
 
-        static AsyncTester.ITestingService testingService;
+        static ITestingService testingService;
 
-        [AsyncTester.TestMethod]
-        static void Execute(AsyncTester.ITestingService testingService)
+        [TestMethod]
+        static void Execute(ITestingService testingService)
         {
             // initialize all relevant state
             Program.testingService = testingService;

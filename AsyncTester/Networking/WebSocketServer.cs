@@ -35,7 +35,7 @@ namespace AsyncTester
         public void Listen()
         {
             listener.Start();
-            Console.WriteLine("Listening...");
+            Console.WriteLine("WebSocketServer Listening...");
 
             Helpers.AsyncLoop(HandleRequest);
         }
@@ -47,7 +47,7 @@ namespace AsyncTester
             // First check if this is a websocket handshake
             if (context.Request.IsWebSocketRequest)
             {
-                Console.WriteLine("WebSocket Request Received!!!");
+                Console.WriteLine("  --> WebSocket Request Received!!!");
                 context.AcceptWebSocketAsync(null)
                     .ContinueWith(prev => this.AddClient(prev.Result));
             }
@@ -58,7 +58,7 @@ namespace AsyncTester
             this.onNewClient = handler;
         }
 
-        // This method uses an UNDOCUMENTED object - 
+        // This method uses an UNDOCUMENTED object - ServerWebSocket
         public WebSocketClientHandle AddClient(HttpListenerWebSocketContext context)
         {
             var client = new WebSocketClientHandle(this, context.WebSocket);
@@ -92,7 +92,7 @@ namespace AsyncTester
             this.onClose = () => { };
 
             var socketDestroyer = new CancellationTokenSource();
-            Console.WriteLine("Got {1}! {0}", this.id, socket.ToString());
+            Console.WriteLine("  --> New WebSocketClient {0}", this.id);
 
             byte[] buffer = new byte[8192]; // 8 KB buffer
             Helpers.AsyncTaskLoop(() =>
@@ -105,10 +105,10 @@ namespace AsyncTester
                         try
                         {
                             var received = prev.Result;
-                            Console.WriteLine("WebSocket {0}: {1} {2} {3}", this.id, received.Count, received.MessageType, received.EndOfMessage);
+                            // Console.WriteLine("WebSocket {0}: {1} {2} {3}", this.id, received.Count, received.MessageType, received.EndOfMessage);
                             if (prev.Result.MessageType == WebSocketMessageType.Close)
                             {
-                                Console.WriteLine("Closing WebSocket {0}", this.id);
+                                Console.WriteLine("  !!! Closing WebSocket {0}", this.id);
                                 socketDestroyer.Cancel();
                                 return socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close OK", CancellationToken.None)
                                     .ContinueWith(_ => {
@@ -119,14 +119,14 @@ namespace AsyncTester
                             else
                             {
                                 string message = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
-                                Console.WriteLine("Message from WebSocket {0}: {1}", this.id, message);
+                                // Console.WriteLine("  !!! Message from WebSocket {0}: {1}", this.id, message);
                                 return Task.Run(() => this.onMessage(message));
                             }
                         }
                         catch (AggregateException ae)
                         {
-                            Console.WriteLine("Exception during async communication with Client {0}", this.id);
-                            Console.WriteLine("    Connection closed... if this was not expected, inspect the AggregateException here");
+                            Console.WriteLine("  !!! Exception during async communication with Client {0}", this.id);
+                            Console.WriteLine("  ... Connection closed... if this was not expected, inspect the AggregateException here");
                             socketDestroyer.Cancel();
                             this.onClose();
                             this.socket.Dispose();
@@ -136,7 +136,7 @@ namespace AsyncTester
                 }
                 else
                 {
-                    Console.WriteLine("WebSocket {0} Connection Dropped!", this.id);
+                    Console.WriteLine("  !!! WebSocket {0} Connection Dropped!", this.id);
                     socketDestroyer.Cancel();
                     this.onClose();
                     this.socket.Dispose();

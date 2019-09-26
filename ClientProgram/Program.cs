@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using AsyncTester;
+using AsyncTester.Core;
 using System.Threading;
 using System.Dynamic;
 
@@ -19,15 +20,19 @@ namespace ClientProgram
         {
             Console.WriteLine("Starting Test Client...");
 
-            // Initialize a tester client (this should actually be done in a different process)
-            TesterClient client = new TesterClient(new TesterConfiguration());
+            // client-side socket
+            OmniClient socket = new OmniClient(new OmniClientConfiguration());
 
+            // testing service proxy object;uses the socket to communicate to the actual testing service
+            TestingServiceProxy client = new TestingServiceProxy(socket);
+
+            // using the service interactively in this program
             Repl(client);
 
             Console.WriteLine("... Bye");
         }
 
-        static void Repl(TesterClient client)
+        static void Repl(TestingServiceProxy client)
         {
             var cancellation = new CancellationTokenSource();
             Helpers.AsyncTaskLoop(() =>
@@ -36,41 +41,27 @@ namespace ClientProgram
                 string input = Console.ReadLine();
                 input = Regex.Replace(input, @"[ \t]+", " ");
 
-                // Load assembly
-                try
-                {
-                    client.SetAssembly(input);
-                }
-                catch (FileNotFoundException ex)
-                {
-                    Console.WriteLine("Error: {0}", ex.Message);
-                    cancellation.Cancel();
-                    return Task.CompletedTask;
-                }
-
-                try
+                // Load assembly and notify the server - this is asynchronous
+                var routine = client.LoadTestSubject(input)
+                .Then((object sessionId) =>
                 {
                     var testMethod = client.GetMethodToBeTested();
                     Console.WriteLine("... found method to be tested: [{0}]", testMethod.Name);
-
                     Console.Write("Start test (y/n)? ");
                     input = Console.ReadLine();
 
                     if (input == "y") return client.RunTest(testMethod);
-                    else if (input == "n")
-                    {
-                        cancellation.Cancel();
-                        return Task.CompletedTask;
-                    }
-                    else return Task.CompletedTask;
-                }
-                catch (Exception ex)
+                    else if (input == "n") cancellation.Cancel();
+                    return null;
+
+                }).Catch(error =>
                 {
-                    Console.WriteLine("{0}", ex.Message);
-                    //Console.WriteLine($"Failed to load assembly '{assembly.FullName}'");
+                    Console.WriteLine("Error: {0}", error);
                     cancellation.Cancel();
-                    return Task.CompletedTask;
-                }
+                    return null;
+                });
+
+                return routine.task;
             }, cancellation.Token);
 
             // block the main thread here to prevent exiting - as AsyncTaskLoop will return immediately

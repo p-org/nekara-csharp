@@ -70,13 +70,15 @@ namespace AsyncTester
             return tcs.Task;
         }
 
-        public async Task<Object> Post(string path, object payload)
+        public async Task<string> Post(string path, object payload)
         {
             // try serializing object into JSON
             // this will throw an exception if the payload is not a serializable object - i.e., has DataContractAttribute
             string serialized = JsonConvert.SerializeObject(payload);
+            string responseBody;
 
-            var tcs = new TaskCompletionSource<Object>();
+            // var tcs = new TaskCompletionSource<string>();
+
             // Call asynchronous network methods in a try/catch block to handle exceptions.
             try
             {
@@ -84,19 +86,20 @@ namespace AsyncTester
                 var httpContent = new System.Net.Http.StringContent(serialized, Encoding.UTF8, "application/json");
                 System.Net.Http.HttpResponseMessage response = await this.client.PostAsync(this.serverUri + path, httpContent);
                 response.EnsureSuccessStatusCode();
-                string responseBody = await response.Content.ReadAsStringAsync();
+                responseBody = await response.Content.ReadAsStringAsync();
 
                 Console.WriteLine(responseBody);
 
-                tcs.SetResult(responseBody);
+                // tcs.SetResult(responseBody);
             }
             catch (System.Net.Http.HttpRequestException e)
             {
                 Console.WriteLine("\nException Caught!");
                 Console.WriteLine("Message :{0} ", e.Message);
+                responseBody = "";
             }
-
-            return tcs.Task;
+            return responseBody;
+            // return tcs.Task;
         }
     }
 }
