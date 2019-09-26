@@ -122,6 +122,8 @@ namespace AsyncTester.Core
         private IClient socket;
         TaskCompletionSource<bool> IterFinished;
 
+        private int count = 0;
+
         public TestRuntimeAPI(IClient socket)
         {
             this.socket = socket;
@@ -139,44 +141,52 @@ namespace AsyncTester.Core
 
         public void CreateTask()
         {
-            Console.WriteLine("CreateTask\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            Console.WriteLine("{0}\tCreateTask()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.socket.SendRequest("CreateTask").Wait();
+            Console.WriteLine("{0}\tCreateTask()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         public void StartTask(int taskId)
         {
-            Console.WriteLine("StartTask {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            Console.WriteLine("{0}\tStartTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
             this.socket.SendRequest("StartTask", taskId).Wait();
+            Console.WriteLine("{0}\tStartTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
         }
 
         public void EndTask(int taskId)
         {
-            Console.WriteLine("EndTask {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            Console.WriteLine("{0}\tEndTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
             this.socket.SendRequest("EndTask", taskId).Wait();
+            Console.WriteLine("{0}\tEndTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
         }
 
-        void WaitForPendingTaskCreations()
+        // this is never called by the client-side
+        /*void WaitForPendingTaskCreations()
         {
-            Console.WriteLine("WaitForPendingTaskCreations\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            Console.WriteLine("{0}\tWaitForPendingTaskCreations()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.socket.SendRequest("WaitForPendingTaskCreations").Wait();
-        }
+            Console.WriteLine("{0}\tWaitForPendingTaskCreations()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+        }*/
 
         public void ContextSwitch()
         {
-            Console.WriteLine("ContextSwitch\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            Console.WriteLine("{0}\tContextSwitch()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.socket.SendRequest("ContextSwitch").Wait();
+            Console.WriteLine("{0}\tContextSwitch()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         public void BlockedOnResource(int resourceId)
         {
-            Console.WriteLine("BlockedOnResource {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tBlockedOnResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.socket.SendRequest("BlockedOnResource", resourceId).Wait();
+            Console.WriteLine("{0}\tBlockedOnResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public void SignalUpdatedResource(int resourceId)
         {
-            Console.WriteLine("SignalUpdateResource {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tSignalUpdatedResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.socket.SendRequest("SignalUpdateResource", resourceId).Wait();
+            Console.WriteLine("{0}\tSignalUpdatedResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public bool CreateNondetBool()
@@ -189,7 +199,7 @@ namespace AsyncTester.Core
 
         public int CreateNondetInteger(int maxValue)
         {
-            Console.WriteLine("CreateNondetInteger\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            Console.WriteLine("{0}\tCreateNondetInteger()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             var request = this.socket.SendRequest("CreateNondetInteger");
             request.Wait();
             return request.Result.ToObject<int>();
@@ -197,19 +207,21 @@ namespace AsyncTester.Core
 
         public void CreateResource(int resourceId)
         {
-            Console.WriteLine("CreateResource {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tCreateResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.socket.SendRequest("CreateResource", resourceId);
+            Console.WriteLine("{0}\tCreateResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public void DeleteResource(int resourceId)
         {
-            Console.WriteLine("DeleteResource {2}\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tDeleteResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.socket.SendRequest("DeleteResource", resourceId);
+            Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public async Task IsFinished()
         {
-            Console.WriteLine("Test Finished\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            Console.WriteLine("{0}\tIsFinished\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             await IterFinished.Task;
         }
     }

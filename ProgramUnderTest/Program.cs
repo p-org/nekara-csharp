@@ -36,18 +36,23 @@ namespace ProgramUnderTest
         {
             testingService.StartTask(1);
 
+            Console.WriteLine("Foo/Acquire()");
             Acquire();
 
+            Console.WriteLine("Foo/ContextSwitch()");
             testingService.ContextSwitch();
             int lx1 = x;
 
+            Console.WriteLine("Foo/ContextSwitch()");
             testingService.ContextSwitch();
             int lx2 = x;
 
+            Console.WriteLine("Foo/Release()");
             Release();
 
             testingService.Assert(lx1 == lx2, "Race!");
 
+            Console.WriteLine("Foo EndTask");
             testingService.EndTask(1);
         }
 
@@ -62,11 +67,13 @@ namespace ProgramUnderTest
 
             //Release();
 
+            Console.WriteLine("Bar EndTask");
             testingService.EndTask(2);
         }
 
         static void Acquire()
         {
+            Console.WriteLine("Acquire()");
             testingService.ContextSwitch();
             while(true)
             {
@@ -85,6 +92,7 @@ namespace ProgramUnderTest
 
         static void Release()
         {
+            Console.WriteLine("Release()");
             testingService.Assert(lck == true, "Release called on non-acquired lock");
 
             lck = false;
