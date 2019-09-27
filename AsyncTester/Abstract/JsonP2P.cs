@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AsyncTester
 {
@@ -15,14 +16,14 @@ namespace AsyncTester
         private string id;
         private Dictionary<string, RemoteMethodAsync> remoteMethods;
         private Dictionary<string, TaskCompletionSource<JToken>> requests;
-        private HashSet<string> peers;
+        private Dictionary<string, JsonPeer> peers;
 
         public JsonP2P()
         {
             this.id = Helpers.RandomString(16);
             this.remoteMethods = new Dictionary<string, RemoteMethodAsync>();
             this.requests = new Dictionary<string, TaskCompletionSource<JToken>>();
-            this.peers = new HashSet<string>();
+            this.peers = new Dictionary<string, JsonPeer>();
         }
 
         public abstract Task Send(string recipient, string payload);
@@ -71,7 +72,8 @@ namespace AsyncTester
             ResponseMessage message = JsonConvert.DeserializeObject<ResponseMessage>(payload);
             if (message.responseTo != null && this.requests.ContainsKey(message.responseTo))
             {
-                this.requests[message.responseTo].SetResult(message.data);
+                if (message.error) this.requests[message.responseTo].SetException(new ServerThrownException(message.data.ToObject<string>()));
+                else this.requests[message.responseTo].SetResult(message.data);
             }
             else
             {
@@ -103,6 +105,21 @@ namespace AsyncTester
             var message = new ResponseMessage(this.id, recipient, requestId, data);
             var serialized = JsonConvert.SerializeObject(message);
             return this.Send(recipient, serialized);
+        }
+
+        public void AddPeer(string peerId, JsonPeer peer)
+        {
+            this.peers.Add(peerId, peer);
+        }
+
+        public JsonPeer GetPeer(string peerId)
+        {
+            return this.peers[peerId];
+        }
+
+        public void RemovePeer(string peerId)
+        {
+            this.peers.Remove(peerId);
         }
     }
 
@@ -148,6 +165,11 @@ namespace AsyncTester
         {
             return new ResponseMessage(sender, this.sender, this.id, data);
         }
+
+        public ResponseMessage CreateErrorResponse(string sender, JToken data)
+        {
+            return new ResponseMessage(sender, this.sender, this.id, data, true);
+        }
     }
 
     // This Message construct is 1 layer above the communication layer
@@ -171,13 +193,34 @@ namespace AsyncTester
         [DataMember]
         internal JToken data;
 
-        public ResponseMessage(string sender, string recipient, string requestId, JToken data)
+        [DataMember]
+        internal bool error;
+
+        public ResponseMessage(string sender, string recipient, string requestId, JToken data, bool isError = false)
         {
             this.id = "res-" + Helpers.RandomString(16);
             this.sender = sender;
             this.recipient = recipient;
             this.responseTo = requestId;
             this.data = data;
+            this.error = isError;
+        }
+    }
+
+    public class JsonPeer
+    {
+        private string id;
+        private JsonP2P host;
+
+        public JsonPeer (string id, JsonP2P host)
+        {
+            this.id = id;
+            this.host = host;
+        }
+
+        public Task Send(string payload)
+        {
+            return this.host.Send(this.id, payload);
         }
     }
 }

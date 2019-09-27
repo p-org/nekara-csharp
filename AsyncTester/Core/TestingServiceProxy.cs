@@ -30,7 +30,8 @@ namespace AsyncTester.Core
         private Assembly assembly;
         private IClient socket;
         private TestRuntimeAPI testingAPI;
-        string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
+        // string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
+        private Dictionary<string, TaskCompletionSource<bool>> sessions;
 
         // This object will "plug-in" the communication mechanism.
         // The separation between the transport architecture and the logical, abstract model is intentional.
@@ -38,25 +39,27 @@ namespace AsyncTester.Core
         {
             this.socket = socket;
             this.testingAPI = new TestRuntimeAPI(socket);
+            this.sessions = new Dictionary<string, TaskCompletionSource<bool>>();
+
+            this.socket.AddRemoteMethod("FinishTest", args =>
+            {
+                Console.WriteLine("Test FINISHED");
+
+                string sid = args[0].ToString();
+                if (this.sessions.ContainsKey(sid))
+                {
+                    this.sessions[sid].SetResult(true);
+                    return Task.FromResult(JToken.FromObject(true));
+                }
+                else return Task.FromResult(JToken.FromObject(false));
+            });
         }
 
         /* API for managing test sessions */
-        public Promise LoadTestSubject(string path)
+        public void LoadTestSubject(string path)
         {
-            // Communicate to the server here to notify the start of a test and initialize the test session
-            return new Promise((resolve, reject) =>
-            {
-                Console.WriteLine("Loading program at {0}", path);
-                assembly = Assembly.LoadFrom(path);
-                this.socket.SendRequest("InitializeTestSession", new JArray(new[] { assembly.FullName }))
-                    .ContinueWith(prev => resolve(prev.Result));
-            }).Then(sessionId =>
-            {
-                this.sessionId = sessionId.ToString();
-                Console.WriteLine("Session Id : {0}", sessionId);
-                // service = new TestingServiceProxy(sessionId.ToString());
-                return null;
-            });
+            Console.WriteLine("Loading program at {0}", path);
+            assembly = Assembly.LoadFrom(path);
         }
 
         public MethodInfo GetMethodToBeTested(string methodName = "")
@@ -112,19 +115,35 @@ namespace AsyncTester.Core
 
         public Promise RunTest(MethodInfo testMethod, int schedulingSeed = 0)
         {
-            // Invoke the main test function, passing in the API
+            // Communicate to the server here to notify the start of a test and initialize the test session
             return new Promise((resolve, reject) =>
             {
+                this.socket.SendRequest("InitializeTestSession", new JArray(new[] { assembly.FullName }))
+                    .ContinueWith(prev => resolve(prev.Result));
+            }).Then(sessionId =>
+            {
+                string sid = sessionId.ToString();                
+                this.sessions.Add(sid, new TaskCompletionSource<bool>());
+
+                Console.WriteLine("Session Id : {0}", sid);
+
+                // Invoke the main test function, passing in the API
                 testMethod.Invoke(null, new[] { this.testingAPI });
 
                 // by this time server should have initialized main task 0
                 this.testingAPI.EndTask(0);
 
-                this.testingAPI.IsFinished().Wait();
+                this.sessions[sid].Task.Wait();
 
-                resolve(null);
+                return null;
             });
         }
+
+        /*public async Task IsFinished()
+        {
+            Console.WriteLine("{0}\tIsFinished\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            await IterFinished.Task;
+        }*/
     }
 
     public class TestRuntimeAPI : ITestingService
@@ -143,10 +162,9 @@ namespace AsyncTester.Core
         // ad-hoc Assert method - because there is no actual MachineRuntime in the client side
         public void Assert(bool predicate, string s)
         {
-            if (!predicate)
-            {
-                throw new AssertionFailureException();
-            }
+            Console.WriteLine("{0}\tAssert()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            this.socket.SendRequest("Assert", predicate, s).Wait();
+            Console.WriteLine("{0}\tAssert()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         public void CreateTask()
@@ -227,12 +245,6 @@ namespace AsyncTester.Core
             Console.WriteLine("{0}\tDeleteResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
             this.socket.SendRequest("DeleteResource", resourceId);
             Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-        }
-
-        public async Task IsFinished()
-        {
-            Console.WriteLine("{0}\tIsFinished\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            await IterFinished.Task;
         }
     }
 }

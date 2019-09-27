@@ -39,40 +39,48 @@ namespace AsyncTester
                     return this.socket.ReceiveAsync(new ArraySegment<byte>(buffer), socketDestroyer.Token)
                         .ContinueWith(prev =>
                         {
-                            try
-                            {
-                                string payload = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
+                            // Spawning a new task to make the message handler "non-blocking"
+                            // TODO: Errors thrown inside here will become silent, so that needs to be handled
+                            // Also, now that the single execution flow is broken, the requests are under race conditions
+                            Task.Run(() => {
+
                                 try
                                 {
-                                    this.HandleMessage(payload);
-                                }
-                                catch (UnexpectedMessageException e)
-                                {
-                                    if (this.onMessage != null)
+                                    string payload = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
+                                    try
                                     {
-                                        this.onMessage(payload);
+                                        this.HandleMessage(payload);
+                                    }
+                                    catch (Exception ex) when (ex is UnexpectedMessageException || ex is ServerThrownException)
+                                    {
+                                        if (this.onMessage != null)
+                                        {
+                                            this.onMessage(payload);
+                                        }
                                     }
                                 }
-                            }
-                            catch (AggregateException ae)
-                            {
-                                ae.Handle(e =>
+                                catch (AggregateException ae)
                                 {
-                                    if (e is WebSocketException)
+                                    Console.WriteLine(ae);
+                                    ae.Handle(e =>
                                     {
-                                        Console.WriteLine("!!! WebSocketException - Connection Closed");
-                                        Console.WriteLine("!!! If this was unexpected, inspect the exception object here");
-                                        socketDestroyer.Cancel();
-                                        return true;
-                                    }
-                                    else
-                                    {
-                                        Console.WriteLine("!!! Unexpected Exception: {0}", e);
-                                        socketDestroyer.Cancel();
-                                        return false;
-                                    }
-                                });
-                            }
+                                        if (e is WebSocketException)
+                                        {
+                                            Console.WriteLine("!!! WebSocketException - Connection Closed");
+                                            Console.WriteLine("!!! If this was unexpected, inspect the exception object here");
+                                            socketDestroyer.Cancel();
+                                            return true;
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine("!!! Unexpected Exception: {0}", e);
+                                            socketDestroyer.Cancel();
+                                            return false;
+                                        }
+                                    });
+                                }
+
+                            });
                         });
                 }
                 else

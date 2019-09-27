@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.IO;
 
 namespace AsyncTester.Core
 {
@@ -18,12 +19,18 @@ namespace AsyncTester.Core
     public class OmniServerConfiguration
     {
         private Transport _transport;
+        public readonly string logDirectory;
         private string host;    // used if Transport == HTTP
         private int port;       // used if Transport == HTTP or TCP
 
-        public OmniServerConfiguration()
+        public OmniServerConfiguration(Transport tMode = Transport.WS, string logDirectory = "logs")
         {
-            this._transport = Transport.WS;
+            this._transport = tMode;
+            this.logDirectory = logDirectory;
+
+            if (!Directory.Exists(logDirectory)) {
+                Directory.CreateDirectory(logDirectory);
+            };
         }
 
         public Transport transport

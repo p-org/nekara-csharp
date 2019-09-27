@@ -26,6 +26,8 @@ namespace ClientProgram
             // testing service proxy object;uses the socket to communicate to the actual testing service
             TestingServiceProxy client = new TestingServiceProxy(socket);
 
+
+
             // using the service interactively in this program
             Repl(client);
 
@@ -42,26 +44,15 @@ namespace ClientProgram
                 input = Regex.Replace(input, @"[ \t]+", " ");
 
                 // Load assembly and notify the server - this is asynchronous
-                var routine = client.LoadTestSubject(input)
-                .Then((object sessionId) =>
-                {
-                    var testMethod = client.GetMethodToBeTested();
-                    Console.WriteLine("... found method to be tested: [{0}]", testMethod.Name);
-                    Console.Write("Start test (y/n)? ");
-                    input = Console.ReadLine();
+                client.LoadTestSubject(input);
+                var testMethod = client.GetMethodToBeTested();
+                Console.WriteLine("... found method to be tested: [{0}]", testMethod.Name);
+                Console.Write("Start test (y/n)? ");
 
-                    if (input == "y") return client.RunTest(testMethod);
-                    else if (input == "n") cancellation.Cancel();
-                    return null;
-
-                }).Catch(error =>
-                {
-                    Console.WriteLine("Error: {0}", error);
-                    cancellation.Cancel();
-                    return null;
-                });
-
-                return routine.task;
+                input = Console.ReadLine();
+                if (input == "y") return client.RunTest(testMethod).task;
+                else if (input == "n") cancellation.Cancel();
+                return Task.CompletedTask;
             }, cancellation.Token);
 
             // block the main thread here to prevent exiting - as AsyncTaskLoop will return immediately

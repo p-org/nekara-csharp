@@ -15,7 +15,8 @@ namespace AsyncTester.Core
     public class OmniClient : IClient
     {
         private OmniClientConfiguration config;
-        private Func<string, JArray, Task<JToken>> _SendRequest;    // delegate method to be implemented by differnet transport mechanisms
+        private Func<string, JArray, Task<JToken>> _sendRequest;    // delegate method to be implemented by differnet transport mechanisms
+        private Action<string, RemoteMethodAsync> _addRemoteMethod;    // delegate method to be implemented by differnet transport mechanisms
         // private Func<string, Task> Subscribe;            // using topic-based Publish-Subscribe
         // private Func<string, string, Task> Publish;      // using topic-based Publish-Subscribe
 
@@ -56,13 +57,18 @@ namespace AsyncTester.Core
             // Fetch the proxy object -- an interface to the service
             RemotingConfiguration.RegisterWellKnownClientType(typeof(TestingService), "ipc://tester/service");
 
-            TestingService service = new TestingService();
+            // TestingService service = new TestingService();
 
             // Assign the appropriate SendRequest method
-            this._SendRequest = (string func, JArray args) =>
+            this._sendRequest = (string func, JArray args) =>
             {
                 // TODO: this function is incomplete - work on it later
                 return Task.FromResult(JValue.Parse("true"));
+            };
+
+            this._addRemoteMethod = (string func, RemoteMethodAsync handler) =>
+            {
+
             };
         }
 
@@ -71,10 +77,15 @@ namespace AsyncTester.Core
             HttpClient client = new HttpClient("http://localhost:8080/");
 
             // Assign the appropriate SendRequest method
-            this._SendRequest = (string func, JArray args) =>
+            this._sendRequest = (string func, JArray args) =>
             {
                 return client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args))
                     .ContinueWith(prev => JToken.Parse(prev.Result));
+            };
+
+            this._addRemoteMethod = (string func, RemoteMethodAsync handler) =>
+            {
+
             };
         }
 
@@ -92,7 +103,9 @@ namespace AsyncTester.Core
             };*/
 
             // Assign the appropriate SendRequest method
-            this._SendRequest = (string func, JArray args) => client.Request("Tester-Server", func, args);
+            this._sendRequest = (string func, JArray args) => client.Request("Tester-Server", func, args);
+
+            this._addRemoteMethod = (string func, RemoteMethodAsync handler) => client.RegisterRemoteMethod(func, handler);
         }
 
         private void SetupTransportTCP()
@@ -103,27 +116,37 @@ namespace AsyncTester.Core
         // overloading the main SendRequest method to deal with variadic arguments
         public Task<JToken> SendRequest(string func)
         {
-            return this._SendRequest(func, JArray.Parse("[]"));
+            return this._sendRequest(func, JArray.Parse("[]"));
         }
 
         public Task<JToken> SendRequest(string func, JArray args)
         {
-            return this._SendRequest(func, args);
+            return this._sendRequest(func, args);
+        }
+
+        public Task<JToken> SendRequest(string func, params JToken[] args)
+        {
+            return this._sendRequest(func, new JArray(args));
         }
 
         public Task<JToken> SendRequest(string func, params bool[] args)
         {
-            return this._SendRequest(func, new JArray(args));
+            return this._sendRequest(func, new JArray(args));
         }
 
         public Task<JToken> SendRequest(string func, params int[] args)
         {
-            return this._SendRequest(func, new JArray(args));
+            return this._sendRequest(func, new JArray(args));
         }
 
         public Task<JToken> SendRequest(string func, params string[] args)
         {
-            return this._SendRequest(func, new JArray(args));
+            return this._sendRequest(func, new JArray(args));
+        }
+
+        public void AddRemoteMethod(string func, RemoteMethodAsync handler)
+        {
+            this._addRemoteMethod(func, handler);
         }
 
         // Using this method only during the early stages of development
@@ -146,13 +169,13 @@ namespace AsyncTester.Core
                     {
                         if (cmd == "echo")
                         {
-                            return this._SendRequest(cmd, new JArray(tokens.Skip(1)));
+                            return this._sendRequest(cmd, new JArray(tokens.Skip(1)));
                         }
                         else if (cmd == "do")
                         {
                             string func = tokens[1];
                             JArray args = new JArray(tokens.Skip(2));
-                            return this._SendRequest(func, args);
+                            return this._sendRequest(func, args);
                         }
                     }
                 }

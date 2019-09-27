@@ -8,6 +8,18 @@ The system is split into the server-side and client-side.
 
 **Client Side:** The client side library/program is a thin proxy to the actual testing service. The program under test makes local calls to this proxy service, which relays the calls to the server-side and mediates the responses.
 
+## How to use
+
+0. Build the `AsyncTester.sln` CSharp solution. This should produce 3 files: `AsyncTester.exe`, `ClientProgram.exe`, and `ProgramUnderTest.dll`.
+1. Run the server-side program `AsyncTester.exe` - this is a regular HTTP server listening for incoming messages and handles the requests accordingly.
+2. If using the example program `ProgramUnderTest.dll`, skip to step 4. If not, go to step 3.
+3. Instrument the program to be tested. The following needs to be done for a minimal setup to work:
+    * Decorate the entry point (i.e., the method to be tested) with the `TestMethod` attribute. The method should have the following signature: `void Method(ITestingService tester)`. The `tester` object will be passed to the test method by the testing service; the user is responsible for maintaining its reference in their test program. The `tester` object exposes the API described in the next section.
+    * Just before calling an asynchronous function (i.e., creating a new `Task`), inject a call to `tester.CreateTask()`. This informs the testing service that a `Task` is about to be created.
+    * At the beginning of the asynchronous function, inject a `tester.StartTask()` call. Similarly, inject a `tester.EndTask()` at the end of the asynchronous function.
+    * Before accessing any shared variable (e.g., a variable declared outside of its own local scope), inject a call to `tester.ContextSwitch()`. This method essentially "yields control" to the testing service and allows the scheduler to explore different access patterns of the shared resource.
+4. Once the test program is prepared, run the client-side program `ClientProgram.exe`. It starts in interactive mode, and it prompts the user to enter the path to the program to be tested (e.g., `ProgramUnderTest.dll`). Once it discovers the test method, it will prompt the user to confirm, and the test begins subsequently.
+
 ## API
 
 * `CreateTask`: 

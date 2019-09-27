@@ -11,9 +11,11 @@ namespace AsyncTester.Networking
     {
         Task<JToken> SendRequest(string func);
         Task<JToken> SendRequest(string func, JArray args);
+        Task<JToken> SendRequest(string func, params JToken[] args);
         Task<JToken> SendRequest(string func, params bool[] args);
         Task<JToken> SendRequest(string func, params int[] args);
         Task<JToken> SendRequest(string func, params string[] args);
 
+        void AddRemoteMethod(string name, RemoteMethodAsync handler);
     }
 }

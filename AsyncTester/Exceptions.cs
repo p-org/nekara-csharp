@@ -11,7 +11,17 @@ namespace AsyncTester
     }
 
     /* Test related */
-    class AssertionFailureException : Exception { }
+    internal sealed class AssertionFailureException : Exception
+    {
+        internal AssertionFailureException(string message)
+            : base(message)
+        {
+        }
+        internal AssertionFailureException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
+    }
 
     /* Config related */
 
@@ -22,6 +32,12 @@ namespace AsyncTester
     public class TestMethodLoadFailureException : Exception { }
 
     /* Communication related */
+    class ServerThrownException : Exception
+    {
+        public ServerThrownException(string message)
+        {
+        }
+    }
 
     class InvalidRequestPayloadException : Exception
     {

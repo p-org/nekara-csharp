@@ -65,7 +65,7 @@ namespace ProgramUnderTest
             testingService.ContextSwitch();
             x = 1;
 
-            //Release();
+            // Release();
 
             Console.WriteLine("Bar EndTask");
             testingService.EndTask(2);

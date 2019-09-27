@@ -11,7 +11,7 @@ using Newtonsoft.Json;
 
 namespace AsyncTester
 {
-    class WebSocketServer
+    public class WebSocketServer
     {
         private string host;
         private int port;
@@ -68,6 +68,11 @@ namespace AsyncTester
             return client;
         }
 
+        public WebSocketClientHandle GetClient(string clientId)
+        {
+            return this.clients[clientId];
+        }
+
         public void RemoveClient(string socketId)
         {
             // var client = this.clients[socketId];
@@ -78,7 +83,7 @@ namespace AsyncTester
         }
     }
 
-    class WebSocketClientHandle
+    public class WebSocketClientHandle
     {
         public readonly string id;
         public readonly WebSocket socket;

@@ -8,6 +8,7 @@ using System.Runtime.Remoting.Channels.Ipc;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Reflection;
+using System.IO;
 
 namespace AsyncTester.Core
 {
@@ -20,6 +21,7 @@ namespace AsyncTester.Core
     {
         private OmniServerConfiguration config;
         private Dictionary<string, RemoteMethodAsync> remoteMethods;
+        private Func<WebSocketClientHandle> _getClient;    // delegate method for getting client handles - this is a workaround to handle the InitializeTestSession notifyClient callback.
 
         public OmniServer(OmniServerConfiguration config)
         {
@@ -28,7 +30,7 @@ namespace AsyncTester.Core
 
             // Initialize the testing service before setting up the transport
             // (if it is IPC, it will be initialized differently)
-            
+
             /*if (this.config.transport != Transport.IPC)
             {
                 this.service = new TestingService();
@@ -115,10 +117,15 @@ namespace AsyncTester.Core
             }
         }
 
+        public WebSocketClientHandle GetClient()
+        {
+            return this._getClient();
+        }
+
         // this method is called internally by the main message listener loop
         private Task<ResponseMessage> HandleRequest(RequestMessage message)
         {
-            Console.WriteLine("--> Client Request: {0} ({1})", message.func, message.args);
+            Console.WriteLine("--> Client Request: {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ));
 
             // this is a "meta" remote method, mostly for testing; should be removed later
             if (message.func == "echo")
@@ -127,12 +134,25 @@ namespace AsyncTester.Core
             }
             else if (this.remoteMethods.ContainsKey(message.func))
             {
-                return this.remoteMethods[message.func](message.args.ToArray())
+                // If any Exception thrown during remoteMethod invocation,
+                // forward it to the client instead of failing on the server-side                
+
+                try
+                {
+                    return this.remoteMethods[message.func](message.args.ToArray())
                     .ContinueWith(prev => {
-                        Console.WriteLine("    ... responding to {0}", message.func);
+                        Console.WriteLine("    ... responding to {0} {1}", message.func, prev.IsFaulted);
+                        if (prev.IsFaulted) return message.CreateErrorResponse("Tester-Server", new JValue(prev.Exception.Message));
                         if (prev.Result != null) return message.CreateResponse("Tester-Server", prev.Result);
-                        else return message.CreateResponse("Tester-Server", new JValue("OK"));
+                        return message.CreateResponse("Tester-Server", new JValue("OK"));
                     });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("!!! {0} Caught while invoking remote method {1}", ex.GetType().Name, message.func);
+                    // Console.WriteLine(ex);
+                    return Task.FromResult(message.CreateErrorResponse("Tester-Server", new JValue(ex.Message)));
+                }
             }
             else
             {
@@ -198,6 +218,12 @@ namespace AsyncTester.Core
         {
             // Create a WebSocket Server
             WebSocketServer server = new WebSocketServer("localhost", 8080, "ws/");
+
+            this._getClient = () =>
+            {
+                string clientId = server.clients.Keys.First();
+                return server.GetClient(clientId);
+            };
 
             /* Expose the service */
             server.OnNewClient((WebSocketClientHandle client) =>
