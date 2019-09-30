@@ -135,18 +135,23 @@ namespace AsyncTester.Core
             else if (this.remoteMethods.ContainsKey(message.func))
             {
                 // If any Exception thrown during remoteMethod invocation,
-                // forward it to the client instead of failing on the server-side                
-
+                // forward it to the client instead of failing on the server-side
                 try
                 {
                     return this.remoteMethods[message.func](message.args.ToArray())
                     .ContinueWith(prev => {
-                        Console.WriteLine("    ... responding to {0} {1}", message.func, prev.IsFaulted);
+                        //Console.WriteLine("    ... responding to {0} {1}", message.func, prev.IsFaulted);
                         if (prev.IsFaulted) return message.CreateErrorResponse("Tester-Server", new JValue(prev.Exception.Message));
                         if (prev.Result != null) return message.CreateResponse("Tester-Server", prev.Result);
                         return message.CreateResponse("Tester-Server", new JValue("OK"));
                     });
                 }
+                /*catch (AssertionFailureException ex)
+                {
+                    Console.WriteLine("!!! {0} Caught while invoking remote method {1}", ex.GetType().Name, message.func);
+                    // Console.WriteLine(ex);
+                    return Task.FromResult(message.CreateErrorResponse("Tester-Server", new JValue(ex.Message)));
+                }*/
                 catch (Exception ex)
                 {
                     Console.WriteLine("!!! {0} Caught while invoking remote method {1}", ex.GetType().Name, message.func);
@@ -239,7 +244,9 @@ namespace AsyncTester.Core
                         HandleRequest(message)
                         .ContinueWith(prev =>
                         {
+                            Console.WriteLine("<-- Returning Response to: {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())));
                             ResponseMessage reply = prev.Result;
+
                             client.Send(reply);
                         });
                     });

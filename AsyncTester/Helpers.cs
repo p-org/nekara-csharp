@@ -35,6 +35,19 @@ namespace AsyncTester
             return result;
         }
 
+        public static int PromptInt(string prompt, int min = 0, int max = 100)
+        {
+            Console.Write(prompt);
+            int input = Int32.Parse(Console.ReadLine());
+            while (input < min || max < input)
+            {
+                Console.WriteLine("Invalid Value, enter a value between {0} and {1}\n", min, max);
+                Console.Write(prompt);
+                input = Int32.Parse(Console.ReadLine());
+            }
+            return input;
+        }
+
         public static void AsyncLoop(Action action)
         {
             // TODO: Need to handle exceptions - either provide a way to handle it
@@ -62,6 +75,12 @@ namespace AsyncTester
                 return;
             }
             action().ContinueWith(prev => AsyncTaskLoop(action, token));   // Will this lead to memory leak?
+        }
+
+        public static Task RepeatTask(Func<Task> action, int count)
+        {
+            if (count > 1) return action().ContinueWith(prev => RepeatTask(action, count - 1)).Unwrap();
+            return action();
         }
     }
 }

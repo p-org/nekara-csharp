@@ -39,7 +39,7 @@ namespace ClientProgram
             var cancellation = new CancellationTokenSource();
             Helpers.AsyncTaskLoop(() =>
             {
-                Console.Write("Path of the Program To Test: ");
+                Console.Write("\n\n\nPath of the Program To Test? ");
                 string input = Console.ReadLine();
                 input = Regex.Replace(input, @"[ \t]+", " ");
 
@@ -47,11 +47,12 @@ namespace ClientProgram
                 client.LoadTestSubject(input);
                 var testMethod = client.GetMethodToBeTested();
                 Console.WriteLine("... found method to be tested: [{0}]", testMethod.Name);
-                Console.Write("Start test (y/n)? ");
 
-                input = Console.ReadLine();
-                if (input == "y") return client.RunTest(testMethod).task;
-                else if (input == "n") cancellation.Cancel();
+                // Ask how many iterations
+                int repeat = Helpers.PromptInt("How many iterations? ", 0, 500);
+                if (repeat > 0) return Helpers.RepeatTask(() => client.RunTest(testMethod).task, repeat);
+                else cancellation.Cancel();
+
                 return Task.CompletedTask;
             }, cancellation.Token);
 

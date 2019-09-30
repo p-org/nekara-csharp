@@ -61,7 +61,16 @@ namespace AsyncTester
                                 }
                                 catch (AggregateException ae)
                                 {
-                                    Console.WriteLine(ae);
+                                    // Console.WriteLine(ae);
+                                    foreach (var ie in ae.Flatten().InnerExceptions)
+                                    {
+                                        Console.WriteLine("Exception -------------------");
+                                        Console.WriteLine(ie.Message);
+                                        Console.WriteLine(ie.InnerException.Message);
+                                        Console.WriteLine(ie.InnerException.StackTrace);
+                                        Console.WriteLine("-----------------------------\n");
+                                    }
+
                                     ae.Handle(e =>
                                     {
                                         if (e is WebSocketException)
@@ -95,7 +104,20 @@ namespace AsyncTester
         public override Task Send(string recipient, string payload)
         {
             byte[] buffer = Encoding.UTF8.GetBytes(payload);
-            return this.socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+            // We lock the socket because multiple tasks can be racing to use the websocket.
+            // The websocket will fail if two tasks try to call client.Send concurrently.
+            // We use the low-level Monitor.Enter/Exit because we need to release asynchronously
+            try
+            {
+                Monitor.Enter(socket);
+                var sendTask = this.socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+                sendTask.ContinueWith(t => Monitor.Exit(socket));
+                return sendTask;
+            }
+            finally
+            {
+                Monitor.Exit(socket);
+            }
         }
     }
 }

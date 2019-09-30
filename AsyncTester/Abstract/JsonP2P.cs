@@ -70,6 +70,7 @@ namespace AsyncTester
         public void HandleResponse(string payload)
         {
             ResponseMessage message = JsonConvert.DeserializeObject<ResponseMessage>(payload);
+            // Console.WriteLine("Client Got Response to {0} {1}", message.responseTo, message.error);
             if (message.responseTo != null && this.requests.ContainsKey(message.responseTo))
             {
                 if (message.error) this.requests[message.responseTo].SetException(new ServerThrownException(message.data.ToObject<string>()));

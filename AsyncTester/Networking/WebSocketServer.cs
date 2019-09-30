@@ -132,6 +132,14 @@ namespace AsyncTester
                         {
                             Console.WriteLine("  !!! Exception during async communication with Client {0}", this.id);
                             Console.WriteLine("  ... Connection closed... if this was not expected, inspect the AggregateException here");
+                            foreach(var ie in ae.Flatten().InnerExceptions)
+                            {
+                                Console.WriteLine("Exception -------------------");
+                                Console.WriteLine(ie.Message);
+                                Console.WriteLine(ie.InnerException.Message);
+                                Console.WriteLine(ie.InnerException.StackTrace);
+                                Console.WriteLine("-----------------------------\n");
+                            }
                             socketDestroyer.Cancel();
                             this.onClose();
                             this.socket.Dispose();
@@ -164,14 +172,40 @@ namespace AsyncTester
         public Task Send(string payload)
         {
             byte[] buffer = Encoding.UTF8.GetBytes(payload);
-            return socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+            // We lock the socket because multiple tasks can be racing to use the websocket.
+            // The websocket will fail if two tasks try to call client.Send concurrently.
+            // We use the low-level Monitor.Enter/Exit because we need to release asynchronously
+            try
+            {
+                Monitor.Enter(socket);
+                var sendTask = socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+                sendTask.ContinueWith(t => Monitor.Exit(socket));
+                return sendTask;
+            }
+            finally
+            {
+                Monitor.Exit(socket);
+            }
         }
 
         public Task Send(Object payload)
         {
             string serialized = JsonConvert.SerializeObject(payload);
             byte[] buffer = Encoding.UTF8.GetBytes(serialized);
-            return socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+            // We lock the socket because multiple tasks can be racing to use the websocket.
+            // The websocket will fail if two tasks try to call client.Send concurrently.
+            // We use the low-level Monitor.Enter/Exit because we need to release asynchronously
+            try
+            {
+                Monitor.Enter(socket);
+                var sendTask = socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+                sendTask.ContinueWith(t => Monitor.Exit(socket));
+                return sendTask;
+            }
+            finally
+            {
+                Monitor.Exit(socket);
+            }
         }
     }
 }

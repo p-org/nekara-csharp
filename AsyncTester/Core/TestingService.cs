@@ -24,35 +24,54 @@ namespace AsyncTester.Core
     // The API should be defined on this object.
     public class TestingService : MarshalByRefObject, ITestingService
     {
+        private struct TestResult
+        {
+            public bool passed;
+            public string sessionId;
+            public string reason;
+            public TestResult(bool passed, string sessionId, string reason = "") {
+                this.passed = passed;
+                this.sessionId = sessionId;
+                this.reason = reason;
+            }
+        }
+
         public static int count = 0;
 
+        private Dictionary<string, TestResult> testResults;
+
         private StreamWriter logFile;
+        private StreamWriter traceFile;
+        private StreamWriter summaryFile;
         private OmniServer server;      // keeping this reference is a temporary workaround to handle the InitializeTestSession notifyClient callback.
                                         // TODO: it should be handled more gracefully by revising the RemoteMethodAsync signature to accept a reference to ClientHandle
                                         //       and the respective reply/reject callbacks
 
         string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
         ProgramState programState;
-        TaskCompletionSource<bool> IterFinished;
+        TaskCompletionSource<TestResult> IterFinished;
         int numPendingTaskCreations;
+        List<string> testTrace;
 
         public TestingService(OmniServer server)
         {
+            this.testResults = new Dictionary<string, TestResult>();
+
             string logPath = "logs/log-" + DateTime.Now.Ticks.ToString() + ".csv";
-            if (!File.Exists(logPath))
-            {
-                // Create a file to write to.
-                using (StreamWriter nf = File.CreateText(logPath))
-                {
-                    nf.WriteLine("Counter,Method,Arguments,Tag,Thread,NumThreads");
-                }
-            }
             this.logFile = File.AppendText(logPath);
+            this.logFile.WriteLine("Counter,Method,Arguments,Tag,Thread,NumThreads");
+
+            string sumPath = "logs/summary-" + DateTime.Now.Ticks.ToString() + ".csv";
+            this.summaryFile = File.AppendText(sumPath);
+            this.summaryFile.WriteLine("SessionId,Result,Reason");
+
             this.server = server;
 
             this.sessionId = null;
             this.programState = null;
             this.IterFinished = null;
+            this.testTrace = null;
+            this.traceFile = null;
         }
 
         private void AppendLog(string line)
@@ -67,18 +86,39 @@ namespace AsyncTester.Core
             this.logFile.WriteLine(String.Join(",", cols.Select(obj => obj.ToString())));
         }
 
+        private void PushTrace(string description)
+        {
+            lock (this.testTrace)
+            {
+                this.testTrace.Add(description);
+            }
+        }
+
         [RemoteMethod(name = "InitializeTestSession", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
         // treating this method as a special case because it spawns another Task we have to resolve later
         public string InitializeTestSession(object assemblyName)
         {
+            // HACK: Wait till previous session finishes
+            // - a better way to deal with this is to keep a dictionary of sessions
+            // and associate each request with a particular session so that the sessions are isolated
+            while (this.sessionId != null)
+            {
+                Thread.Sleep(100);
+            }
+
             this.sessionId = Helpers.RandomString(16);
 
             // The following should really be managed per client session.
             // For now, we assume there is only 1 client.
             this.programState = new ProgramState();
-            this.IterFinished = new TaskCompletionSource<bool>();
+            this.IterFinished = new TaskCompletionSource<TestResult>();
             this.programState.taskToTcs.Add(0, new TaskCompletionSource<bool>());
             this.numPendingTaskCreations = 0;
+            this.testTrace = new List<string>();
+
+            string tracePath = "logs/trace-" + this.sessionId + ".csv";
+            this.traceFile = File.AppendText(tracePath);
+            this.traceFile.WriteLine("Description");
 
             // create a continuation callback that will notify the client once the test is finished
             this.IterFinished.Task.ContinueWith(prev => {
@@ -90,10 +130,32 @@ namespace AsyncTester.Core
 
                 Console.WriteLine("Test {0} Finished!", this.sessionId);
 
-                this.sessionId = null;
+                this.testResults.Add(this.sessionId, prev.Result);
+
+                // Flush the trace into a file
+                if (prev.Result.passed) this.PushTrace("TEST PASSED");
+                else this.PushTrace("TEST FAILED");
+                Console.WriteLine("Trace Length: {0}", testTrace.Count);
+                this.traceFile.Write(String.Join("\n", this.testTrace.ToArray()));
+                this.traceFile.Close();
+
+                // Append Summary
+                string summary = prev.Result.sessionId + "," + (prev.Result.passed ? "pass" : "fail") + "," + prev.Result.reason;
+                Console.WriteLine(summary);
+                this.summaryFile.WriteLine(summary);
+
+                Console.WriteLine("Results: {0}/{1}", this.testResults.Where(item => item.Value.passed == true).Count(), this.testResults.Count);
+
+                this.sessionId = null;      // Clear the sessionId so the next session can begin
             });
 
             return sessionId;
+        }
+
+        [RemoteMethod(name = "InitializeTestSession", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
+        public void AcknowledgeTestTimeException(JToken message)
+        {
+            this.IterFinished.SetResult(new TestResult(false, this.sessionId, message.ToObject<string>()));
         }
 
         /* Methods below are the actual methods called (remotely) by the client-side proxy object.
@@ -110,6 +172,7 @@ namespace AsyncTester.Core
                 this.numPendingTaskCreations++;
             }
             // Console.WriteLine("{0}\tCreateTask()\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            this.PushTrace("CreateTask");
             AppendLog(count++, "CreateTask", "", "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
@@ -120,6 +183,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "StartTask", taskId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.StartTask(taskId.ToObject<int>());
             // Console.WriteLine("{0}\tStartTask({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            this.PushTrace("StartTask " + taskId.ToString());
             AppendLog(count++, "StartTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void StartTask(int taskId)
@@ -143,6 +207,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "EndTask", taskId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.EndTask(taskId.ToObject<int>());
             // Console.WriteLine("{0}\tEndTask({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            this.PushTrace("EndTask " + taskId.ToString());
             AppendLog(count++, "EndTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void EndTask(int taskId)
@@ -165,6 +230,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "CreateResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.CreateResource(resourceId.ToObject<int>());
             // Console.WriteLine("{0}\tCreateResource({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            this.PushTrace("CreateResource " + resourceId.ToString());
             AppendLog(count++, "CreateResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void CreateResource(int resourceId)
@@ -183,6 +249,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "DeleteResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.DeleteResource(resourceId.ToObject<int>());
             // Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            this.PushTrace("DeleteResource " + resourceId.ToString());
             AppendLog(count++, "DeleteResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void DeleteResource(int resourceId)
@@ -201,6 +268,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "BlockedOnResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.BlockedOnResource(resourceId.ToObject<int>());
             // Console.WriteLine("{0}\tBlockedOnResource({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            this.PushTrace("BlockedOnResource " + resourceId.ToString());
             AppendLog(count++, "BlockedOnResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void BlockedOnResource(int resourceId)
@@ -222,6 +290,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "SignalUpdatedResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.SignalUpdatedResource(resourceId.ToObject<int>());
             // Console.WriteLine("{0}\tSignalUpdatedResource({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            this.PushTrace("SignalUpdatedResource " + resourceId.ToString());
             AppendLog(count++, "SignalUpdatedResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void SignalUpdatedResource(int resourceId)
@@ -241,7 +310,9 @@ namespace AsyncTester.Core
         {
             // Console.WriteLine("{0}\tCreateNondetBool()\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count++, "CreateNondetBool", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            return Helpers.RandomBool();
+            var value = Helpers.RandomBool();
+            this.PushTrace("CreateNondetBool " + value.ToString());
+            return value;
         }
 
         [RemoteMethod(name = "CreateNondetInteger", description = "")]
@@ -249,7 +320,9 @@ namespace AsyncTester.Core
         {
             // Console.WriteLine("{0}\tCreateNondetInteger()\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count++, "CreateNondetInteger", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            return this.CreateNondetInteger(maxValue.ToObject<int>());
+            var value = this.CreateNondetInteger(maxValue.ToObject<int>());
+            this.PushTrace("CreateNondetInteger " + value.ToString());
+            return value;
         }
         public int CreateNondetInteger(int maxValue)
         {
@@ -261,6 +334,7 @@ namespace AsyncTester.Core
         {
             // Console.WriteLine("{0}\tAssert\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count++, "Assert", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            this.PushTrace("Assert " + value.ToString());
             this.Assert(value.ToObject<bool>(), message.ToObject<string>());
         }
         public void Assert(bool value, string message)
@@ -273,6 +347,7 @@ namespace AsyncTester.Core
         {
             // Console.WriteLine("{0}\tContextSwitch()\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count++, "ContextSwitch", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            this.PushTrace("ContextSwitch");
             WaitForPendingTaskCreations();
 
             var tcs = new TaskCompletionSource<bool>();
@@ -297,7 +372,7 @@ namespace AsyncTester.Core
                     Assert(programState.taskToTcs.Count == 0, "Deadlock detected");
 
                     // all-done
-                    IterFinished.SetResult(true);
+                    IterFinished.SetResult(new TestResult(true, this.sessionId));
                     return;
                 }
 
@@ -337,6 +412,7 @@ namespace AsyncTester.Core
         {
             // Console.WriteLine("{0}\tWaitForPendingTaskCreations()\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count, "WaitForPendingTaskCreations", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            this.PushTrace("WaitForPendingTaskCreations");
             while (true)
             {
                 lock (programState)
