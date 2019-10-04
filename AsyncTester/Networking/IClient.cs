@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace AsyncTester.Networking
 {
-    public interface IClient
+    public interface IClient : IDisposable
     {
         Task<JToken> SendRequest(string func);
         Task<JToken> SendRequest(string func, JArray args);

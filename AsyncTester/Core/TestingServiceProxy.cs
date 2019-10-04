@@ -28,7 +28,7 @@ namespace AsyncTester.Core
     public class TestingServiceProxy
     {
         private Assembly assembly;
-        private IClient socket;
+        public IClient socket;
         private TestRuntimeAPI testingAPI;
         // string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
         private Dictionary<string, TaskCompletionSource<bool>> sessions;
@@ -41,6 +41,10 @@ namespace AsyncTester.Core
             this.testingAPI = new TestRuntimeAPI(socket);
             this.sessions = new Dictionary<string, TaskCompletionSource<bool>>();
 
+            // the methods below are called by the server
+
+            // FinishTest will be called during the test if an assert fails
+            // or the test runs to completion.
             this.socket.AddRemoteMethod("FinishTest", args =>
             {
                 Console.WriteLine("Test FINISHED");
@@ -119,8 +123,9 @@ namespace AsyncTester.Core
             // Communicate to the server here to notify the start of a test and initialize the test session
             return new Promise((resolve, reject) =>
             {
-                this.socket.SendRequest("InitializeTestSession", new JArray(new[] { assembly.FullName }))
-                    .ContinueWith(prev => resolve(prev.Result));
+                var request = this.socket.SendRequest("InitializeTestSession", new JArray(new[] { assembly.FullName, assembly.Location, testMethod.Name }));
+                request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
+                request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
             }).Then(sessionId =>
             {
                 string sid = sessionId.ToString();                
@@ -164,19 +169,72 @@ namespace AsyncTester.Core
             Console.WriteLine("{0}\tIsFinished\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             await IterFinished.Task;
         }*/
+
+        public Task ReplayTestSession(string sessionId)
+        {
+            return new Promise((resolve, reject) =>
+            {
+                var request = this.socket.SendRequest("ReplayTestSession", new JArray(new[] { sessionId }));
+                request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
+                request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
+            }).Then(payload =>
+            {
+                // From here we don't have static typing.
+                // The code below can throw arbitrary exceptions
+                // if the JSON payload format changes
+                JObject info = (JObject)payload;
+
+                string path = info["assemblyPath"].ToObject<string>();
+                string methodName = info["methodName"].ToObject<string>();
+
+                Console.WriteLine("Session Id : {0}", sessionId);
+                Console.WriteLine("    [{1}] in {0}", info["assemblyName"], methodName);
+
+                LoadTestSubject(path);
+                var testMethod = GetMethodToBeTested(methodName);
+
+                this.sessions[sessionId] = new TaskCompletionSource<bool>();                
+
+                this.testingAPI.SetSessionId(sessionId);
+
+                try
+                {
+                    // Invoke the main test function, passing in the API
+                    testMethod.Invoke(null, new[] { this.testingAPI });
+
+                    // by this time server should have initialized main task 0
+                    this.testingAPI.EndTask(0);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Exception was Caught during test!");
+                    this.sessions[sessionId].SetException(ex);
+                }
+
+                this.sessions[sessionId].Task.Wait();
+
+                Console.WriteLine("  ... Deleting Test Session {0}", sessionId);
+
+                this.sessions.Remove(sessionId);
+
+                return null;
+            }).task;
+        }
     }
 
     public class TestRuntimeAPI : ITestingService
     {
-        private IClient socket;
-        private string sessionId;
+        private static int gCount = 0;
 
-        private int count = 0;
+        public IClient socket;
+        private string sessionId;
+        private int count;
 
         public TestRuntimeAPI(IClient socket)
         {
             this.socket = socket;
             this.sessionId = null;
+            this.count = 0;
         }
 
         // Called by the parent object (TestingServiceProxy) to give 
@@ -184,6 +242,7 @@ namespace AsyncTester.Core
         public void SetSessionId(string sessionId)
         {
             this.sessionId = sessionId;
+            this.count = 0;
         }
 
         public void AcknowledgeTestTimeException(string message)

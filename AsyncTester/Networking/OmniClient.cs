@@ -12,11 +12,13 @@ using Newtonsoft.Json.Linq;
 
 namespace AsyncTester.Core
 {
-    public class OmniClient : IClient
+    public class OmniClient : IClient, IDisposable
     {
         private OmniClientConfiguration config;
         private Func<string, JArray, Task<JToken>> _sendRequest;    // delegate method to be implemented by differnet transport mechanisms
         private Action<string, RemoteMethodAsync> _addRemoteMethod;    // delegate method to be implemented by differnet transport mechanisms
+        private Action _dispose;
+        
         // private Func<string, Task> Subscribe;            // using topic-based Publish-Subscribe
         // private Func<string, string, Task> Publish;      // using topic-based Publish-Subscribe
 
@@ -70,6 +72,10 @@ namespace AsyncTester.Core
             {
 
             };
+
+            this._dispose = () => {
+                
+            };
         }
 
         private void SetupTransportHTTP()
@@ -86,6 +92,10 @@ namespace AsyncTester.Core
             this._addRemoteMethod = (string func, RemoteMethodAsync handler) =>
             {
 
+            };
+
+            this._dispose = () => {
+                client.Dispose();
             };
         }
 
@@ -106,6 +116,10 @@ namespace AsyncTester.Core
             this._sendRequest = (string func, JArray args) => client.Request("Tester-Server", func, args);
 
             this._addRemoteMethod = (string func, RemoteMethodAsync handler) => client.RegisterRemoteMethod(func, handler);
+
+            this._dispose = () => {
+                client.Dispose();
+            };
         }
 
         private void SetupTransportTCP()
@@ -187,6 +201,11 @@ namespace AsyncTester.Core
             while (true)
             {
             }
+        }
+
+        public void Dispose()
+        {
+            this._dispose();
         }
     }
 }

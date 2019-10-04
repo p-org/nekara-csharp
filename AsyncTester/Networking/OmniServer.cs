@@ -154,7 +154,8 @@ namespace AsyncTester.Core
                 }*/
                 catch (Exception ex)
                 {
-                    Console.WriteLine("!!! {0} Caught while invoking remote method {1}", ex.GetType().Name, message.func);
+                    Console.WriteLine("!!! {0} Caught while invoking [{1}]", ex.GetType().Name, message.func);
+                    Console.WriteLine(ex);
                     // Console.WriteLine(ex);
                     return Task.FromResult(message.CreateErrorResponse("Tester-Server", new JValue(ex.Message)));
                 }

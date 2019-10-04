@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
-using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -44,6 +40,20 @@ namespace AsyncTester
                 Console.WriteLine("Invalid Value, enter a value between {0} and {1}\n", min, max);
                 Console.Write(prompt);
                 input = Int32.Parse(Console.ReadLine());
+            }
+            return input;
+        }
+
+        public static string Prompt(string prompt, Func<string, bool> verifier, bool collapseWhitespace = true)
+        {
+            Console.Write(prompt);
+            string input = Console.ReadLine();
+            if (collapseWhitespace) input = Regex.Replace(input, @"[ \t]+", " ");
+            while (!verifier(input))
+            {
+                Console.WriteLine("Invalid Value\n");
+                Console.Write(prompt);
+                input = Console.ReadLine();
             }
             return input;
         }

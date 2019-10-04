@@ -10,7 +10,7 @@ using Newtonsoft.Json;
 namespace AsyncTester
 {
     // Wrapping the native ClientWebSocket class to provide a different high-level interface
-    class WebSocketClient : JsonP2P
+    class WebSocketClient : JsonP2P, IDisposable
     {
         private string serverUri;
         private ClientWebSocket socket;
@@ -118,6 +118,12 @@ namespace AsyncTester
             {
                 Monitor.Exit(socket);
             }
+        }
+
+        public void Dispose()
+        {
+            this.socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client Signing Out", CancellationToken.None).Wait();
+            this.socket.Dispose();
         }
     }
 }

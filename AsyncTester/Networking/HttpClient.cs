@@ -11,7 +11,7 @@ namespace AsyncTester
 {
     // Wrapping the native System.Net.Http.HttpClient class
     // to provide a higher level of abstraction
-    class HttpClient
+    class HttpClient : IDisposable
     {
         private string serverUri;
         private System.Net.Http.HttpClient client;
@@ -23,6 +23,11 @@ namespace AsyncTester
 
             // Create the client
             this.client = new System.Net.Http.HttpClient();
+        }
+
+        public void Dispose()
+        {
+            this.client.Dispose();
         }
 
         public async Task<Object> Get(string path)

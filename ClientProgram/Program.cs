@@ -11,6 +11,7 @@ using AsyncTester;
 using AsyncTester.Core;
 using System.Threading;
 using System.Dynamic;
+using System.Net.Sockets;
 
 namespace ClientProgram
 {
@@ -37,23 +38,47 @@ namespace ClientProgram
         static void Repl(TestingServiceProxy client)
         {
             var cancellation = new CancellationTokenSource();
-            Helpers.AsyncTaskLoop(() =>
+            var actions = new Dictionary<string, Func<Task>>();  // user command handlers
+
+            // exit command
+            actions.Add("exit", () =>
             {
-                Console.Write("\n\n\nPath of the Program To Test? ");
-                string input = Console.ReadLine();
-                input = Regex.Replace(input, @"[ \t]+", " ");
+                client.socket.Dispose();
+                cancellation.Cancel();
+                return Task.CompletedTask;
+            });
+            // run test
+            actions.Add("run", () =>
+            {
+                string path = Helpers.Prompt("Path of the Program To Test? ", input => File.Exists(input));
 
                 // Load assembly and notify the server - this is asynchronous
-                client.LoadTestSubject(input);
+                client.LoadTestSubject(path);
                 var testMethod = client.GetMethodToBeTested();
                 Console.WriteLine("... found method to be tested: [{0}]", testMethod.Name);
 
                 // Ask how many iterations
                 int repeat = Helpers.PromptInt("How many iterations? ", 0, 500);
                 if (repeat > 0) return Helpers.RepeatTask(() => client.RunTest(testMethod).task, repeat);
-                else cancellation.Cancel();
+                else return Task.CompletedTask;
+            });
+            // replay a test run
+            actions.Add("replay", () =>
+            {
+                string sessionId = Helpers.Prompt("Provide Test Session ID? ", input => true);
 
-                return Task.CompletedTask;
+                // Make a replay request
+                return client.ReplayTestSession(sessionId);
+            });
+
+            Helpers.AsyncTaskLoop(() =>
+            {
+                Console.Write("Commands:\n    run: run concurrency test\n    replay: replay a test run\n    exit: exit program\n\n");
+
+                string choice = Helpers.Prompt("Enter a command? ", input => actions.ContainsKey(input));
+
+                return actions[choice]().ContinueWith(prev => Task.Delay(1000)); // delaying a little bit to wait for pending console IO
+
             }, cancellation.Token);
 
             // block the main thread here to prevent exiting - as AsyncTaskLoop will return immediately

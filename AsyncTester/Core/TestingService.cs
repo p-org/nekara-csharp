@@ -13,6 +13,8 @@ using Grpc.Core.Logging;
 using AsyncTester.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Collections;
+using Grpc.Core;
 
 namespace AsyncTester.Core
 {
@@ -36,9 +38,51 @@ namespace AsyncTester.Core
             }
         }
 
-        public static int count = 0;
+        public struct SessionInfo
+        {
+            public string id;
+            public string assemblyName;
+            public string assemblyPath;
+            public string methodName;
+
+            public SessionInfo(string id, string assemblyName, string assemblyPath, string methodName)
+            {
+                this.id = id;
+                this.assemblyName = assemblyName;
+                this.assemblyPath = assemblyPath;
+                this.methodName = methodName;
+            }
+        }
+
+        public struct TraceStep
+        {
+            public string methodName;
+            public JToken[] args;
+            public JToken result;
+
+            public TraceStep(string methodName, JToken[] args, JToken result)
+            {
+                this.methodName = methodName;
+                this.args = args;
+                this.result = result;
+            }
+
+            public static TraceStep FromString(string line)
+            {
+                string[] cols = line.Split(',');
+                return new TraceStep(cols[0], cols[1].Split(';').Select(item => JToken.FromObject(item)).ToArray<JToken>(), JToken.FromObject(cols[2]));
+            }
+
+            public override string ToString()
+            {
+                return this.methodName + "," + (this.args != null ? String.Join(";", args.Select(arg => arg.ToString())) : "") + "," + (this.result != null ? this.result.ToString() : "");
+            }
+        }
+
+        public static int gCount = 0;
 
         private Dictionary<string, TestResult> testResults;
+        private Dictionary<string, SessionInfo> testSessions;
 
         private StreamWriter logFile;
         private StreamWriter traceFile;
@@ -48,14 +92,17 @@ namespace AsyncTester.Core
                                         //       and the respective reply/reject callbacks
 
         string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
+        public int count;
         ProgramState programState;
         TaskCompletionSource<TestResult> IterFinished;
         int numPendingTaskCreations;
-        List<string> testTrace;
+        Queue<TraceStep> testTrace;
+        bool isReplayMode;
 
         public TestingService(OmniServer server)
         {
             this.testResults = new Dictionary<string, TestResult>();
+            this.testSessions = new Dictionary<string, SessionInfo>();
 
             string logPath = "logs/log-" + DateTime.Now.Ticks.ToString() + ".csv";
             this.logFile = File.AppendText(logPath);
@@ -68,10 +115,12 @@ namespace AsyncTester.Core
             this.server = server;
 
             this.sessionId = null;
+            this.count = 0;
             this.programState = null;
             this.IterFinished = null;
             this.testTrace = null;
             this.traceFile = null;
+            this.isReplayMode = false;
         }
 
         private void AppendLog(string line)
@@ -86,17 +135,17 @@ namespace AsyncTester.Core
             this.logFile.WriteLine(String.Join(",", cols.Select(obj => obj.ToString())));
         }
 
-        private void PushTrace(string description)
+        private void PushTrace(string methodName, JToken[] args, JToken result)
         {
             lock (this.testTrace)
             {
-                this.testTrace.Add(description);
+                this.testTrace.Enqueue(new TraceStep(methodName, args, result));
             }
         }
 
         [RemoteMethod(name = "InitializeTestSession", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
         // treating this method as a special case because it spawns another Task we have to resolve later
-        public string InitializeTestSession(object assemblyName)
+        public string InitializeTestSession(JToken arg0, JToken arg1, JToken arg2)
         {
             // HACK: Wait till previous session finishes
             // - a better way to deal with this is to keep a dictionary of sessions
@@ -106,7 +155,15 @@ namespace AsyncTester.Core
                 Thread.Sleep(100);
             }
 
+            string assemblyName = arg0.ToObject<string>();
+            string assemblyPath = arg1.ToObject<string>();
+            string methodName = arg2.ToObject<string>();
+
+            Console.WriteLine("Initializing test for [{1}] in {0}", assemblyName, methodName);
+
             this.sessionId = Helpers.RandomString(16);
+            this.count = 0;
+            this.testSessions.Add(this.sessionId, new SessionInfo(this.sessionId, assemblyName, assemblyPath, methodName));
 
             // The following should really be managed per client session.
             // For now, we assume there is only 1 client.
@@ -114,11 +171,88 @@ namespace AsyncTester.Core
             this.IterFinished = new TaskCompletionSource<TestResult>();
             this.programState.taskToTcs.Add(0, new TaskCompletionSource<bool>());
             this.numPendingTaskCreations = 0;
-            this.testTrace = new List<string>();
+            this.testTrace = new Queue<TraceStep>();
+            this.isReplayMode = false;
 
             string tracePath = "logs/trace-" + this.sessionId + ".csv";
             this.traceFile = File.AppendText(tracePath);
-            this.traceFile.WriteLine("Description");
+            // this.traceFile.WriteLine("Description");
+
+            // create a continuation callback that will notify the client once the test is finished
+            this.IterFinished.Task.ContinueWith(prev => {
+                // notifyClient(this.sessionId);
+                var client = this.server.GetClient();   // HACK - this always returns the same client; should be updated to load client by session ID
+                var message = new RequestMessage("Tester-Server", client.id, "FinishTest", JArray.FromObject(new string[] { sessionId }));
+                var serialized = JsonConvert.SerializeObject(message);
+                client.Send(serialized);
+
+                Console.WriteLine("Test {0} Finished!", this.sessionId);
+
+                this.testResults.Add(this.sessionId, prev.Result);
+
+                // Flush the trace into a file
+
+                /*if (prev.Result.passed) this.PushTrace("TEST PASSED");
+                else this.PushTrace("TEST FAILED");*/
+
+                Console.WriteLine("Trace Length: {0}", testTrace.Count);
+                this.traceFile.Write(String.Join("\n", this.testTrace.Select(step => step.ToString())));
+                this.traceFile.Close();
+
+                // Append Summary
+                string summary = prev.Result.sessionId + "," + (prev.Result.passed ? "pass" : "fail") + "," + prev.Result.reason;
+                Console.WriteLine(summary);
+                this.summaryFile.WriteLine(summary);
+                this.summaryFile.Flush();
+
+                Console.WriteLine("Results: {0}/{1}", this.testResults.Where(item => item.Value.passed == true).Count(), this.testResults.Count);
+
+                this.sessionId = null;      // Clear the sessionId so the next session can begin
+            });
+
+            return sessionId;
+        }
+
+        [RemoteMethod(name = "AcknowledgeTestTimeException", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
+        public void AcknowledgeTestTimeException(JToken message)
+        {
+            this.IterFinished.SetResult(new TestResult(false, this.sessionId, message.ToObject<string>()));
+        }
+
+        [RemoteMethod(name = "ReplayTestSession", description = "Replays the test session identified by the given session ID")]
+        public SessionInfo ReplayTestSession(JToken arg)
+        {
+            // HACK: Wait till previous session finishes
+            // - a better way to deal with this is to keep a dictionary of sessions
+            // and associate each request with a particular session so that the sessions are isolated
+            while (this.sessionId != null)
+            {
+                Thread.Sleep(100);
+            }
+
+            string sessionId = arg.ToObject<string>();
+
+            SessionInfo info = this.testSessions[sessionId];
+            Console.WriteLine("Replaying test {0}: [{2}] in {1}", sessionId, info.assemblyName, info.methodName);
+
+            this.sessionId = sessionId;
+            this.count = 0;
+
+            // The following should really be managed per client session.
+            // For now, we assume there is only 1 client.
+            this.programState = new ProgramState();
+            this.IterFinished = new TaskCompletionSource<TestResult>();
+            this.programState.taskToTcs.Add(0, new TaskCompletionSource<bool>());
+            this.numPendingTaskCreations = 0;
+            // this.testTrace = new List<string>();
+            this.isReplayMode = true;
+
+            string tracePath = "logs/trace-" + this.sessionId + ".csv";
+            string[] trace = File.ReadAllText(tracePath).Split('\n');
+            this.testTrace = new Queue<TraceStep>(trace.Select(row => TraceStep.FromString(row)));
+
+            // this.traceFile = File.AppendText(tracePath);
+            // this.traceFile.WriteLine("Description");
 
             // create a continuation callback that will notify the client once the test is finished
             this.IterFinished.Task.ContinueWith(prev => {
@@ -129,33 +263,13 @@ namespace AsyncTester.Core
                 client.Send(serialized);
 
                 Console.WriteLine("Test {0} Finished!", this.sessionId);
+                // Make sure that the result is the same as before
 
-                this.testResults.Add(this.sessionId, prev.Result);
-
-                // Flush the trace into a file
-                if (prev.Result.passed) this.PushTrace("TEST PASSED");
-                else this.PushTrace("TEST FAILED");
-                Console.WriteLine("Trace Length: {0}", testTrace.Count);
-                this.traceFile.Write(String.Join("\n", this.testTrace.ToArray()));
-                this.traceFile.Close();
-
-                // Append Summary
-                string summary = prev.Result.sessionId + "," + (prev.Result.passed ? "pass" : "fail") + "," + prev.Result.reason;
-                Console.WriteLine(summary);
-                this.summaryFile.WriteLine(summary);
-
-                Console.WriteLine("Results: {0}/{1}", this.testResults.Where(item => item.Value.passed == true).Count(), this.testResults.Count);
 
                 this.sessionId = null;      // Clear the sessionId so the next session can begin
             });
 
-            return sessionId;
-        }
-
-        [RemoteMethod(name = "InitializeTestSession", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
-        public void AcknowledgeTestTimeException(JToken message)
-        {
-            this.IterFinished.SetResult(new TestResult(false, this.sessionId, message.ToObject<string>()));
+            return info;
         }
 
         /* Methods below are the actual methods called (remotely) by the client-side proxy object.
@@ -172,7 +286,7 @@ namespace AsyncTester.Core
                 this.numPendingTaskCreations++;
             }
             // Console.WriteLine("{0}\tCreateTask()\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            this.PushTrace("CreateTask");
+            this.PushTrace("CreateTask", null, null);
             AppendLog(count++, "CreateTask", "", "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
@@ -183,7 +297,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "StartTask", taskId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.StartTask(taskId.ToObject<int>());
             // Console.WriteLine("{0}\tStartTask({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
-            this.PushTrace("StartTask " + taskId.ToString());
+            this.PushTrace("StartTask", new JToken[] { taskId }, null);
             AppendLog(count++, "StartTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void StartTask(int taskId)
@@ -207,7 +321,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "EndTask", taskId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.EndTask(taskId.ToObject<int>());
             // Console.WriteLine("{0}\tEndTask({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
-            this.PushTrace("EndTask " + taskId.ToString());
+            this.PushTrace("EndTask", new JToken[] { taskId }, null);
             AppendLog(count++, "EndTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void EndTask(int taskId)
@@ -230,7 +344,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "CreateResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.CreateResource(resourceId.ToObject<int>());
             // Console.WriteLine("{0}\tCreateResource({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            this.PushTrace("CreateResource " + resourceId.ToString());
+            this.PushTrace("CreateResource", new JToken[] { resourceId }, null);
             AppendLog(count++, "CreateResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void CreateResource(int resourceId)
@@ -249,7 +363,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "DeleteResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.DeleteResource(resourceId.ToObject<int>());
             // Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            this.PushTrace("DeleteResource " + resourceId.ToString());
+            this.PushTrace("DeleteResource", new JToken[] { resourceId }, null);
             AppendLog(count++, "DeleteResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void DeleteResource(int resourceId)
@@ -268,7 +382,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "BlockedOnResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.BlockedOnResource(resourceId.ToObject<int>());
             // Console.WriteLine("{0}\tBlockedOnResource({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            this.PushTrace("BlockedOnResource " + resourceId.ToString());
+            this.PushTrace("BlockedOnResource", new JToken[] { resourceId }, null);
             AppendLog(count++, "BlockedOnResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void BlockedOnResource(int resourceId)
@@ -290,7 +404,7 @@ namespace AsyncTester.Core
             AppendLog(count++, "SignalUpdatedResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             this.SignalUpdatedResource(resourceId.ToObject<int>());
             // Console.WriteLine("{0}\tSignalUpdatedResource({3})\texit\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            this.PushTrace("SignalUpdatedResource " + resourceId.ToString());
+            this.PushTrace("SignalUpdatedResource", new JToken[] { resourceId }, null);
             AppendLog(count++, "SignalUpdatedResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
         public void SignalUpdatedResource(int resourceId)
@@ -311,7 +425,7 @@ namespace AsyncTester.Core
             // Console.WriteLine("{0}\tCreateNondetBool()\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count++, "CreateNondetBool", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             var value = Helpers.RandomBool();
-            this.PushTrace("CreateNondetBool " + value.ToString());
+            this.PushTrace("CreateNondetBool", null, JToken.FromObject(value));
             return value;
         }
 
@@ -321,7 +435,7 @@ namespace AsyncTester.Core
             // Console.WriteLine("{0}\tCreateNondetInteger()\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count++, "CreateNondetInteger", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             var value = this.CreateNondetInteger(maxValue.ToObject<int>());
-            this.PushTrace("CreateNondetInteger " + value.ToString());
+            this.PushTrace("CreateNondetInteger", new JToken[] { maxValue }, JToken.FromObject(value));
             return value;
         }
         public int CreateNondetInteger(int maxValue)
@@ -334,7 +448,7 @@ namespace AsyncTester.Core
         {
             // Console.WriteLine("{0}\tAssert\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count++, "Assert", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            this.PushTrace("Assert " + value.ToString());
+            this.PushTrace("Assert", new JToken[] { value, message }, null);
             this.Assert(value.ToObject<bool>(), message.ToObject<string>());
         }
         public void Assert(bool value, string message)
@@ -347,7 +461,7 @@ namespace AsyncTester.Core
         {
             // Console.WriteLine("{0}\tContextSwitch()\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             AppendLog(count++, "ContextSwitch", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            this.PushTrace("ContextSwitch");
+            this.PushTrace("ContextSwitch", null, null);
             WaitForPendingTaskCreations();
 
             var tcs = new TaskCompletionSource<bool>();
@@ -411,8 +525,10 @@ namespace AsyncTester.Core
         void WaitForPendingTaskCreations()
         {
             // Console.WriteLine("{0}\tWaitForPendingTaskCreations()\tenter\t{1}/{2}", count, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            AppendLog(count, "WaitForPendingTaskCreations", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            this.PushTrace("WaitForPendingTaskCreations");
+            
+            // AppendLog(count, "WaitForPendingTaskCreations", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            // this.PushTrace("WaitForPendingTaskCreations", null, null);
+
             while (true)
             {
                 lock (programState)
