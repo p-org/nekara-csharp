@@ -31,6 +31,37 @@ namespace AsyncTester
             return result;
         }
 
+        public class SeededRandomizer
+        {
+            private Random random;
+            public SeededRandomizer(int seed = 0)
+            {
+                this.random = new Random(seed);
+            }
+
+            public string NextString(int length)
+            {
+                const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+                return new string(Enumerable.Repeat(chars, length)
+                  .Select(s => s[this.random.Next(s.Length)]).ToArray());
+            }
+
+            public int NextInt(int maxValue)
+            {
+                return this.random.Next(maxValue);
+            }
+
+            public bool NextBool()
+            {
+                bool result = false;
+                if (this.random.Next(2) == 0)
+                {
+                    result = true;
+                }
+                return result;
+            }
+        }
+
         public static int PromptInt(string prompt, int min = 0, int max = 100)
         {
             Console.Write(prompt);

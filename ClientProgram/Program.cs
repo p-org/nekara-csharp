@@ -111,6 +111,7 @@ namespace ClientProgram
 
                 // Ask how many iterations
                 int repeat = Helpers.PromptInt("How many iterations? ", 0, 500);
+
                 if (repeat > 0) return Helpers.RepeatTask(() => client.RunTest(testMethod).task, repeat);
                 else return Task.CompletedTask;
             });

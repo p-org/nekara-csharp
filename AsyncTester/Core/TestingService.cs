@@ -93,6 +93,7 @@ namespace AsyncTester.Core
 
         string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
         public int count;
+        private Helpers.SeededRandomizer randomizer;
         ProgramState programState;
         TaskCompletionSource<TestResult> IterFinished;
         int numPendingTaskCreations;
@@ -116,6 +117,7 @@ namespace AsyncTester.Core
 
             this.sessionId = null;
             this.count = 0;
+            this.randomizer = null;
             this.programState = null;
             this.IterFinished = null;
             this.testTrace = null;
@@ -145,7 +147,7 @@ namespace AsyncTester.Core
 
         [RemoteMethod(name = "InitializeTestSession", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
         // treating this method as a special case because it spawns another Task we have to resolve later
-        public string InitializeTestSession(JToken arg0, JToken arg1, JToken arg2)
+        public string InitializeTestSession(JToken arg0, JToken arg1, JToken arg2, JToken args3)
         {
             // HACK: Wait till previous session finishes
             // - a better way to deal with this is to keep a dictionary of sessions
@@ -158,11 +160,13 @@ namespace AsyncTester.Core
             string assemblyName = arg0.ToObject<string>();
             string assemblyPath = arg1.ToObject<string>();
             string methodName = arg2.ToObject<string>();
+            int schedulingSeed = args3.ToObject<int>();
 
             Console.WriteLine("Initializing test for [{1}] in {0}", assemblyName, methodName);
 
             this.sessionId = Helpers.RandomString(16);
             this.count = 0;
+            this.randomizer = new Helpers.SeededRandomizer(schedulingSeed);
             this.testSessions.Add(this.sessionId, new SessionInfo(this.sessionId, assemblyName, assemblyPath, methodName));
 
             // The following should really be managed per client session.
@@ -409,7 +413,7 @@ namespace AsyncTester.Core
         public bool CreateNondetBool()
         {
             AppendLog(count++, "CreateNondetBool", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            var value = Helpers.RandomBool();
+            var value = this.randomizer.NextBool();
             this.PushTrace("CreateNondetBool", null, JToken.FromObject(value));
             return value;
         }
@@ -424,7 +428,7 @@ namespace AsyncTester.Core
         }
         public int CreateNondetInteger(int maxValue)
         {
-            return Helpers.RandomInt(maxValue);
+            return this.randomizer.NextInt(maxValue);
         }
 
         [RemoteMethod(name = "Assert", description = "")]
@@ -472,7 +476,7 @@ namespace AsyncTester.Core
                     return;
                 }
 
-                next = Helpers.RandomInt(enabledTasks.Count);
+                next = this.randomizer.NextInt(enabledTasks.Count);
             }
 
             if (enabledTasks[next] == currentTask)
