@@ -15,7 +15,7 @@ namespace AsyncTester.Core
     public class OmniClient : IClient, IDisposable
     {
         private OmniClientConfiguration config;
-        private Func<string, JArray, Task<JToken>> _sendRequest;    // delegate method to be implemented by differnet transport mechanisms
+        private Func<string, JToken[], Task<JToken>> _sendRequest;    // delegate method to be implemented by differnet transport mechanisms
         private Action<string, RemoteMethodAsync> _addRemoteMethod;    // delegate method to be implemented by differnet transport mechanisms
         private Action _dispose;
         
@@ -62,7 +62,7 @@ namespace AsyncTester.Core
             // TestingService service = new TestingService();
 
             // Assign the appropriate SendRequest method
-            this._sendRequest = (string func, JArray args) =>
+            this._sendRequest = (func, args) =>
             {
                 // TODO: this function is incomplete - work on it later
                 return Task.FromResult(JValue.Parse("true"));
@@ -83,7 +83,7 @@ namespace AsyncTester.Core
             HttpClient client = new HttpClient("http://localhost:8080/");
 
             // Assign the appropriate SendRequest method
-            this._sendRequest = (string func, JArray args) =>
+            this._sendRequest = (func, args) =>
             {
                 return client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args))
                     .ContinueWith(prev => JToken.Parse(prev.Result));
@@ -113,7 +113,7 @@ namespace AsyncTester.Core
             };*/
 
             // Assign the appropriate SendRequest method
-            this._sendRequest = (string func, JArray args) => client.Request("Tester-Server", func, args);
+            this._sendRequest = (string func, JToken[] args) => client.Request("Tester-Server", func, args);
 
             this._addRemoteMethod = (string func, RemoteMethodAsync handler) => client.RegisterRemoteMethod(func, handler);
 
@@ -130,32 +130,32 @@ namespace AsyncTester.Core
         // overloading the main SendRequest method to deal with variadic arguments
         public Task<JToken> SendRequest(string func)
         {
-            return this._sendRequest(func, JArray.Parse("[]"));
+            return this._sendRequest(func, new JToken[] { });
         }
 
         public Task<JToken> SendRequest(string func, JArray args)
         {
-            return this._sendRequest(func, args);
+            return this._sendRequest(func, args.ToArray<JToken>());
         }
 
         public Task<JToken> SendRequest(string func, params JToken[] args)
         {
-            return this._sendRequest(func, new JArray(args));
+            return this._sendRequest(func, args);
         }
 
         public Task<JToken> SendRequest(string func, params bool[] args)
         {
-            return this._sendRequest(func, new JArray(args));
+            return this._sendRequest(func, args.Select(x => JToken.FromObject(x)).ToArray());
         }
 
         public Task<JToken> SendRequest(string func, params int[] args)
         {
-            return this._sendRequest(func, new JArray(args));
+            return this._sendRequest(func, args.Select(x => JToken.FromObject(x)).ToArray());
         }
 
         public Task<JToken> SendRequest(string func, params string[] args)
         {
-            return this._sendRequest(func, new JArray(args));
+            return this._sendRequest(func, args.Select(x => JToken.FromObject(x)).ToArray());
         }
 
         public void AddRemoteMethod(string func, RemoteMethodAsync handler)
@@ -183,12 +183,12 @@ namespace AsyncTester.Core
                     {
                         if (cmd == "echo")
                         {
-                            return this._sendRequest(cmd, new JArray(tokens.Skip(1)));
+                            return this._sendRequest(cmd, tokens.Skip(1).Select(x => JToken.FromObject(x)).ToArray());
                         }
                         else if (cmd == "do")
                         {
                             string func = tokens[1];
-                            JArray args = new JArray(tokens.Skip(2));
+                            JToken[] args = tokens.Skip(2).Select(x => JToken.FromObject(x)).ToArray();
                             return this._sendRequest(func, args);
                         }
                     }

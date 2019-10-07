@@ -84,7 +84,7 @@ namespace AsyncTester
             }
         }
 
-        public Task<JToken> Request(string recipient, string func, JArray args, int timeout = 30000)
+        public Task<JToken> Request(string recipient, string func, JToken[] args, int timeout = 30000)
         {
             Console.WriteLine("<-- Requesting {0} ({1})", func, String.Join(", ", args.Select(arg => arg.ToString())));
             var tcs = new TaskCompletionSource<JToken>();   // This tcs will be settled when the response comes back
@@ -154,9 +154,9 @@ namespace AsyncTester
         internal string func;
 
         [DataMember]
-        internal JArray args;
+        internal JToken[] args;
 
-        public RequestMessage(string sender, string recipient, string func, JArray args)
+        public RequestMessage(string sender, string recipient, string func, JToken[] args)
         {
             this.id = "req-" + Helpers.RandomString(16);
             this.sender = sender;

@@ -182,7 +182,7 @@ namespace AsyncTester.Core
             this.IterFinished.Task.ContinueWith(prev => {
                 // notifyClient(this.sessionId);
                 var client = this.server.GetClient();   // HACK - this always returns the same client; should be updated to load client by session ID
-                var message = new RequestMessage("Tester-Server", client.id, "FinishTest", JArray.FromObject(new string[] { sessionId }));
+                var message = new RequestMessage("Tester-Server", client.id, "FinishTest", new JToken[] { sessionId });
                 var serialized = JsonConvert.SerializeObject(message);
                 client.Send(serialized);
 
@@ -258,7 +258,7 @@ namespace AsyncTester.Core
             this.IterFinished.Task.ContinueWith(prev => {
                 // notifyClient(this.sessionId);
                 var client = this.server.GetClient();
-                var message = new RequestMessage("Tester-Server", client.id, "FinishTest", JArray.FromObject(new string[] { sessionId }));
+                var message = new RequestMessage("Tester-Server", client.id, "FinishTest", new JToken[] { sessionId });
                 var serialized = JsonConvert.SerializeObject(message);
                 client.Send(serialized);
 

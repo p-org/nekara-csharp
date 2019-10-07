@@ -158,7 +158,7 @@ namespace AsyncTester.Core
             // Communicate to the server here to notify the start of a test and initialize the test session
             return new Promise((resolve, reject) =>
             {
-                var request = this.socket.SendRequest("InitializeTestSession", new JArray(new[] { assembly.FullName, assembly.Location, testMethod.Name }));
+                var request = this.socket.SendRequest("InitializeTestSession", new JToken[] { assembly.FullName, assembly.Location, testMethod.Name });
                 request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
                 request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
             }).Then(sessionId =>
@@ -214,7 +214,7 @@ namespace AsyncTester.Core
         {
             return new Promise((resolve, reject) =>
             {
-                var request = this.socket.SendRequest("ReplayTestSession", new JArray(new[] { sessionId }));
+                var request = this.socket.SendRequest("ReplayTestSession", new JToken[] { sessionId });
                 request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
                 request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
             }).Then(payload =>

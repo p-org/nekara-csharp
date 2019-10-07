@@ -74,10 +74,18 @@ namespace AsyncTester.Core
             {
                 this.remoteMethods[name] = args =>
                 {
-                    // Console.WriteLine("    Invoking Remote Method: void {0} ({1})", name, String.Join(",", args.Select(t => t.ToString())) );
-                    method.Invoke(instance, args);
-                    // method.Invoke(instance, new object[] { args[0].ToObject<int>() });
-                    return Task<JToken>.FromResult(JToken.FromObject(0));
+                    try
+                    {
+                        // Console.WriteLine("    Invoking Remote Method: void {0} ({1})", name, String.Join(",", args.Select(t => t.ToString())) );
+                        method.Invoke(instance, args);
+                        // method.Invoke(instance, new object[] { args[0].ToObject<int>() });
+                        return Task<JToken>.FromResult(JToken.FromObject(0));
+                    }
+                    catch (TargetInvocationException ex)
+                    {
+                        Console.WriteLine("  !!! Caught TargetInvocationException");
+                        throw ex.InnerException;
+                    }
                 };
             }
             else
@@ -130,7 +138,7 @@ namespace AsyncTester.Core
             // this is a "meta" remote method, mostly for testing; should be removed later
             if (message.func == "echo")
             {
-                return Task.FromResult(message.CreateResponse("Tester-Server", message.args));
+                return Task.FromResult(message.CreateResponse("Tester-Server", JToken.FromObject(message.args)));
             }
             else if (this.remoteMethods.ContainsKey(message.func))
             {
@@ -145,7 +153,15 @@ namespace AsyncTester.Core
                     // return this.remoteMethods[message.func](message.args.ToArray())
                     .ContinueWith(prev => {
                         // Console.WriteLine("    ... responding to {2}:  {0} {1}", message.func, prev.IsFaulted, message.id);
-                        if (prev.IsFaulted) return message.CreateErrorResponse("Tester-Server", JToken.FromObject(prev.Exception));
+                        if (prev.IsFaulted)
+                        {
+                            Console.WriteLine("  !!! Exception Caught while handling [" + message.func + "]");
+                            if (prev.Exception is AggregateException)
+                            {
+                                return message.CreateErrorResponse("Tester-Server", JToken.FromObject(prev.Exception.InnerException));
+                            }
+                            else return message.CreateErrorResponse("Tester-Server", JToken.FromObject(prev.Exception));
+                        }
                         if (prev.Result != null) return message.CreateResponse("Tester-Server", prev.Result);
                         return message.CreateResponse("Tester-Server", new JValue("OK"));
                     });
