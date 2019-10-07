@@ -54,8 +54,14 @@ namespace ClientProgram
 
                 // Load assembly and notify the server - this is asynchronous
                 client.LoadTestSubject(path);
-                var testMethod = client.GetMethodToBeTested();
-                Console.WriteLine("... found method to be tested: [{0}]", testMethod.Name);
+
+                var methods = client.ListTestMethods();
+                Console.WriteLine(String.Join("\n", methods.Select((info, index) => "    " + index.ToString() + ") " + info.DeclaringType.Name + "." + info.Name)));
+
+                var choice = Helpers.PromptInt("Which method? ", 0, methods.Count - 1);
+
+                var testMethod = methods[choice];
+                Console.WriteLine("... selected method: [{0}]", testMethod.DeclaringType.Name + "." + testMethod.Name);
 
                 // Ask how many iterations
                 int repeat = Helpers.PromptInt("How many iterations? ", 0, 500);

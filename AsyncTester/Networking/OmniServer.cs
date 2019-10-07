@@ -141,7 +141,7 @@ namespace AsyncTester.Core
                     return this.remoteMethods[message.func](message.args.ToArray())
                     .ContinueWith(prev => {
                         //Console.WriteLine("    ... responding to {0} {1}", message.func, prev.IsFaulted);
-                        if (prev.IsFaulted) return message.CreateErrorResponse("Tester-Server", new JValue(prev.Exception.Message));
+                        if (prev.IsFaulted) return message.CreateErrorResponse("Tester-Server", JToken.FromObject(prev.Exception));
                         if (prev.Result != null) return message.CreateResponse("Tester-Server", prev.Result);
                         return message.CreateResponse("Tester-Server", new JValue("OK"));
                     });
@@ -157,12 +157,12 @@ namespace AsyncTester.Core
                     Console.WriteLine("!!! {0} Caught while invoking [{1}]", ex.GetType().Name, message.func);
                     Console.WriteLine(ex);
                     // Console.WriteLine(ex);
-                    return Task.FromResult(message.CreateErrorResponse("Tester-Server", new JValue(ex.Message)));
+                    return Task.FromResult(message.CreateErrorResponse("Tester-Server", JToken.FromObject(ex)));
                 }
             }
             else
             {
-                return Task.FromResult(message.CreateResponse("Tester-Server", new JValue("ERROR: Could not understand func " + message.func)));
+                return Task.FromResult(message.CreateErrorResponse("Tester-Server", new JValue("ERROR: Could not understand func " + message.func)));
             }
         }
 

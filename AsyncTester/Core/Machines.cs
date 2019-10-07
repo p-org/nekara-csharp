@@ -21,7 +21,8 @@ namespace AsyncTester.Core
         {
             var ev = (this.ReceivedEvent as ServerProxyMachineInitEvent);
             this.testMethod = ev.testMethod;
-            this.testingService = new ControlledTestingService(this.Id);
+            // this.testingService = new ControlledTestingService(this.Id);
+            this.testingService = new ControlledTestingService();
 
             testMethod.Invoke(null, new object[] { testingService });
 

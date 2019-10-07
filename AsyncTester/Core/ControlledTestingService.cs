@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace AsyncTester.Core
 {
-    class ControlledTestingService : ITestingService
+    public class ControlledTestingService : ITestingService
     {
         ProgramState programState;
         MachineId topLevelMachineId;
@@ -16,10 +16,10 @@ namespace AsyncTester.Core
         TaskCompletionSource<bool> IterFinished;
         int numPendingTaskCreations;
 
-        public ControlledTestingService(MachineId topLevelMachineId)
+        public ControlledTestingService()
         {
             this.programState = new ProgramState();
-            this.topLevelMachineId = topLevelMachineId;
+            // this.topLevelMachineId = topLevelMachineId;
             this.runtime = topLevelMachineId.Runtime;
             this.IterFinished = new TaskCompletionSource<bool>();
 

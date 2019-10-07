@@ -1,5 +1,7 @@
-﻿using System;
+﻿using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -34,9 +36,16 @@ namespace AsyncTester
     /* Communication related */
     class ServerThrownException : Exception
     {
-        public ServerThrownException(string message)
+        private JObject serialized;
+
+        public ServerThrownException(JToken payload)
         {
+            // we assume that the payload is the serialized Exception object, and cast it to JObject
+            this.serialized = (JObject)payload;
         }
+
+        public string ClassName { get { return this.serialized["ClassName"].ToObject<string>();  } }
+        public override string Message { get { return this.serialized["Message"].ToObject<string>(); } }
     }
 
     class InvalidRequestPayloadException : Exception

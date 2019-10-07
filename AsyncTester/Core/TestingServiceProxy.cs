@@ -29,7 +29,7 @@ namespace AsyncTester.Core
     {
         private Assembly assembly;
         public IClient socket;
-        private TestRuntimeAPI testingAPI;
+        public TestRuntimeAPI testingAPI;
         // string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
         private Dictionary<string, TaskCompletionSource<bool>> sessions;
 
@@ -67,15 +67,44 @@ namespace AsyncTester.Core
             assembly = Assembly.LoadFrom(path);
         }
 
+        public List<MethodInfo> ListTestMethods()
+        {
+            List<MethodInfo> testMethods = null;
+
+            try
+            {
+                testMethods = assembly.GetTypes().SelectMany(t => t.GetMethods())
+                    .Where(m => m.GetCustomAttributes(typeof(TestMethodAttribute), false).Length > 0).ToList();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                foreach (var le in ex.LoaderExceptions)
+                {
+                    Console.WriteLine("{0}", le.Message);
+                }
+
+                Console.WriteLine($"Failed to load assembly '{assembly.FullName}'");
+                throw new TestMethodLoadFailureException();
+            }
+
+            if (testMethods.Count == 0)
+            {
+                Console.WriteLine("Did not find any test method");
+                throw new TestMethodLoadFailureException();
+            }
+
+            return testMethods;
+        }
+
         public MethodInfo GetMethodToBeTested(string methodName = "")
         {
             // find test method
             List<MethodInfo> testMethods = null;
-            var bindingFlags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly | BindingFlags.InvokeMethod;
+            // var bindingFlags = BindingFlags.Default; // BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly | BindingFlags.InvokeMethod;
 
             try
             {
-                testMethods = assembly.GetTypes().SelectMany(t => t.GetMethods(bindingFlags))
+                testMethods = assembly.GetTypes().SelectMany(t => t.GetMethods())
                     .Where(m => m.GetCustomAttributes(typeof(TestMethodAttribute), false).Length > 0).ToList();
             }
             catch (ReflectionTypeLoadException ex)
@@ -116,6 +145,12 @@ namespace AsyncTester.Core
             }
 
             return testMethod;
+        }
+
+        public Promise RunTest(Assembly assembly, MethodInfo testMethod, int schedulingSeed = 0)
+        {
+            this.assembly = assembly;
+            return this.RunTest(testMethod, schedulingSeed);
         }
 
         public Promise RunTest(MethodInfo testMethod, int schedulingSeed = 0)
