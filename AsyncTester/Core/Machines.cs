@@ -11,7 +11,7 @@ namespace AsyncTester.Core
     class ServerProxyMachine : Machine
     {
         MethodInfo testMethod;
-        ControlledTestingService testingService;
+        ITestingService testingService;
 
         [Start]
         [OnEntry(nameof(InitOnEntry))]
@@ -22,13 +22,14 @@ namespace AsyncTester.Core
             var ev = (this.ReceivedEvent as ServerProxyMachineInitEvent);
             this.testMethod = ev.testMethod;
             // this.testingService = new ControlledTestingService(this.Id);
-            this.testingService = new ControlledTestingService();
+            var proxy = new TestingServiceProxy(ev.socket);
+            this.testingService = proxy.testingAPI;
 
-            testMethod.Invoke(null, new object[] { testingService });
+            this.testMethod.Invoke(null, new object[] { this.testingService });
 
-            testingService.EndTask(0);
+            this.testingService.EndTask(0);
 
-            await testingService.IsFinished();
+            await proxy.IsFinished(proxy.testingAPI.sessionId);
         }
 
         static void ProxyTestMethod(ITestingService testingService)
@@ -42,6 +43,7 @@ namespace AsyncTester.Core
     class ServerProxyMachineInitEvent : Event
     {
         public MethodInfo testMethod;
+        public OmniClient socket;
     }
 
     class ClientProxyRuntime

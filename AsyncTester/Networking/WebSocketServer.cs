@@ -99,7 +99,7 @@ namespace AsyncTester
             var socketDestroyer = new CancellationTokenSource();
             Console.WriteLine("  --> New WebSocketClient {0}", this.id);
 
-            byte[] buffer = new byte[8192]; // 8 KB buffer
+            byte[] buffer = new byte[65536]; // 8 KB buffer
             Helpers.AsyncTaskLoop(() =>
             {
                 if (socket.State == WebSocketState.Open)
@@ -126,6 +126,10 @@ namespace AsyncTester
                             {
                                 string message = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
                                 // Console.WriteLine("  !!! Message from WebSocket {0}: {1}", this.id, message);
+                                
+                                // Spawning a new task to make the message handler "non-blocking"
+                                // TODO: Errors thrown inside here will become silent, so that needs to be handled
+                                // Also, now that the single execution flow is broken, the requests are under race conditions
                                 return Task.Run(() => this.onMessage(message));
                             }
                         }

@@ -70,11 +70,13 @@ namespace AsyncTester
         public void HandleResponse(string payload)
         {
             ResponseMessage message = JsonConvert.DeserializeObject<ResponseMessage>(payload);
-            // Console.WriteLine("Client Got Response to {0} {1}", message.responseTo, message.error);
+            Console.WriteLine("--> Got Response to {0} {1}", message.responseTo, message.error);
             if (message.responseTo != null && this.requests.ContainsKey(message.responseTo))
             {
-                if (message.error) this.requests[message.responseTo].SetException(new ServerThrownException(message.data));
+                if (message.error) this.requests[message.responseTo].SetException(Exceptions.DeserializeServerSideException(message.data));
+                // if (message.error) this.requests[message.responseTo].SetException(new ServerThrownException(message.data));
                 else this.requests[message.responseTo].SetResult(message.data);
+                // Console.WriteLine("    ... resolved response to {0} {1}", message.responseTo, message.error);
             }
             else
             {
@@ -82,9 +84,9 @@ namespace AsyncTester
             }
         }
 
-        public Task<JToken> Request(string recipient, string func, JArray args, int timeout = 60000)
+        public Task<JToken> Request(string recipient, string func, JArray args, int timeout = 30000)
         {
-            // Console.WriteLine("    Requesting {0} ({1})", func, args);
+            Console.WriteLine("<-- Requesting {0} ({1})", func, String.Join(", ", args.Select(arg => arg.ToString())));
             var tcs = new TaskCompletionSource<JToken>();   // This tcs will be settled when the response comes back
             var message = new RequestMessage(this.id, recipient, func, args);
             var serialized = JsonConvert.SerializeObject(message);
@@ -96,6 +98,7 @@ namespace AsyncTester
                 timer.Change(Timeout.Infinite, Timeout.Infinite);
                 this.requests.Remove(message.id);
                 timer.Dispose();
+                // Console.WriteLine("  Request {0} was resolved with error={1}", message.id, prev.IsFaulted);
             });
             return tcs.Task;
         }
@@ -162,6 +165,16 @@ namespace AsyncTester
             this.args = args;
         }
 
+        public string Serialize()
+        {
+            return JsonConvert.SerializeObject(this);
+        }
+
+        public static RequestMessage Deserialize(string payload)
+        {
+            return JsonConvert.DeserializeObject<RequestMessage>(payload);
+        }
+
         public ResponseMessage CreateResponse(string sender, JToken data)
         {
             return new ResponseMessage(sender, this.sender, this.id, data);
@@ -205,6 +218,16 @@ namespace AsyncTester
             this.responseTo = requestId;
             this.data = data;
             this.error = isError;
+        }
+
+        public string Serialize()
+        {
+            return JsonConvert.SerializeObject(this);
+        }
+
+        public static ResponseMessage Deserialize(string payload)
+        {
+            return JsonConvert.DeserializeObject<ResponseMessage>(payload);
         }
     }
 

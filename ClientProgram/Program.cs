@@ -27,10 +27,56 @@ namespace ClientProgram
             // testing service proxy object;uses the socket to communicate to the actual testing service
             TestingServiceProxy client = new TestingServiceProxy(socket);
 
+            // if command line args given, proceed accordingly
+            // the argument format is:
+            // e.g.> ClientProgram.exe run Benchmarks/bin/Debug/Benchmarks.dll 0 50
+            // where the 0 indicates the index of the test method found in Benchmarks.dll
+            // and 50 indicates the number of iterations
+            if (args.Length > 0)
+            {
+                var command = args[0];
 
+                if (command == "run")
+                {
+                    if (args.Length < 4) throw new Exception("Need to provide all the arguments");
 
-            // using the service interactively in this program
-            Repl(client);
+                    var path = args[1];
+                    var choice = Int32.Parse(args[2]);
+                    var repeat = Int32.Parse(args[3]);
+                    
+                    client.LoadTestSubject(path);
+
+                    var methods = client.ListTestMethods();
+                    var testMethod = methods[choice];
+
+                    var run = Helpers.RepeatTask(() => client.RunTest(testMethod).task, repeat);
+
+                    run.Wait();
+
+                    socket.Dispose();
+
+                }
+                else if (command == "replay")
+                {
+                    string sessionId = args[1];
+
+                    // Make a replay request
+                    var run = client.ReplayTestSession(sessionId);
+
+                    run.Wait();
+
+                    socket.Dispose();
+                }
+                else
+                {
+                    Console.WriteLine("Unknown command '" + command + "'");
+                }
+            }
+            else
+            {
+                // if no args are given, run in interactive mode
+                Repl(client);
+            }
 
             Console.WriteLine("... Bye");
         }

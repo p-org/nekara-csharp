@@ -125,7 +125,7 @@ namespace AsyncTester.Core
         // this method is called internally by the main message listener loop
         private Task<ResponseMessage> HandleRequest(RequestMessage message)
         {
-            Console.WriteLine("--> Client Request: {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ));
+            Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
 
             // this is a "meta" remote method, mostly for testing; should be removed later
             if (message.func == "echo")
@@ -138,9 +138,13 @@ namespace AsyncTester.Core
                 // forward it to the client instead of failing on the server-side
                 try
                 {
-                    return this.remoteMethods[message.func](message.args.ToArray())
+                    // Spawning a new task to make the message handler "non-blocking"
+                    // TODO: Errors thrown inside here will become silent, so that needs to be handled
+                    // Also, now that the single execution flow is broken, the requests are under race conditions
+                    return Task.Factory.StartNew<Task<JToken>>(() => this.remoteMethods[message.func](message.args.ToArray<JToken>())).Unwrap()
+                    // return this.remoteMethods[message.func](message.args.ToArray())
                     .ContinueWith(prev => {
-                        //Console.WriteLine("    ... responding to {0} {1}", message.func, prev.IsFaulted);
+                        // Console.WriteLine("    ... responding to {2}:  {0} {1}", message.func, prev.IsFaulted, message.id);
                         if (prev.IsFaulted) return message.CreateErrorResponse("Tester-Server", JToken.FromObject(prev.Exception));
                         if (prev.Result != null) return message.CreateResponse("Tester-Server", prev.Result);
                         return message.CreateResponse("Tester-Server", new JValue("OK"));
@@ -162,7 +166,9 @@ namespace AsyncTester.Core
             }
             else
             {
-                return Task.FromResult(message.CreateErrorResponse("Tester-Server", new JValue("ERROR: Could not understand func " + message.func)));
+                Console.WriteLine("!!! Client Requesting non-existent remote function [{0}]", message.func);
+                // return Task.FromResult(message.CreateErrorResponse("Tester-Server", new JValue("ERROR: Could not understand func " + message.func)));
+                return Task.FromResult(message.CreateErrorResponse("Tester-Server", JToken.FromObject(new RemoteMethodDoesNotExistException("ERROR: Could not understand func " + message.func))));
             }
         }
 
@@ -236,20 +242,15 @@ namespace AsyncTester.Core
             {
                 client.OnMessage((string data) => {
 
-                    // Spawning a new task to make the message handler "non-blocking"
-                    // TODO: Errors thrown inside here will become silent, so that needs to be handled
-                    // Also, now that the single execution flow is broken, the requests are under race conditions
-                    Task.Run(() =>
-                    {
-                        RequestMessage message = JsonConvert.DeserializeObject<RequestMessage>(data);
-                        HandleRequest(message)
-                        .ContinueWith(prev =>
-                        {
-                            Console.WriteLine("<-- Returning Response to: {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())));
-                            ResponseMessage reply = prev.Result;
+                    RequestMessage message = RequestMessage.Deserialize(data);
 
-                            client.Send(reply);
-                        });
+                    HandleRequest(message)
+                    .ContinueWith(prev =>
+                    {
+                        Console.WriteLine("<-- Returning Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id);
+                        ResponseMessage reply = prev.Result;
+
+                        client.Send(reply.Serialize());
                     });
 
                 });

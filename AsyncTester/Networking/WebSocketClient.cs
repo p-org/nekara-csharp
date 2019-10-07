@@ -35,7 +35,7 @@ namespace AsyncTester
         private void Listen()
         {
             var socketDestroyer = new CancellationTokenSource();
-            var buffer = new byte[8192];
+            var buffer = new byte[65536];
             Helpers.AsyncTaskLoop(() =>
             {
                 /*try
@@ -52,10 +52,11 @@ namespace AsyncTester
                                 // TODO: Errors thrown inside here will become silent, so that needs to be handled
                                 // Also, now that the single execution flow is broken, the requests are under race conditions
                                 Task.Run(() => {
-
+                                    // Console.WriteLine("  ... handling message on thread {0}", Thread.CurrentThread.ManagedThreadId);
                                     try
                                     {
                                         string payload = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
+                                        // Console.WriteLine("  ... raw message: {0}", payload);
                                         try
                                         {
                                             this.HandleMessage(payload);

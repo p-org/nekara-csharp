@@ -194,6 +194,11 @@ namespace AsyncTester.Core
             });
         }
 
+        public async Task<bool> IsFinished(string sessionId)
+        {
+            return await this.sessions[sessionId].Task;
+        }
+
         /*public void EndTest(string sessionId, bool passed)
         {
             this.sessions[sessionId].SetResult(passed);
@@ -262,7 +267,7 @@ namespace AsyncTester.Core
         private static int gCount = 0;
 
         public IClient socket;
-        private string sessionId;
+        public string sessionId;
         private int count;
 
         public TestRuntimeAPI(IClient socket)
@@ -280,43 +285,51 @@ namespace AsyncTester.Core
             this.count = 0;
         }
 
-        public void AcknowledgeTestTimeException(string message)
+        private void InvokeAndHandleException(Action action, string func = "Anonymous Function")
         {
-            Console.WriteLine("{0}\tAcknowledgeTestTimeException()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            this.socket.SendRequest("AcknowledgeTestTimeException", message).Wait();
-            Console.WriteLine("{0}\tAcknowledgeTestTimeException()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            try
+            {
+                action();
+            }
+            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
+            {
+                Console.WriteLine("AggregateException caught during {0}!", func);
+                aex.Handle(ex => {
+                    if (ex is TestingServiceException)
+                    {
+                        Console.WriteLine("    !!! Exception during test: {0}", ex.Message);
+                        this.AcknowledgeServerThrownException(ex.Message);
+                        return true;
+                    }
+                    else if (ex is LogisticalException)
+                    {
+                        Console.WriteLine(ex.Message);
+                        return false;
+                    }
+                    else return false;
+                });
+            }
+        }
+
+        public void AcknowledgeServerThrownException(string message)
+        {
+            Console.WriteLine("{0}\tAcknowledgeServerThrownException()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            this.socket.SendRequest("AcknowledgeServerThrownException", message).Wait();
+            Console.WriteLine("{0}\tAcknowledgeServerThrownException()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         // ad-hoc Assert method - because there is no actual MachineRuntime in the client side
         public void Assert(bool predicate, string s)
         {
             Console.WriteLine("{0}\tAssert()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            try
-            {
-                this.socket.SendRequest("Assert", predicate, s).Wait();
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                Console.WriteLine("Exception caught during Assert!\n{0}", messages);
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("Assert", predicate, s).Wait(), "Assert");
             Console.WriteLine("{0}\tAssert()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         public void CreateTask()
         {
             Console.WriteLine("{0}\tCreateTask()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            try
-            {
-                this.socket.SendRequest("CreateTask").Wait();
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                Console.WriteLine("Exception caught during CreateTask!\n{0}", aex.Message);
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("CreateTask").Wait(), "CreateTask");
             Console.WriteLine("{0}\tCreateTask()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
 
         }
@@ -324,32 +337,14 @@ namespace AsyncTester.Core
         public void StartTask(int taskId)
         {
             Console.WriteLine("{0}\tStartTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
-            try
-            {
-                this.socket.SendRequest("StartTask", taskId).Wait();
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                Console.WriteLine("Exception caught during StartTask!\n{0}", aex.Message);
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("StartTask", taskId).Wait(), "StartTask");
             Console.WriteLine("{0}\tStartTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
         }
 
         public void EndTask(int taskId)
         {
             Console.WriteLine("{0}\tEndTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
-            try
-            {
-                this.socket.SendRequest("EndTask", taskId).Wait();
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                Console.WriteLine("Exception caught during EndTask!\n{0}", aex.Message);
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("EndTask", taskId).Wait(), "ContextSwitch");
             Console.WriteLine("{0}\tEndTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
         }
 
@@ -364,48 +359,21 @@ namespace AsyncTester.Core
         public void ContextSwitch()
         {
             Console.WriteLine("{0}\tContextSwitch()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            try
-            {
-                this.socket.SendRequest("ContextSwitch").Wait();
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                Console.WriteLine("Exception caught during ContextSwitch!\n{0}", aex.Message);
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("ContextSwitch").Wait(), "ContextSwitch");
             Console.WriteLine("{0}\tContextSwitch()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         public void BlockedOnResource(int resourceId)
         {
             Console.WriteLine("{0}\tBlockedOnResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            try
-            {
-                this.socket.SendRequest("BlockedOnResource", resourceId).Wait();
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                Console.WriteLine("Exception caught during BlockedOnResource!\n{0}", aex.Message);
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("BlockedOnResource", resourceId).Wait(), "BlockedOnResource");
             Console.WriteLine("{0}\tBlockedOnResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public void SignalUpdatedResource(int resourceId)
         {
             Console.WriteLine("{0}\tSignalUpdatedResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            try
-            {
-                this.socket.SendRequest("SignalUpdateResource", resourceId).Wait();
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                Console.WriteLine("Exception caught during SignalUpdateResource!\n{0}", aex.Message);
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("SignalUpdatedResource", resourceId).Wait(), "SignalUpdatedResource");
             Console.WriteLine("{0}\tSignalUpdatedResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
@@ -428,32 +396,14 @@ namespace AsyncTester.Core
         public void CreateResource(int resourceId)
         {
             Console.WriteLine("{0}\tCreateResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            try
-            {
-                this.socket.SendRequest("CreateResource", resourceId);
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                Console.WriteLine("Exception caught during CreateResource!\n{0}", aex.Message);
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("CreateResource", resourceId), "CreateResource");
             Console.WriteLine("{0}\tCreateResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public void DeleteResource(int resourceId)
         {
             Console.WriteLine("{0}\tDeleteResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            try
-            {
-                this.socket.SendRequest("DeleteResource", resourceId);
-            }
-            catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
-            {
-                Console.WriteLine("Exception caught during DeleteResource!\n{0}", aex.Message);
-                string messages = String.Join(",", aex.Flatten().InnerExceptions.Select(ex => ex.Message));
-                this.AcknowledgeTestTimeException(messages);
-            }
+            InvokeAndHandleException(() => this.socket.SendRequest("DeleteResource", resourceId), "DeleteResource");
             Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
     }

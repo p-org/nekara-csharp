@@ -92,5 +92,10 @@ namespace AsyncTester
             if (count > 1) return action().ContinueWith(prev => RepeatTask(action, count - 1)).Unwrap();
             return action();
         }
+
+        public class TaskLock
+        {
+
+        }
     }
 }
