@@ -10,6 +10,24 @@ using Newtonsoft.Json.Linq;
 
 namespace AsyncTester.Core
 {
+    public struct SessionInfo
+    {
+        public string id;
+        public string assemblyName;
+        public string assemblyPath;
+        public string methodName;
+        public int schedulingSeed;
+
+        public SessionInfo(string id, string assemblyName, string assemblyPath, string methodName, int schedulingSeed)
+        {
+            this.id = id;
+            this.assemblyName = assemblyName;
+            this.assemblyPath = assemblyPath;
+            this.methodName = methodName;
+            this.schedulingSeed = schedulingSeed;
+    }
+    }
+
     public struct TestResult
     {
         public bool passed;
@@ -55,17 +73,21 @@ namespace AsyncTester.Core
         public string methodName;
         public int schedulingSeed;
 
+        // run-time objects
         private StreamWriter traceFile;
         public StreamWriter logger;
+        private Action<TestingSession> _onComplete;
+        private object stateLock;
+        private bool replayMode; // indicates it has already ran once
 
-        // run-time objects
+        // testing service objects
         private Helpers.SeededRandomizer randomizer;
         private int counter;
-        private Action<TestingSession> _onComplete;
         ProgramState programState;
         TaskCompletionSource<TestResult> IterFinished;
         int numPendingTaskCreations;
         Queue<TraceStep> testTrace;
+        public bool finished;
 
         // result data
         public bool passed;
@@ -82,33 +104,17 @@ namespace AsyncTester.Core
             this.reason = null;
 
             // initialize run-time objects
-            this.randomizer = new Helpers.SeededRandomizer(schedulingSeed);
-            this.counter = 0;
             this._onComplete = self => { };     // empty onComplete handler
-            this.programState = new ProgramState();
-            this.IterFinished = new TaskCompletionSource<TestResult>();
-            this.programState.taskToTcs.Add(0, new TaskCompletionSource<bool>());
-            this.numPendingTaskCreations = 0;
-            this.testTrace = new Queue<TraceStep>();
-            // this.isReplayMode = false;            
+            this.stateLock = new object();
+            this.replayMode = false;
+            this.traceFile = File.AppendText("logs/trace-" + this.id + ".csv");
 
-            string tracePath = "logs/trace-" + this.id + ".csv";
-            this.traceFile = File.AppendText(tracePath);
-
-            // create a continuation callback that will notify the client once the test is finished
-            this.IterFinished.Task.ContinueWith(prev => {
-
-                this.passed = prev.Result.passed;
-                this.reason = prev.Result.reason;
-
-                Console.WriteLine("Trace Length: {0}", testTrace.Count);
-                this.traceFile.Write(String.Join("\n", this.testTrace.Select(step => step.ToString())));
-                this.traceFile.Close();
-
-                this._onComplete(this);
-            });
-
+            this.Reset();
         }
+
+        public SessionInfo info { get { return new SessionInfo(this.id, this.assemblyName, this.assemblyPath, this.methodName, this.schedulingSeed); } }
+
+        public bool IsFinished { get { return this.finished; } }
 
         public void OnComplete(Action<TestingSession> action)
         {
@@ -120,42 +126,40 @@ namespace AsyncTester.Core
             this.IterFinished.SetResult(new TestResult(false, reason));
         }
 
-        public void Replay()
+        public void Reset()
         {
-            // this.count = 0;
-
-            // The following should really be managed per client session.
-            // For now, we assume there is only 1 client.
+            // reset run-time objects
+            this.randomizer = new Helpers.SeededRandomizer(this.schedulingSeed);
+            this.counter = 0;
             this.programState = new ProgramState();
             this.IterFinished = new TaskCompletionSource<TestResult>();
             this.programState.taskToTcs.Add(0, new TaskCompletionSource<bool>());
             this.numPendingTaskCreations = 0;
-            // this.testTrace = new List<string>();
-            // this.isReplayMode = true;
-
-            // string tracePath = "logs/trace-" + this.sessionId + ".csv";
-            // string[] trace = File.ReadAllText(tracePath).Split('\n');
-            // this.testTrace = new Queue<TraceStep>(trace.Select(row => TraceStep.FromString(row)));
-
-            // this.traceFile = File.AppendText(tracePath);
-            // this.traceFile.WriteLine("Description");
+            this.testTrace = new Queue<TraceStep>();
+            this.finished = false;
 
             // create a continuation callback that will notify the client once the test is finished
-            /*this.IterFinished.Task.ContinueWith(prev => {
-                // notifyClient(this.sessionId);
-                var client = this.server.GetClient();
-                var message = new RequestMessage("Tester-Server", client.id, "FinishTest", new JToken[] { sessionId });
-                var serialized = JsonConvert.SerializeObject(message);
-                client.Send(serialized);
+            this.IterFinished.Task.ContinueWith(prev => {
 
-                Console.WriteLine("Test {0} Finished!", this.sessionId);
-                // Make sure that the result is the same as before
+                this.passed = prev.Result.passed;
+                this.reason = prev.Result.reason;
 
+                Console.WriteLine("Trace Length: {0}", testTrace.Count);
+                // write trace only if this is the first time running this session
+                if (this.replayMode == false)
+                {
+                    this.traceFile.Write(String.Join("\n", this.testTrace.Select(step => step.ToString())));
+                    this.traceFile.Close();
+                }
 
-                this.sessionId = null;      // Clear the sessionId so the next session can begin
+                lock (this.stateLock)
+                {
+                    this.finished = true;
+                    this.replayMode = true;
+                }
+
+                this._onComplete(this);
             });
-
-            return info;*/
         }
 
         private void PushTrace(string methodName, JToken[] args, JToken result)
@@ -230,6 +234,12 @@ namespace AsyncTester.Core
 
             this.PushTrace("EndTask", new JToken[] { taskId }, null);
             AppendLog(counter++, "EndTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+        }
+
+        // this method should not be called over the network; it's a client-side helper method
+        public IAsyncLock CreateLock(int resourceId)
+        {
+            throw new NotImplementedException();
         }
 
         public void CreateResource(int resourceId)

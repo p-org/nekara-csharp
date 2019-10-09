@@ -47,60 +47,73 @@ namespace AsyncTester
                             .ContinueWith(prev =>
                             {
                                 //Monitor.Exit(receiveLock);
+                                // Console.WriteLine("WebSocket received {0} bytes of {1} data, end of message = {2}", prev.Result.Count, prev.Result.MessageType, prev.Result.EndOfMessage);
 
-                                // Spawning a new task to make the message handler "non-blocking"
-                                // TODO: Errors thrown inside here will become silent, so that needs to be handled
-                                // Also, now that the single execution flow is broken, the requests are under race conditions
-                                Task.Run(() => {
-                                    // Console.WriteLine("  ... handling message on thread {0}", Thread.CurrentThread.ManagedThreadId);
-                                    try
-                                    {
-                                        string payload = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
-                                        // Console.WriteLine("  ... raw message: {0}", payload);
+                                if (prev.Result.MessageType == WebSocketMessageType.Text)
+                                {
+                                    string payload = Encoding.UTF8.GetString(buffer, 0, prev.Result.Count);
+
+                                    // Spawning a new task to make the message handler "non-blocking"
+                                    // TODO: Errors thrown inside here will become silent, so that needs to be handled
+                                    // Also, now that the single execution flow is broken, the requests are under race conditions
+                                    Task.Run(() => {
+                                        // Console.WriteLine("  ... handling message on thread {0}", Thread.CurrentThread.ManagedThreadId);
                                         try
                                         {
                                             this.HandleMessage(payload);
-                                        }
-                                        catch (Exception ex) when (ex is UnexpectedMessageException || ex is ServerThrownException)
-                                        {
-                                            Console.WriteLine(ex);
+
                                             if (this.onMessage != null)
                                             {
                                                 this.onMessage(payload);
                                             }
                                         }
-                                    }
-                                    catch (AggregateException ae)
-                                    {
-                                    // Console.WriteLine(ae);
-                                    foreach (var ie in ae.Flatten().InnerExceptions)
+                                        catch (Exception ex) when (ex is UnexpectedMessageException || ex is ServerThrownException)
                                         {
-                                            Console.WriteLine("Exception -------------------");
-                                            Console.WriteLine(ie.Message);
-                                            Console.WriteLine(ie.InnerException.Message);
-                                            Console.WriteLine(ie.InnerException.StackTrace);
-                                            Console.WriteLine("-----------------------------\n");
+                                            Console.WriteLine(ex);
                                         }
-
-                                        ae.Handle(e =>
+                                        catch (AggregateException ae)
                                         {
-                                            if (e is WebSocketException)
+                                            // Console.WriteLine(ae);
+                                            foreach (var ie in ae.Flatten().InnerExceptions)
                                             {
-                                                Console.WriteLine("!!! WebSocketException - Connection Closed");
-                                                Console.WriteLine("!!! If this was unexpected, inspect the exception object here");
-                                                socketDestroyer.Cancel();
-                                                return true;
+                                                Console.WriteLine("Exception -------------------");
+                                                Console.WriteLine(ie.Message);
+                                                Console.WriteLine(ie.InnerException.Message);
+                                                Console.WriteLine(ie.InnerException.StackTrace);
+                                                Console.WriteLine("-----------------------------\n");
                                             }
-                                            else
-                                            {
-                                                Console.WriteLine("!!! Unexpected Exception: {0}", e);
-                                                socketDestroyer.Cancel();
-                                                return false;
-                                            }
-                                        });
-                                    }
 
-                                });
+                                            ae.Handle(e =>
+                                            {
+                                                if (e is WebSocketException)
+                                                {
+                                                    Console.WriteLine("!!! WebSocketException - Connection Closed");
+                                                    Console.WriteLine("!!! If this was unexpected, inspect the exception object here");
+                                                    socketDestroyer.Cancel();
+                                                    return true;
+                                                }
+                                                else
+                                                {
+                                                    Console.WriteLine("!!! Unexpected Exception: {0}", e);
+                                                    socketDestroyer.Cancel();
+                                                    return false;
+                                                }
+                                            });
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Console.WriteLine("! Exception caught while handling payload:\n{0}", payload);
+                                            Console.WriteLine(ex);
+                                            throw;
+                                        }
+                                    });
+                                }
+                                else if (prev.Result.MessageType == WebSocketMessageType.Close)
+                                {
+                                    Console.WriteLine("  !!! WebSocket Server closed connection");
+                                    Console.WriteLine("  !!! Closing WebSocket");
+                                    socketDestroyer.Cancel();
+                                }
                             });
                     }
                     else

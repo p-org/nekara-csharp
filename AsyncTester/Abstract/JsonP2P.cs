@@ -88,6 +88,8 @@ namespace AsyncTester
         {
             Console.WriteLine("<-- Requesting {0} ({1})", func, String.Join(", ", args.Select(arg => arg.ToString())));
             var tcs = new TaskCompletionSource<JToken>();   // This tcs will be settled when the response comes back
+            var cancellation = new CancellationTokenSource();
+
             var message = new RequestMessage(this.id, recipient, func, args);
             var serialized = JsonConvert.SerializeObject(message);
             this.requests.Add(message.id, tcs);

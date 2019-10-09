@@ -11,6 +11,8 @@ using Microsoft.PSharp.TestingServices;
 using Grpc.Core.Logging;
 using AsyncTester.Networking;
 using Newtonsoft.Json.Linq;
+using System.Collections;
+using System.Runtime.CompilerServices;
 
 namespace AsyncTester.Core
 {
@@ -32,6 +34,7 @@ namespace AsyncTester.Core
         public TestRuntimeAPI testingAPI;
         // string sessionId;   // analogous to topLevelMachineId - used to identify the top-level test session object
         private Dictionary<string, TaskCompletionSource<bool>> sessions;
+        private Dictionary<string, Queue<Task>> requestQueues;
 
         // This object will "plug-in" the communication mechanism.
         // The separation between the transport architecture and the logical, abstract model is intentional.
@@ -40,6 +43,7 @@ namespace AsyncTester.Core
             this.socket = socket;
             this.testingAPI = new TestRuntimeAPI(socket);
             this.sessions = new Dictionary<string, TaskCompletionSource<bool>>();
+            this.requestQueues = new Dictionary<string, Queue<Task>>();
 
             // the methods below are called by the server
 
@@ -124,7 +128,9 @@ namespace AsyncTester.Core
                 throw new TestMethodLoadFailureException();
             }
 
-            if (testMethods.Count > 1)
+            var testMethod = testMethods.Find(info => info.Name == methodName);
+
+            /*if (testMethods.Count > 1)
             {
                 Console.WriteLine("Found multiple test methods");
                 foreach (var tm in testMethods)
@@ -133,9 +139,9 @@ namespace AsyncTester.Core
                 }
                 Console.WriteLine("Only one test method supported");
                 throw new TestMethodLoadFailureException();
-            }
+            }*/
 
-            var testMethod = testMethods[0];
+            // var testMethod = testMethods[0];
 
             if (testMethod.GetParameters().Length != 1 ||
                 testMethod.GetParameters()[0].ParameterType != typeof(ITestingService))
@@ -158,13 +164,15 @@ namespace AsyncTester.Core
             // Communicate to the server here to notify the start of a test and initialize the test session
             return new Promise((resolve, reject) =>
             {
+                Console.WriteLine("\n\nStarting new test session with seed = {0}", schedulingSeed);
                 var request = this.socket.SendRequest("InitializeTestSession", new JToken[] { assembly.FullName, assembly.Location, testMethod.Name, schedulingSeed });
                 request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
                 request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
             }).Then(sessionId =>
             {
-                string sid = sessionId.ToString();                
+                string sid = sessionId.ToString();
                 this.sessions.Add(sid, new TaskCompletionSource<bool>());
+                this.requestQueues.Add(sid, new Queue<Task>());
 
                 Console.WriteLine("Session Id : {0}", sid);
 
@@ -189,6 +197,9 @@ namespace AsyncTester.Core
                 Console.WriteLine("  ... Deleting Test Session {0}", sid);
 
                 this.sessions.Remove(sid);
+                // cancel all pending requests
+                // this.requestQueues[sid].Select<Task, void>(t => t.Wait());
+                this.requestQueues.Remove(sid);
 
                 return null;
             });
@@ -222,20 +233,21 @@ namespace AsyncTester.Core
                 // From here we don't have static typing.
                 // The code below can throw arbitrary exceptions
                 // if the JSON payload format changes
-                JObject info = (JObject)payload;
+                JObject data = (JObject)payload;
+                SessionInfo info = new SessionInfo(data["id"].ToObject<string>(), data["assemblyName"].ToObject<string>(), data["assemblyPath"].ToObject<string>(), data["methodName"].ToObject<string>(), data["schedulingSeed"].ToObject<int>());
+                
+                Console.WriteLine("Session Id : {0}", info.id);
+                Console.WriteLine("    [{1}] in {0}", info.assemblyName, info.methodName);
 
-                string path = info["assemblyPath"].ToObject<string>();
-                string methodName = info["methodName"].ToObject<string>();
+                LoadTestSubject(info.assemblyPath);
+                var testMethod = GetMethodToBeTested(info.methodName);
 
-                Console.WriteLine("Session Id : {0}", sessionId);
-                Console.WriteLine("    [{1}] in {0}", info["assemblyName"], methodName);
+                this.sessions.Add(info.id, new TaskCompletionSource<bool>());
+                this.requestQueues.Add(info.id, new Queue<Task>());
 
-                LoadTestSubject(path);
-                var testMethod = GetMethodToBeTested(methodName);
+                Console.WriteLine("Session Id : {0}", info.id);
 
-                this.sessions[sessionId] = new TaskCompletionSource<bool>();                
-
-                this.testingAPI.SetSessionId(sessionId);
+                this.testingAPI.SetSessionId(info.id);
 
                 try
                 {
@@ -248,17 +260,61 @@ namespace AsyncTester.Core
                 catch (Exception ex)
                 {
                     Console.WriteLine("Exception was Caught during test!");
-                    this.sessions[sessionId].SetException(ex);
+                    this.sessions[info.id].SetException(ex);
                 }
 
-                this.sessions[sessionId].Task.Wait();
+                this.sessions[info.id].Task.Wait();
 
-                Console.WriteLine("  ... Deleting Test Session {0}", sessionId);
+                Console.WriteLine("  ... Deleting Test Session {0}", info.id);
 
-                this.sessions.Remove(sessionId);
+                this.sessions.Remove(info.id);
+                // cancel all pending requests
+                // this.requestQueues[sid].Select<Task, void>(t => t.Wait());
+                this.requestQueues.Remove(info.id);
 
                 return null;
             }).task;
+        }
+    }
+
+    public class TestRuntimeLock : IAsyncLock
+    {
+        private TestRuntimeAPI api;
+        private int id;
+        private bool locked;
+        public TestRuntimeLock(TestRuntimeAPI api, int resourceId, string label = "")
+        {
+            this.api = api;
+            this.id = resourceId;
+            this.locked = false;
+
+            this.api.CreateResource(resourceId);
+        }
+
+        public void Acquire()
+        {
+            this.api.ContextSwitch();
+            while (true)
+            {
+                if (this.locked == false)
+                {
+                    this.locked = true;
+                    break;
+                }
+                else
+                {
+                    this.api.BlockedOnResource(this.id);
+                    continue;
+                }
+            }
+        }
+
+        public void Release()
+        {
+            this.api.Assert(this.locked == true, "Release called on non-acquired lock");
+
+            this.locked = false;
+            this.api.SignalUpdatedResource(this.id);
         }
     }
 
@@ -314,22 +370,15 @@ namespace AsyncTester.Core
         public void AcknowledgeServerThrownException(string message)
         {
             Console.WriteLine("{0}\tAcknowledgeServerThrownException()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            this.socket.SendRequest("AcknowledgeServerThrownException", message).Wait();
+            this.socket.SendRequest("AcknowledgeServerThrownException", this.sessionId, message).Wait();
             Console.WriteLine("{0}\tAcknowledgeServerThrownException()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
-        // ad-hoc Assert method - because there is no actual MachineRuntime in the client side
-        public void Assert(bool predicate, string s)
-        {
-            Console.WriteLine("{0}\tAssert()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            InvokeAndHandleException(() => this.socket.SendRequest("Assert", predicate, s).Wait(), "Assert");
-            Console.WriteLine("{0}\tAssert()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-        }
-
+        /* API methods */
         public void CreateTask()
         {
             Console.WriteLine("{0}\tCreateTask()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            InvokeAndHandleException(() => this.socket.SendRequest("CreateTask").Wait(), "CreateTask");
+            InvokeAndHandleException(() => this.socket.SendRequest("CreateTask", this.sessionId).Wait(), "CreateTask");
             Console.WriteLine("{0}\tCreateTask()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
 
         }
@@ -337,14 +386,14 @@ namespace AsyncTester.Core
         public void StartTask(int taskId)
         {
             Console.WriteLine("{0}\tStartTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
-            InvokeAndHandleException(() => this.socket.SendRequest("StartTask", taskId).Wait(), "StartTask");
+            InvokeAndHandleException(() => this.socket.SendRequest("StartTask", this.sessionId, taskId).Wait(), "StartTask");
             Console.WriteLine("{0}\tStartTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
         }
 
         public void EndTask(int taskId)
         {
             Console.WriteLine("{0}\tEndTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
-            InvokeAndHandleException(() => this.socket.SendRequest("EndTask", taskId).Wait(), "ContextSwitch");
+            InvokeAndHandleException(() => this.socket.SendRequest("EndTask", this.sessionId, taskId).Wait(), "ContextSwitch");
             Console.WriteLine("{0}\tEndTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
         }
 
@@ -356,31 +405,43 @@ namespace AsyncTester.Core
             Console.WriteLine("{0}\tWaitForPendingTaskCreations()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }*/
 
-        public void ContextSwitch()
+        public IAsyncLock CreateLock(int resourceId)
         {
-            Console.WriteLine("{0}\tContextSwitch()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            InvokeAndHandleException(() => this.socket.SendRequest("ContextSwitch").Wait(), "ContextSwitch");
-            Console.WriteLine("{0}\tContextSwitch()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            return new TestRuntimeLock(this, resourceId);
+        }
+
+        public void CreateResource(int resourceId)
+        {
+            Console.WriteLine("{0}\tCreateResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            InvokeAndHandleException(() => this.socket.SendRequest("CreateResource", this.sessionId, resourceId), "CreateResource");
+            Console.WriteLine("{0}\tCreateResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+        }
+
+        public void DeleteResource(int resourceId)
+        {
+            Console.WriteLine("{0}\tDeleteResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            InvokeAndHandleException(() => this.socket.SendRequest("DeleteResource", this.sessionId, resourceId), "DeleteResource");
+            Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public void BlockedOnResource(int resourceId)
         {
             Console.WriteLine("{0}\tBlockedOnResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            InvokeAndHandleException(() => this.socket.SendRequest("BlockedOnResource", resourceId).Wait(), "BlockedOnResource");
+            InvokeAndHandleException(() => this.socket.SendRequest("BlockedOnResource", this.sessionId, resourceId).Wait(), "BlockedOnResource");
             Console.WriteLine("{0}\tBlockedOnResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public void SignalUpdatedResource(int resourceId)
         {
             Console.WriteLine("{0}\tSignalUpdatedResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            InvokeAndHandleException(() => this.socket.SendRequest("SignalUpdatedResource", resourceId).Wait(), "SignalUpdatedResource");
+            InvokeAndHandleException(() => this.socket.SendRequest("SignalUpdatedResource", this.sessionId, resourceId).Wait(), "SignalUpdatedResource");
             Console.WriteLine("{0}\tSignalUpdatedResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
         }
 
         public bool CreateNondetBool()
         {
             Console.WriteLine("CreateNondetBool\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            var request = this.socket.SendRequest("CreateNondetBool");
+            var request = this.socket.SendRequest("CreateNondetBool", this.sessionId);
             request.Wait();
             return request.Result.ToObject<bool>();
         }
@@ -388,23 +449,23 @@ namespace AsyncTester.Core
         public int CreateNondetInteger(int maxValue)
         {
             Console.WriteLine("{0}\tCreateNondetInteger()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            var request = this.socket.SendRequest("CreateNondetInteger");
+            var request = this.socket.SendRequest("CreateNondetInteger", this.sessionId);
             request.Wait();
             return request.Result.ToObject<int>();
         }
 
-        public void CreateResource(int resourceId)
+        public void Assert(bool predicate, string s)
         {
-            Console.WriteLine("{0}\tCreateResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            InvokeAndHandleException(() => this.socket.SendRequest("CreateResource", resourceId), "CreateResource");
-            Console.WriteLine("{0}\tCreateResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tAssert()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            InvokeAndHandleException(() => this.socket.SendRequest("Assert", this.sessionId, predicate, s).Wait(), "Assert");
+            Console.WriteLine("{0}\tAssert()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
-        public void DeleteResource(int resourceId)
+        public void ContextSwitch()
         {
-            Console.WriteLine("{0}\tDeleteResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            InvokeAndHandleException(() => this.socket.SendRequest("DeleteResource", resourceId), "DeleteResource");
-            Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            Console.WriteLine("{0}\tContextSwitch()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            InvokeAndHandleException(() => this.socket.SendRequest("ContextSwitch", this.sessionId).Wait(), "ContextSwitch");
+            Console.WriteLine("{0}\tContextSwitch()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
     }
 }

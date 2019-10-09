@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using AsyncTester.Core;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -95,6 +96,18 @@ namespace AsyncTester
     public class RemoteMethodDoesNotExistException : LogisticalException
     {
         public RemoteMethodDoesNotExistException(string message) : base(message) { }
+    }
+
+    [Serializable]
+    public class SessionRecordNotFoundException : LogisticalException
+    {
+        public SessionRecordNotFoundException(string message) : base(message) { }
+    }
+
+    [Serializable]
+    public class SessionAlreadyFinishedException : LogisticalException
+    {
+        public SessionAlreadyFinishedException(string message) : base(message) { }
     }
 
     class RequestTimeoutException : Exception { }

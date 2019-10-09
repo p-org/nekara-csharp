@@ -116,8 +116,11 @@ namespace AsyncTester
                                 Console.WriteLine("  !!! WebSocket Client {0} dropped connection", this.id);
                                 Console.WriteLine("  !!! Closing WebSocket {0}", this.id);
                                 socketDestroyer.Cancel();
+
+                                // return Task.CompletedTask;
                                 return socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close OK", CancellationToken.None)
-                                    .ContinueWith(_ => {
+                                    .ContinueWith(_ =>
+                                    {
                                         this.onClose();
                                         this.socket.Dispose();
                                     });

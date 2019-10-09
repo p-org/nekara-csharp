@@ -14,11 +14,11 @@ namespace AsyncTester.Core
 
         void EndTask(int taskId);
 
+        IAsyncLock CreateLock(int resourceId);
+
         void CreateResource(int resourceId);
 
         void DeleteResource(int resourceId);
-
-        void ContextSwitch();
 
         void BlockedOnResource(int resourceId);
 
@@ -29,5 +29,7 @@ namespace AsyncTester.Core
         int CreateNondetInteger(int maxValue);
 
         void Assert(bool value, string message);
+
+        void ContextSwitch();
     }
 }

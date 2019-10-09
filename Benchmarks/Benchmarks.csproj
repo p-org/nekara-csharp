@@ -126,6 +126,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Benchmarks\Deadlock.cs" />
+    <Compile Include="Benchmarks\Deadlock2.cs" />
+    <Compile Include="Benchmarks\Deadlock3.cs" />
     <Compile Include="Benchmarks\DeadlockAsync.cs" />
     <Compile Include="Benchmarks\Stack.cs" />
     <Compile Include="Benchmarks\WrongLock.cs" />

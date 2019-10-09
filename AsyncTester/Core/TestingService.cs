@@ -57,15 +57,13 @@ namespace AsyncTester.Core
             // and associate each request with a particular session so that the sessions are isolated
             while (this.currentSession != null)
             {
-                Thread.Sleep(100);
+                Thread.Sleep(200);
             }
 
             string assemblyName = arg0.ToObject<string>();
             string assemblyPath = arg1.ToObject<string>();
             string methodName = arg2.ToObject<string>();
             int schedulingSeed = args3.ToObject<int>();
-
-            Console.WriteLine("Initializing test for [{1}] in {0}, with seed = {2}", assemblyName, methodName, schedulingSeed);
 
             var session = new TestingSession(assemblyName, assemblyPath, methodName, schedulingSeed);
             session.logger = this.logFile;
@@ -94,36 +92,51 @@ namespace AsyncTester.Core
             this.testSessions.Add(session.id, session);
             this.currentSession = session;
 
+            Console.WriteLine("\n\nInitialized session {3} for [{1}] in {0}, with seed = {2}", assemblyName, methodName, schedulingSeed, session.id);
+
             return this.currentSession.id;
         }
 
-        [RemoteMethod(name = "AcknowledgeServerThrownException", description = "")]
-        public void AcknowledgeServerThrownException(JToken message)
+        [RemoteMethod(name = "GetSessionInfo", description = "Gets the Session info based on the session ID")]
+        public SessionInfo GetSessionInfo(JToken arg)
         {
-            this.currentSession.Finish(false, message.ToObject<string>());
-            // this.IterFinished.SetResult(new TestResult(false, this.sessionId, message.ToObject<string>()));
-            
+            string sessionId = arg.ToObject<string>();
+            if (!this.testSessions.ContainsKey(sessionId)) throw new SessionRecordNotFoundException("Session " + sessionId + " not found");
+
+            return this.testSessions[sessionId].info;
         }
 
         [RemoteMethod(name = "ReplayTestSession", description = "Replays the test session identified by the given session ID")]
-        public string ReplayTestSession(JToken arg)
+        public SessionInfo ReplayTestSession(JToken arg)
         {
             // HACK: Wait till previous session finishes
             // - a better way to deal with this is to keep a dictionary of sessions
             // and associate each request with a particular session so that the sessions are isolated
             while (this.currentSession != null)
             {
-                Thread.Sleep(100);
+                Thread.Sleep(200);
             }
 
             string sessionId = arg.ToObject<string>();
 
+            SessionInfo info = GetSessionInfo(sessionId);
             TestingSession session = this.testSessions[sessionId];
+            session.Reset();
+
             Console.WriteLine("Replaying test {0}: [{2}] in {1}", sessionId, session.assemblyName, session.methodName);
 
             this.currentSession = session;
 
-            return session.id;
+            return info;
+        }
+
+        [RemoteMethod(name = "AcknowledgeServerThrownException", description = "")]
+        public void AcknowledgeServerThrownException(JToken sessionId, JToken message)
+        {
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            session.Finish(false, message.ToObject<string>());
+            // this.IterFinished.SetResult(new TestResult(false, this.sessionId, message.ToObject<string>()));
+
         }
 
         /* Methods below are the actual methods called (remotely) by the client-side proxy object.
@@ -131,69 +144,91 @@ namespace AsyncTester.Core
          * expected to have a specific signature - i.e., all arguments are given as JTokens
          */
         [RemoteMethod(name = "CreateTask", description = "Creates a new task")]
-        public void CreateTask()
+        public void CreateTask(JToken sessionId)
         {
-            this.currentSession.CreateTask();
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.CreateTask();
         }
 
         [RemoteMethod(name = "StartTask", description = "Signals the start of a given task")]
-        public void StartTask(JToken taskId)
+        public void StartTask(JToken sessionId, JToken taskId)
         {
-            this.currentSession.StartTask(taskId.ToObject<int>());
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.StartTask(taskId.ToObject<int>());
         }
 
         [RemoteMethod(name = "EndTask", description = "Signals the end of a given task")]
-        public void EndTask(JToken taskId)
+        public void EndTask(JToken sessionId, JToken taskId)
         {
-            this.currentSession.EndTask(taskId.ToObject<int>());
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.EndTask(taskId.ToObject<int>());
         }
 
         [RemoteMethod(name = "CreateResource", description = "Notifies the creation of a new resource")]
-        public void CreateResource(JToken resourceId)
+        public void CreateResource(JToken sessionId, JToken resourceId)
         {
-            this.currentSession.CreateResource(resourceId.ToObject<int>());
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.CreateResource(resourceId.ToObject<int>());
         }
 
         [RemoteMethod(name = "DeleteResource", description = "Signals the deletion of a given resource")]
-        public void DeleteResource(JToken resourceId)
+        public void DeleteResource(JToken sessionId, JToken resourceId)
         {
-            this.currentSession.DeleteResource(resourceId.ToObject<int>());
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.DeleteResource(resourceId.ToObject<int>());
         }
 
         [RemoteMethod(name = "BlockedOnResource", description = "")]
-        public void BlockedOnResource(JToken resourceId)
+        public void BlockedOnResource(JToken sessionId, JToken resourceId)
         {
-            this.currentSession.BlockedOnResource(resourceId.ToObject<int>());
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.BlockedOnResource(resourceId.ToObject<int>());
         }
 
         [RemoteMethod(name = "SignalUpdatedResource", description = "")]
-        public void SignalUpdatedResource(JToken resourceId)
+        public void SignalUpdatedResource(JToken sessionId, JToken resourceId)
         {
-            this.currentSession.SignalUpdatedResource(resourceId.ToObject<int>());
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.SignalUpdatedResource(resourceId.ToObject<int>());
         }
 
         [RemoteMethod(name = "CreateNondetBool", description = "")]
-        public bool CreateNondetBool()
+        public bool CreateNondetBool(JToken sessionId)
         {
-            return this.currentSession.CreateNondetBool();
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            return session.CreateNondetBool();
         }
 
         [RemoteMethod(name = "CreateNondetInteger", description = "")]
-        public int CreateNondetInteger(JToken maxValue)
+        public int CreateNondetInteger(JToken sessionId, JToken maxValue)
         {
-            return this.currentSession.CreateNondetInteger(maxValue.ToObject<int>());
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            return session.CreateNondetInteger(maxValue.ToObject<int>());
         }
 
         [RemoteMethod(name = "Assert", description = "")]
-        public void Assert(JToken value, JToken message)
+        public void Assert(JToken sessionId, JToken value, JToken message)
         {
-            this.currentSession.Assert(value.ToObject<bool>(), message.ToObject<string>());
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.Assert(value.ToObject<bool>(), message.ToObject<string>());
         }
 
         [RemoteMethod(name = "ContextSwitch", description = "Signals the deletion of a given resource")]
-        public void ContextSwitch()
+        public void ContextSwitch(JToken sessionId)
         {
-            this.currentSession.ContextSwitch();
+            var session = this.testSessions[sessionId.ToObject<string>()];
+            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
+            session.ContextSwitch();
         }
     }
 }
