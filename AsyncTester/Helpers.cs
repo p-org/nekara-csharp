@@ -16,7 +16,7 @@ namespace AsyncTester
               .Select(s => s[random.Next(s.Length)]).ToArray());
         }
 
-        public static int RandomInt(int maxValue)
+        public static int RandomInt(int maxValue = 1000)
         {
             return random.Next(maxValue);
         }
