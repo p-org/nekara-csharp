@@ -17,6 +17,7 @@ namespace AsyncTester
         public event Action<string> onMessage;
         private object sendLock;
         private object receiveLock;
+        public readonly Task ReadyFlag;
 
         public WebSocketClient(string serverUri) : base()
         {
@@ -25,7 +26,7 @@ namespace AsyncTester
             this.sendLock = new object();
             this.receiveLock = new object();
 
-            this.socket.ConnectAsync(new Uri(this.serverUri), CancellationToken.None)
+            this.ReadyFlag = this.socket.ConnectAsync(new Uri(this.serverUri), CancellationToken.None)
                 .ContinueWith(prev =>
                 {
                     Listen();

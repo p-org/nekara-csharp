@@ -8,7 +8,7 @@ namespace AsyncTester.Core
 {
     public interface IAsyncLock
     {
-        void Acquire();
+        IDisposable Acquire();
 
         void Release();
     }

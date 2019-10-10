@@ -27,6 +27,8 @@ namespace ClientProgram
             // testing service proxy object;uses the socket to communicate to the actual testing service
             TestingServiceProxy client = new TestingServiceProxy(socket);
 
+            socket.ReadyFlag.Wait();    // synchronously wait till the socket establishes connection
+
             // if command line args given, proceed accordingly
             // the argument format is:
             // e.g.> ClientProgram.exe run Benchmarks/bin/Debug/Benchmarks.dll 0 50

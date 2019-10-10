@@ -210,6 +210,7 @@ namespace AsyncTester.Core
                 Assert(!programState.taskToTcs.ContainsKey(taskId), $"Duplicate declaration of task: {taskId}");
                 programState.taskToTcs.Add(taskId, tcs);
                 numPendingTaskCreations--;
+                Console.WriteLine("{0}\tTask {1}\tcreated", counter, taskId);
             }
 
             tcs.Task.Wait();

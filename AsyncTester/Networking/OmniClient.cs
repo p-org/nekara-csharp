@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.Remoting;
 using System.Runtime.Remoting.Channels;
@@ -15,9 +16,12 @@ namespace AsyncTester.Core
     public class OmniClient : IClient, IDisposable
     {
         private OmniClientConfiguration config;
-        private Func<string, JToken[], Task<JToken>> _sendRequest;    // delegate method to be implemented by differnet transport mechanisms
+        private Func<string, JToken[], (Task<JToken>, CancellationTokenSource)> _sendRequest;    // delegate method to be implemented by differnet transport mechanisms
         private Action<string, RemoteMethodAsync> _addRemoteMethod;    // delegate method to be implemented by differnet transport mechanisms
         private Action _dispose;
+        private Task _readyFlag;
+
+        public Task ReadyFlag { get { return _readyFlag; } }
         
         // private Func<string, Task> Subscribe;            // using topic-based Publish-Subscribe
         // private Func<string, string, Task> Publish;      // using topic-based Publish-Subscribe
@@ -65,7 +69,7 @@ namespace AsyncTester.Core
             this._sendRequest = (func, args) =>
             {
                 // TODO: this function is incomplete - work on it later
-                return Task.FromResult(JValue.Parse("true"));
+                return ( Task.FromResult(JValue.Parse("true")), new CancellationTokenSource() );
             };
 
             this._addRemoteMethod = (string func, RemoteMethodAsync handler) =>
@@ -85,8 +89,9 @@ namespace AsyncTester.Core
             // Assign the appropriate SendRequest method
             this._sendRequest = (func, args) =>
             {
-                return client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args))
+                var task = client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args))
                     .ContinueWith(prev => JToken.Parse(prev.Result));
+                return (task, new CancellationTokenSource());
             };
 
             this._addRemoteMethod = (string func, RemoteMethodAsync handler) =>
@@ -120,6 +125,8 @@ namespace AsyncTester.Core
             this._dispose = () => {
                 client.Dispose();
             };
+
+            this._readyFlag = client.ReadyFlag;
         }
 
         private void SetupTransportTCP()
@@ -128,32 +135,32 @@ namespace AsyncTester.Core
         }
 
         // overloading the main SendRequest method to deal with variadic arguments
-        public Task<JToken> SendRequest(string func)
+        public (Task<JToken>, CancellationTokenSource) SendRequest(string func)
         {
             return this._sendRequest(func, new JToken[] { });
         }
 
-        public Task<JToken> SendRequest(string func, JArray args)
+        public (Task<JToken>, CancellationTokenSource) SendRequest(string func, JArray args)
         {
             return this._sendRequest(func, args.ToArray<JToken>());
         }
 
-        public Task<JToken> SendRequest(string func, params JToken[] args)
+        public (Task<JToken>, CancellationTokenSource) SendRequest(string func, params JToken[] args)
         {
             return this._sendRequest(func, args);
         }
 
-        public Task<JToken> SendRequest(string func, params bool[] args)
+        public (Task<JToken>, CancellationTokenSource) SendRequest(string func, params bool[] args)
         {
             return this._sendRequest(func, args.Select(x => JToken.FromObject(x)).ToArray());
         }
 
-        public Task<JToken> SendRequest(string func, params int[] args)
+        public (Task<JToken>, CancellationTokenSource) SendRequest(string func, params int[] args)
         {
             return this._sendRequest(func, args.Select(x => JToken.FromObject(x)).ToArray());
         }
 
-        public Task<JToken> SendRequest(string func, params string[] args)
+        public (Task<JToken>, CancellationTokenSource) SendRequest(string func, params string[] args)
         {
             return this._sendRequest(func, args.Select(x => JToken.FromObject(x)).ToArray());
         }
@@ -183,13 +190,15 @@ namespace AsyncTester.Core
                     {
                         if (cmd == "echo")
                         {
-                            return this._sendRequest(cmd, tokens.Skip(1).Select(x => JToken.FromObject(x)).ToArray());
+                            var (t, c) = this._sendRequest(cmd, tokens.Skip(1).Select(x => JToken.FromObject(x)).ToArray());
+                            return t;
                         }
                         else if (cmd == "do")
                         {
                             string func = tokens[1];
                             JToken[] args = tokens.Skip(2).Select(x => JToken.FromObject(x)).ToArray();
-                            return this._sendRequest(func, args);
+                            var (t, c) = this._sendRequest(func, args);
+                            return t;
                         }
                     }
                 }

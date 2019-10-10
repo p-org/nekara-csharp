@@ -4,12 +4,26 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
+using AsyncTester.Core;
 using Benchmarks;
 
 namespace Benchmarks
 {
     public class Stack
     {
+        public static ITestingService testingService;
+
+        [TestMethod]
+        public static async void RunTest(ITestingService testingService)
+        {
+            Stack.testingService = testingService;
+
+            // create an instance of stack
+            var stack = new Stack();
+
+            await stack.Run();
+        }
+
         int Top = 0;
 
         int Push(int[] stack, int x)
@@ -45,34 +59,46 @@ namespace Benchmarks
             int[] stack = new int[size];
             bool flag = false;
 
-            AsyncLock l = AsyncLock.Create();
+            var l = testingService.CreateLock(0);
 
-            Task t1 = Task.Run(async () =>
+            testingService.CreateTask();
+            Task t1 = Task.Run(() =>
             {
+                testingService.StartTask(2);
                 for (int i = 0; i < size; i++)
                 {
-                    Specification.InjectContextSwitch();
-                    using (await l.AcquireAsync())
+                    testingService.ContextSwitch();
+                    using (l.Acquire())
                     {
+                        testingService.ContextSwitch();
                         this.Push(stack, i);
+                        testingService.ContextSwitch();
                         flag = true;
                     }
+                    testingService.ContextSwitch();
                 }
+                testingService.EndTask(2);
             });
 
+            testingService.CreateTask();
             Task t2 = Task.Run(async () =>
             {
+                testingService.StartTask(3);
                 for (int i = 0; i < size; i++)
                 {
-                    Specification.InjectContextSwitch();
-                    using (await l.AcquireAsync())
+                    testingService.ContextSwitch();
+                    using (l.Acquire())
                     {
+                        testingService.ContextSwitch();
                         if (flag)
                         {
-                            Specification.Assert(this.Pop(stack) != -2, "Bug found!");
+                            testingService.ContextSwitch();
+                            testingService.Assert(this.Pop(stack) != -2, "Bug found!");
                         }
                     }
+                    testingService.ContextSwitch();
                 }
+                testingService.EndTask(3);
             });
 
             await Task.WhenAll(t1, t2);

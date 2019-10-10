@@ -15,14 +15,14 @@ namespace AsyncTester
     {
         private string id;
         private Dictionary<string, RemoteMethodAsync> remoteMethods;
-        private Dictionary<string, TaskCompletionSource<JToken>> requests;
+        private Dictionary<string, (TaskCompletionSource<JToken>, CancellationTokenSource)> requests;
         private Dictionary<string, JsonPeer> peers;
 
         public JsonP2P()
         {
             this.id = Helpers.RandomString(16);
             this.remoteMethods = new Dictionary<string, RemoteMethodAsync>();
-            this.requests = new Dictionary<string, TaskCompletionSource<JToken>>();
+            this.requests = new Dictionary<string, (TaskCompletionSource<JToken>, CancellationTokenSource)>();
             this.peers = new Dictionary<string, JsonPeer>();
         }
 
@@ -73,10 +73,18 @@ namespace AsyncTester
             Console.WriteLine("--> Got Response to {0} {1}", message.responseTo, message.error);
             if (message.responseTo != null && this.requests.ContainsKey(message.responseTo))
             {
-                if (message.error) this.requests[message.responseTo].SetException(Exceptions.DeserializeServerSideException(message.data));
-                // if (message.error) this.requests[message.responseTo].SetException(new ServerThrownException(message.data));
-                else this.requests[message.responseTo].SetResult(message.data);
-                // Console.WriteLine("    ... resolved response to {0} {1}", message.responseTo, message.error);
+                var (tcs, cts) = this.requests[message.responseTo];
+                if (cts.IsCancellationRequested) {
+                    Console.WriteLine("  ! Response {0} was cancelled", message.responseTo);
+                    tcs.SetCanceled();
+                }
+                else
+                {
+                    if (message.error) tcs.SetException(Exceptions.DeserializeServerSideException(message.data));
+                    // if (message.error) this.requests[message.responseTo].SetException(new ServerThrownException(message.data));
+                    else tcs.SetResult(message.data);
+                    // Console.WriteLine("    ... resolved response to {0} {1}", message.responseTo, message.error);
+                }
             }
             else
             {
@@ -84,25 +92,27 @@ namespace AsyncTester
             }
         }
 
-        public Task<JToken> Request(string recipient, string func, JToken[] args, int timeout = 30000)
+        public (Task<JToken>, CancellationTokenSource) Request(string recipient, string func, JToken[] args, int timeout = 30000)
         {
             Console.WriteLine("<-- Requesting {0} ({1})", func, String.Join(", ", args.Select(arg => arg.ToString())));
             var tcs = new TaskCompletionSource<JToken>();   // This tcs will be settled when the response comes back
-            var cancellation = new CancellationTokenSource();
+            var cts = new CancellationTokenSource();
 
             var message = new RequestMessage(this.id, recipient, func, args);
             var serialized = JsonConvert.SerializeObject(message);
-            this.requests.Add(message.id, tcs);
+            this.requests.Add(message.id, (tcs, cts));
             this.Send(recipient, serialized);
 
-            var timer = new Timer(_ => tcs.SetException(new RequestTimeoutException()), null, timeout, Timeout.Infinite);   // Set a timeout for the request
+            var timer = new Timer(_ => {
+                if (!cts.IsCancellationRequested) tcs.SetException(new RequestTimeoutException());
+            }, null, timeout, Timeout.Infinite);   // Set a timeout for the request
             tcs.Task.ContinueWith(prev => {
                 timer.Change(Timeout.Infinite, Timeout.Infinite);
                 this.requests.Remove(message.id);
                 timer.Dispose();
-                // Console.WriteLine("  Request {0} was resolved with error={1}", message.id, prev.IsFaulted);
+                // Console.WriteLine("  Request {0} was fulfilled with error={1}, cancelled={2}", message.id, prev.IsFaulted, prev.IsCanceled);
             });
-            return tcs.Task;
+            return (tcs.Task, cts);
         }
 
         public Task Respond(string recipient, string requestId, JToken data)
