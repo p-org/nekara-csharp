@@ -15,14 +15,16 @@ namespace AsyncTester.Core
         public string id;
         public string assemblyName;
         public string assemblyPath;
+        public string methodDeclaringClass;
         public string methodName;
         public int schedulingSeed;
 
-        public SessionInfo(string id, string assemblyName, string assemblyPath, string methodName, int schedulingSeed)
+        public SessionInfo(string id, string assemblyName, string assemblyPath, string methodDeclaringClass, string methodName, int schedulingSeed)
         {
             this.id = id;
             this.assemblyName = assemblyName;
             this.assemblyPath = assemblyPath;
+            this.methodDeclaringClass = methodDeclaringClass;
             this.methodName = methodName;
             this.schedulingSeed = schedulingSeed;
     }
@@ -70,6 +72,7 @@ namespace AsyncTester.Core
         public string id;
         public string assemblyName;
         public string assemblyPath;
+        public string methodDeclaringClass;
         public string methodName;
         public int schedulingSeed;
 
@@ -79,6 +82,9 @@ namespace AsyncTester.Core
         private Action<TestingSession> _onComplete;
         private object stateLock;
         private bool replayMode; // indicates it has already ran once
+        private DateTime startedAt;
+        private DateTime finishedAt;
+        private TimeSpan elapsed;
 
         // testing service objects
         private Helpers.SeededRandomizer randomizer;
@@ -93,11 +99,12 @@ namespace AsyncTester.Core
         public bool passed;
         public string reason;
 
-        public TestingSession(string assemblyName, string assemblyPath, string methodName, int schedulingSeed)
+        public TestingSession(string assemblyName, string assemblyPath, string methodDeclaringClass, string methodName, int schedulingSeed)
         {
             this.id = Helpers.RandomString(8);
             this.assemblyName = assemblyName;
             this.assemblyPath = assemblyPath;
+            this.methodDeclaringClass = methodDeclaringClass;
             this.methodName = methodName;
             this.schedulingSeed = schedulingSeed;
             this.passed = false;
@@ -112,9 +119,12 @@ namespace AsyncTester.Core
             this.Reset();
         }
 
-        public SessionInfo info { get { return new SessionInfo(this.id, this.assemblyName, this.assemblyPath, this.methodName, this.schedulingSeed); } }
+        public SessionInfo info { get { return new SessionInfo(this.id, this.assemblyName, this.assemblyPath, this.methodDeclaringClass, this.methodName, this.schedulingSeed); } }
 
         public bool IsFinished { get { return this.finished; } }
+
+        public double ElapsedMilliseconds { get { return this.elapsed.TotalMilliseconds; } }
+        public double ElapsedSeconds { get { return this.elapsed.TotalSeconds; } }
 
         public void OnComplete(Action<TestingSession> action)
         {
@@ -138,8 +148,13 @@ namespace AsyncTester.Core
             this.testTrace = new Queue<TraceStep>();
             this.finished = false;
 
+            this.startedAt = DateTime.Now;
+
             // create a continuation callback that will notify the client once the test is finished
             this.IterFinished.Task.ContinueWith(prev => {
+                
+                this.finishedAt = DateTime.Now;
+                this.elapsed = this.finishedAt - this.startedAt;
 
                 this.passed = prev.Result.passed;
                 this.reason = prev.Result.reason;
@@ -188,7 +203,7 @@ namespace AsyncTester.Core
          */
         public void CreateTask()
         {
-            AppendLog(counter++, "CreateTask", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "CreateTask", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
 
             lock (programState)
             {
@@ -196,12 +211,12 @@ namespace AsyncTester.Core
             }
 
             this.PushTrace("CreateTask", null, null);
-            AppendLog(counter++, "CreateTask", "", "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "CreateTask", "", "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
         }
 
         public void StartTask(int taskId)
         {
-            AppendLog(counter++, "StartTask", taskId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "StartTask", taskId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
 
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
 
@@ -216,12 +231,12 @@ namespace AsyncTester.Core
             tcs.Task.Wait();
 
             this.PushTrace("StartTask", new JToken[] { taskId }, null);
-            AppendLog(counter++, "StartTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "StartTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
         }
 
         public void EndTask(int taskId)
         {
-            AppendLog(counter++, "EndTask", taskId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "EndTask", taskId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
 
             WaitForPendingTaskCreations();
 
@@ -234,7 +249,7 @@ namespace AsyncTester.Core
             ContextSwitch();
 
             this.PushTrace("EndTask", new JToken[] { taskId }, null);
-            AppendLog(counter++, "EndTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "EndTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
         }
 
         // this method should not be called over the network; it's a client-side helper method
@@ -245,7 +260,7 @@ namespace AsyncTester.Core
 
         public void CreateResource(int resourceId)
         {
-            AppendLog(counter++, "CreateResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "CreateResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
 
             lock (programState)
             {
@@ -254,12 +269,12 @@ namespace AsyncTester.Core
             }
 
             this.PushTrace("CreateResource", new JToken[] { resourceId }, null);
-            AppendLog(counter++, "CreateResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "CreateResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
         }
 
         public void DeleteResource(int resourceId)
         {
-            AppendLog(counter++, "DeleteResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "DeleteResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
 
             lock (programState)
             {
@@ -268,15 +283,17 @@ namespace AsyncTester.Core
             }
 
             this.PushTrace("DeleteResource", new JToken[] { resourceId }, null);
-            AppendLog(counter++, "DeleteResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "DeleteResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
         }
 
         public void BlockedOnResource(int resourceId)
         {
-            AppendLog(counter++, "BlockedOnResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "BlockedOnResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
 
             lock (programState)
             {
+                Assert(programState.resourceSet.Contains(resourceId),
+                    $"Illegal operation, resource {resourceId} has not been declared");
                 Assert(!programState.taskStatus.ContainsKey(programState.currentTask),
                     $"Illegal operation, task {programState.currentTask} already blocked on a resource");
                 programState.taskStatus[programState.currentTask] = resourceId;
@@ -285,12 +302,12 @@ namespace AsyncTester.Core
             ContextSwitch();
 
             this.PushTrace("BlockedOnResource", new JToken[] { resourceId }, null);
-            AppendLog(counter++, "BlockedOnResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "BlockedOnResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
         }
 
         public void SignalUpdatedResource(int resourceId)
         {
-            AppendLog(counter++, "SignalUpdatedResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "SignalUpdatedResource", resourceId, "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
 
             lock (programState)
             {
@@ -302,12 +319,12 @@ namespace AsyncTester.Core
             }
 
             this.PushTrace("SignalUpdatedResource", new JToken[] { resourceId }, null);
-            AppendLog(counter++, "SignalUpdatedResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "SignalUpdatedResource", resourceId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
         }
 
         public bool CreateNondetBool()
         {
-            AppendLog(counter++, "CreateNondetBool", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "CreateNondetBool", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
 
             var value = this.randomizer.NextBool();
 
@@ -317,7 +334,7 @@ namespace AsyncTester.Core
 
         public int CreateNondetInteger(int maxValue)
         {
-            AppendLog(counter++, "CreateNondetInteger", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "CreateNondetInteger", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
             var value = this.randomizer.NextInt(maxValue);
             this.PushTrace("CreateNondetInteger", new JToken[] { maxValue }, JToken.FromObject(value));
             return value;
@@ -325,7 +342,7 @@ namespace AsyncTester.Core
 
         public void Assert(bool value, string message)
         {
-            AppendLog(counter++, "Assert", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "Assert", "", "", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
             this.PushTrace("Assert", new JToken[] { value, message }, null);
 
             if (!value) throw new AssertionFailureException(message);
@@ -333,7 +350,7 @@ namespace AsyncTester.Core
 
         public void ContextSwitch()
         {
-            AppendLog(counter++, "ContextSwitch", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "ContextSwitch", "", "enter", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
             this.PushTrace("ContextSwitch", null, null);
 
             WaitForPendingTaskCreations();
@@ -357,6 +374,7 @@ namespace AsyncTester.Core
 
                 if (enabledTasks.Count == 0)
                 {
+                    // if all remaining tasks are blocked then it's deadlock
                     Assert(programState.taskToTcs.Count == 0, "Deadlock detected");
 
                     // all-done
@@ -373,27 +391,35 @@ namespace AsyncTester.Core
             }
             else
             {
+                // if the selected task is not the current task,
+                // need to give control to the selected task
+
                 TaskCompletionSource<bool> nextTcs;
 
                 lock (programState)
                 {
+                    // get the tcs of the selected task
                     nextTcs = programState.taskToTcs[enabledTasks[next]];
                     if (currentTaskEnabled)
                     {
-                        programState.taskToTcs[programState.currentTask] = tcs;
+                        // if current task is still running, save the new tcs
+                        programState.taskToTcs[currentTask] = tcs;
                     }
+                    // update the current task
                     programState.currentTask = enabledTasks[next];
                 }
 
+                // complete the tcs to let the task continue
                 nextTcs.SetResult(true);
 
                 if (currentTaskEnabled)
                 {
+                    // block the current task until it is resumed by a future contextswitch call
                     tcs.Task.Wait();
                 }
             }
 
-            AppendLog(counter++, "ContextSwitch", "", "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            AppendLog(counter++, "ContextSwitch", "", "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
         }
 
         void WaitForPendingTaskCreations()

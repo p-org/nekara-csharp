@@ -27,9 +27,9 @@ namespace Benchmarks
             for (int i = 0; i < numTTasks; i++)
             {
                 testingService.CreateTask();
-                tPool[i] = Task.Run(async () =>
+                int ti = 1 + i;
+                tPool[i] = Task.Run(() =>
                 {
-                    int ti = 1 + i;
                     testingService.StartTask(ti);
                     testingService.ContextSwitch();
                     using (data1Lock.Acquire())
@@ -43,16 +43,17 @@ namespace Benchmarks
                         data2Value = data1Value + 1;
                     }
                     testingService.ContextSwitch();
+
                     testingService.EndTask(ti);
                 });
             }
 
             for (int i = 0; i < numRTasks; i++)
             {
+                int ti = 1 + numTTasks + i;
                 testingService.CreateTask();
-                rPool[i] = Task.Run(async () =>
+                rPool[i] = Task.Run(() =>
                 {
-                    int ti = 1 + numTTasks + i;
                     testingService.StartTask(ti);
 
                     int t1 = -1;
@@ -79,6 +80,7 @@ namespace Benchmarks
                     testingService.ContextSwitch();
                     int localT2 = t2;
                     testingService.Assert(localT2 == localT1 + 1, "Bug found!");
+
                     testingService.EndTask(ti);
                 });
             }

@@ -22,12 +22,12 @@ namespace Benchmarks
             Task[] setPool = new Task[numSetTasks];
             Task[] checkPool = new Task[numCheckTasks];
 
-            for (int i = 0; i < numSetTasks; ++i)
+            for (int i = 0; i < numSetTasks; i++)
             {
+                int ti = 1 + i;
                 testingService.CreateTask();
                 setPool[i] = Task.Run(() =>
                 {
-                    int ti = i;
                     testingService.StartTask(ti);
                     testingService.ContextSwitch();
                     a = 1;
@@ -37,12 +37,12 @@ namespace Benchmarks
                 });
             }
 
-            for (int i = 0; i < numCheckTasks; ++i)
+            for (int i = 0; i < numCheckTasks; i++)
             {
+                int ti = 1 + numSetTasks + i;
                 testingService.CreateTask();
                 checkPool[i] = Task.Run(() =>
                 {
-                    int ti = i + numSetTasks;
                     testingService.StartTask(ti);
                     testingService.ContextSwitch();
                     int localA = a;

@@ -41,7 +41,7 @@ namespace AsyncTester.Core
 
             string sumPath = "logs/summary-" + DateTime.Now.Ticks.ToString() + ".csv";
             this.summaryFile = File.AppendText(sumPath);
-            this.summaryFile.WriteLine("SessionId,Seed,Result,Reason");
+            this.summaryFile.WriteLine("Assembly,Class,Method,SessionId,Seed,Result,Reason,Elapsed");
 
             this.server = server;
 
@@ -50,7 +50,7 @@ namespace AsyncTester.Core
 
         [RemoteMethod(name = "InitializeTestSession", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
         // treating this method as a special case because it spawns another Task we have to resolve later
-        public string InitializeTestSession(JToken arg0, JToken arg1, JToken arg2, JToken args3)
+        public string InitializeTestSession(JToken arg0, JToken arg1, JToken arg2, JToken arg3, JToken arg4)
         {
             // HACK: Wait till previous session finishes
             // - a better way to deal with this is to keep a dictionary of sessions
@@ -62,10 +62,11 @@ namespace AsyncTester.Core
 
             string assemblyName = arg0.ToObject<string>();
             string assemblyPath = arg1.ToObject<string>();
-            string methodName = arg2.ToObject<string>();
-            int schedulingSeed = args3.ToObject<int>();
+            string methodDeclaringClass = arg2.ToObject<string>();
+            string methodName = arg3.ToObject<string>();
+            int schedulingSeed = arg4.ToObject<int>();
 
-            var session = new TestingSession(assemblyName, assemblyPath, methodName, schedulingSeed);
+            var session = new TestingSession(assemblyName, assemblyPath, methodDeclaringClass, methodName, schedulingSeed);
             session.logger = this.logFile;
 
             session.OnComplete(finished =>
@@ -78,7 +79,7 @@ namespace AsyncTester.Core
                 Console.WriteLine("Test {0} Finished!", finished.id);
 
                 // Append Summary
-                string summary = String.Join(",", new string[] { finished.id, finished.schedulingSeed.ToString(), (finished.passed ? "pass" : "fail"), finished.reason });
+                string summary = String.Join(",", new string[] { assemblyName, methodDeclaringClass, methodName, finished.id, finished.schedulingSeed.ToString(), (finished.passed ? "pass" : "fail"), finished.reason, finished.ElapsedMilliseconds.ToString() });
 
                 Console.WriteLine(summary);
                 this.summaryFile.WriteLine(summary);

@@ -1,18 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Diagnostics;
 using System.Threading;
-using Microsoft.PSharp;
-using Microsoft.PSharp.TestingServices;
-using Grpc.Core.Logging;
 using AsyncTester.Networking;
 using Newtonsoft.Json.Linq;
-using System.Collections;
-using System.Runtime.CompilerServices;
 
 namespace AsyncTester.Core
 {
@@ -140,7 +134,7 @@ namespace AsyncTester.Core
             return new Promise((resolve, reject) =>
             {
                 Console.WriteLine("\n\nStarting new test session with seed = {0}", schedulingSeed);
-                var (request, canceller) = this.socket.SendRequest("InitializeTestSession", new JToken[] { assembly.FullName, assembly.Location, testMethod.Name, schedulingSeed });
+                var (request, canceller) = this.socket.SendRequest("InitializeTestSession", new JToken[] { assembly.FullName, assembly.Location, testMethod.DeclaringType.FullName, testMethod.Name, schedulingSeed });
                 request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
                 request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
             }).Then(sessionId =>
@@ -209,10 +203,10 @@ namespace AsyncTester.Core
                 // The code below can throw arbitrary exceptions
                 // if the JSON payload format changes
                 JObject data = (JObject)payload;
-                SessionInfo info = new SessionInfo(data["id"].ToObject<string>(), data["assemblyName"].ToObject<string>(), data["assemblyPath"].ToObject<string>(), data["methodName"].ToObject<string>(), data["schedulingSeed"].ToObject<int>());
+                SessionInfo info = new SessionInfo(data["id"].ToObject<string>(), data["assemblyName"].ToObject<string>(), data["assemblyPath"].ToObject<string>(), data["methodDeclaringClass"].ToObject<string>(), data["methodName"].ToObject<string>(), data["schedulingSeed"].ToObject<int>());
                 
                 Console.WriteLine("Session Id : {0}", info.id);
-                Console.WriteLine("    [{1}] in {0}", info.assemblyName, info.methodName);
+                Console.WriteLine("    [{2} .{1}] in {0}", info.assemblyName, info.methodName, info.methodDeclaringClass);
 
                 LoadTestSubject(info.assemblyPath);
                 var testMethod = GetMethodToBeTested(info.methodName);
