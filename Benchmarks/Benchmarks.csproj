@@ -125,12 +125,20 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Benchmarks\Account.cs" />
+    <Compile Include="Benchmarks\Carter.cs" />
     <Compile Include="Benchmarks\CircularBuffer.cs" />
     <Compile Include="Benchmarks\Deadlock.cs" />
     <Compile Include="Benchmarks\Deadlock2.cs" />
     <Compile Include="Benchmarks\Deadlock3.cs" />
     <Compile Include="Benchmarks\DeadlockAsync.cs" />
+    <Compile Include="Benchmarks\Lazy.cs" />
     <Compile Include="Benchmarks\Queue.cs" />
+    <Compile Include="Benchmarks\Reorder10.cs" />
+    <Compile Include="Benchmarks\Reorder20.cs" />
+    <Compile Include="Benchmarks\Reorder3.cs" />
+    <Compile Include="Benchmarks\Reorder4.cs" />
+    <Compile Include="Benchmarks\Reorder5.cs" />
     <Compile Include="Benchmarks\Stack.cs" />
     <Compile Include="Benchmarks\TokenRing.cs" />
     <Compile Include="Benchmarks\TwoStage.cs" />
