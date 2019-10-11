@@ -5,7 +5,6 @@
 
 using System.Threading.Tasks;
 using AsyncTester.Core;
-using Benchmarks;
 
 namespace Benchmarks
 {

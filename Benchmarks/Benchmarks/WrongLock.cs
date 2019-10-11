@@ -6,7 +6,6 @@
 using System;
 using System.Threading.Tasks;
 using AsyncTester.Core;
-using Benchmarks;
 
 namespace Benchmarks
 {
@@ -19,8 +18,8 @@ namespace Benchmarks
             int iNum2 = 7;
             int dataValue = 0;
 
-            var dataLock = testingService.CreateLock(0);
-            var thisLock = testingService.CreateLock(1);
+            var dataLock = testingService.CreateLock(1);
+            var thisLock = testingService.CreateLock(2);
 
             Task[] num1Pool = new Task[iNum1];
             Task[] num2Pool = new Task[iNum2];
@@ -30,7 +29,9 @@ namespace Benchmarks
                 testingService.CreateTask();
                 num1Pool[i] = Task.Run(async () =>
                 {
-                    testingService.StartTask(1 + i);
+                    int ti = i; // need to capture the loop variable to assign the correct task id
+                    Console.WriteLine("Starting Task {0}", 1 + ti);
+                    testingService.StartTask(1 + ti);
                     testingService.ContextSwitch();
                     using (dataLock.Acquire())
                     {
@@ -41,7 +42,8 @@ namespace Benchmarks
                         testingService.ContextSwitch();
                         testingService.Assert(dataValue == (x + 1), "Bug Found!");
                     }
-                    testingService.EndTask(1 + i);
+                    Console.WriteLine("Ending Task {0}", 1 + ti);
+                    testingService.EndTask(1 + ti);
                 });
             }
 
@@ -50,16 +52,17 @@ namespace Benchmarks
                 testingService.CreateTask();
                 num2Pool[i] = Task.Run(async () =>
                 {
-                    Console.WriteLine("Starting Task {0}", 1 + iNum1 + i);
-                    testingService.StartTask(1 + iNum1 + i);
+                    int ti = i; // need to capture the loop variable to assign the correct task id
+                    Console.WriteLine("Starting Task {0}", 1 + iNum1 + ti);
+                    testingService.StartTask(1 + iNum1 + ti);
                     testingService.ContextSwitch();
                     using (thisLock.Acquire())
                     {
                         testingService.ContextSwitch();
                         dataValue++;
                     }
-                    Console.WriteLine("Ending Task {0}", 1 + iNum1 + i);
-                    testingService.EndTask(1 + iNum1 + i);
+                    Console.WriteLine("Ending Task {0}", 1 + iNum1 + ti);
+                    testingService.EndTask(1 + iNum1 + ti);
                 });
             }
 

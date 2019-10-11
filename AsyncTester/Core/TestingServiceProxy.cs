@@ -385,7 +385,16 @@ namespace AsyncTester.Core
                         Console.WriteLine(ex.Message);
                         return false;
                     }
-                    else return false;
+                    else if (ex is RequestTimeoutException)
+                    {
+                        Console.WriteLine("    !!! Request Timed Out for method: {0}", func);
+                        return false;
+                    }
+                    else
+                    {
+                        Console.WriteLine(ex);
+                        return false;
+                    }
                 });
             }
             return task.Result;
