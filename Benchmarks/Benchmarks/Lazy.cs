@@ -4,53 +4,53 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class Lazy
     {
         [TestMethod]
-        public static async Task RunTest(ITestingService testingService)
+        public static async Task RunTest(TestingServiceProxy ts)
         {
             int data = 0;
 
-            var l = testingService.CreateLock(1);
+            var l = ts.LockFactory.CreateLock(1);
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(async () =>
             {
-                testingService.StartTask(1);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(1);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
                     data++;
                 }
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(2);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(2);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
                     data += 2;
                 }
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t3 = Task.Run(async () =>
             {
-                testingService.StartTask(3);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(3);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
-                    testingService.Assert(data < 3, "Bug found!");
+                    ts.Api.Assert(data < 3, "Bug found!");
                 }
-                testingService.EndTask(3);
+                ts.Api.EndTask(3);
             });
 
             await Task.WhenAll(t1, t2, t3);

@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace AsyncTester
+namespace AsyncTester.Networking
 {
     // Wrapping the native System.Net.Http.HttpClient class
     // to provide a higher level of abstraction

@@ -4,14 +4,14 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class Account
     {
         [TestMethod]
-        public static async Task RunTest(ITestingService testingService)
+        public static async Task RunTest(TestingServiceProxy ts)
         {
             int x = 1;
             int y = 2;
@@ -21,47 +21,47 @@ namespace Benchmarks
             bool depositDone = false;
             bool withdrawDone = false;
 
-            var l = testingService.CreateLock(1);
+            var l = ts.LockFactory.CreateLock(1);
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(async () =>
             {
-                testingService.StartTask(1);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(1);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
                     if (depositDone && withdrawDone)
                     {
-                        testingService.Assert(balance == (x - y) - z, "Bug found!");
+                        ts.Api.Assert(balance == (x - y) - z, "Bug found!");
                     }
                 }
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(2);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(2);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
                     balance += y;
                     depositDone = true;
                 }
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t3 = Task.Run(async () =>
             {
-                testingService.StartTask(3);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(3);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
                     balance -= z;
                     withdrawDone = true;
                 }
-                testingService.EndTask(3);
+                ts.Api.EndTask(3);
             });
 
             await Task.WhenAll(t1, t2, t3);

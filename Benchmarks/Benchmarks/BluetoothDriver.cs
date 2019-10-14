@@ -4,18 +4,18 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class BluetoothDriver
     {
-        public static ITestingService testingService;
+        public static TestingServiceProxy ts;
 
         [TestMethod]
-        public static async void RunTest(ITestingService testingService)
+        public static async void RunTest(TestingServiceProxy ts)
         {
-            BluetoothDriver.testingService = testingService;
+            BluetoothDriver.ts = ts;
 
             // create an instance of stack
             var driver = new BluetoothDriver();
@@ -35,29 +35,29 @@ namespace Benchmarks
 
         private async Task<int> BCSP_IoIncrement(DeviceExtension e)
         {
-            testingService.StartTask(1);
-            testingService.ContextSwitch();
+            ts.Api.StartTask(1);
+            ts.Api.ContextSwitch();
             if (e.StoppingFlag)
             {
                 return -1;
             }
 
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             using (this.Lock.Acquire())
             {
                 e.PendingIo++;
             }
 
-            testingService.EndTask(1);
+            ts.Api.EndTask(1);
             return 0;
         }
 
         private async Task BCSP_IoDecrement(DeviceExtension e)
         {
-            testingService.StartTask(2);
+            ts.Api.StartTask(2);
             int pendingIo;
 
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             using (this.Lock.Acquire())
             {
                 e.PendingIo--;
@@ -66,27 +66,27 @@ namespace Benchmarks
 
             if (pendingIo == 0)
             {
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 e.StoppingEvent = true;
             }
-            testingService.EndTask(2);
+            ts.Api.EndTask(2);
         }
 
         private async Task BCSP_PnpAdd(DeviceExtension e)
         {
-            testingService.StartTask(3);
-            testingService.CreateTask();
+            ts.Api.StartTask(3);
+            ts.Api.CreateTask();
             int status = await BCSP_IoIncrement(e);
             if (status == 0)
             {
                 // Do work here.
-                testingService.ContextSwitch();
-                testingService.Assert(!this.Stopped, "Bug found!");
+                ts.Api.ContextSwitch();
+                ts.Api.Assert(!this.Stopped, "Bug found!");
             }
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             await BCSP_IoDecrement(e);
-            testingService.EndTask(3);
+            ts.Api.EndTask(3);
         }
 
         public async Task Run()
@@ -98,28 +98,28 @@ namespace Benchmarks
                 StoppingEvent = false
             };
 
-            this.Lock = testingService.CreateLock(0);
+            this.Lock = ts.LockFactory.CreateLock(0);
             this.Stopped = false;
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t = Task.Run(async () =>
             {
-                testingService.StartTask(1);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(1);
+                ts.Api.ContextSwitch();
                 e.StoppingFlag = true;
-                testingService.CreateTask();
+                ts.Api.CreateTask();
                 await BCSP_IoDecrement(e);
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 if (e.StoppingEvent)
                 {
                     // Release allocated resource.
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     this.Stopped = true;
                 }
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             await BCSP_PnpAdd(e);
             await Task.WhenAll(t);
         }

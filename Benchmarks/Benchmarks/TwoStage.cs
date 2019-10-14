@@ -4,62 +4,62 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class TwoStage
     {
         [TestMethod]
-        public static async Task Run(ITestingService testingService)
+        public static async Task Run(TestingServiceProxy ts)
         {
             int numTTasks = 3;
             int numRTasks = 3;
             int data1Value = 0;
             int data2Value = 0;
 
-            var data1Lock = testingService.CreateLock(1);
-            var data2Lock = testingService.CreateLock(2);
+            var data1Lock = ts.LockFactory.CreateLock(1);
+            var data2Lock = ts.LockFactory.CreateLock(2);
 
             Task[] tPool = new Task[numTTasks];
             Task[] rPool = new Task[numRTasks];
 
             for (int i = 0; i < numTTasks; i++)
             {
-                testingService.CreateTask();
+                ts.Api.CreateTask();
                 int ti = 1 + i;
                 tPool[i] = Task.Run(() =>
                 {
-                    testingService.StartTask(ti);
-                    testingService.ContextSwitch();
+                    ts.Api.StartTask(ti);
+                    ts.Api.ContextSwitch();
                     using (data1Lock.Acquire())
                     {
                         data1Value = 1;
                     }
 
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (data2Lock.Acquire())
                     {
                         data2Value = data1Value + 1;
                     }
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
 
-                    testingService.EndTask(ti);
+                    ts.Api.EndTask(ti);
                 });
             }
 
             for (int i = 0; i < numRTasks; i++)
             {
                 int ti = 1 + numTTasks + i;
-                testingService.CreateTask();
+                ts.Api.CreateTask();
                 rPool[i] = Task.Run(() =>
                 {
-                    testingService.StartTask(ti);
+                    ts.Api.StartTask(ti);
 
                     int t1 = -1;
                     int t2 = -1;
 
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (data1Lock.Acquire())
                     {
                         if (data1Value == 0)
@@ -69,19 +69,19 @@ namespace Benchmarks
                         t1 = data1Value;
                     }
 
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (data2Lock.Acquire())
                     {
                         t2 = data2Value;
                     }
 
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     int localT1 = t1;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     int localT2 = t2;
-                    testingService.Assert(localT2 == localT1 + 1, "Bug found!");
+                    ts.Api.Assert(localT2 == localT1 + 1, "Bug found!");
 
-                    testingService.EndTask(ti);
+                    ts.Api.EndTask(ti);
                 });
             }
 

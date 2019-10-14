@@ -4,18 +4,18 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class CircularBuffer
     {
-        public static ITestingService testingService;
+        public static TestingServiceProxy ts;
 
         [TestMethod]
-        public static async void RunTest(ITestingService testingService)
+        public static async void RunTest(TestingServiceProxy ts)
         {
-            CircularBuffer.testingService = testingService;
+            CircularBuffer.ts = ts;
 
             // create an instance of stack
             var buffer = new CircularBuffer();
@@ -33,7 +33,7 @@ namespace Benchmarks
         int RemoveLogElement()
         {
             //Specification.Assert(this.First >= 0, "Bug found!");
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             if (this.Next > 0 && this.First < this.BufferSize)
             {
                 this.First++;
@@ -47,7 +47,7 @@ namespace Benchmarks
 
         int InsertLogElement(int b)
         {
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             if (this.Next < this.BufferSize && this.BufferSize > 0)
             {
                 this.Buffer[this.Next] = (char)b;
@@ -72,51 +72,51 @@ namespace Benchmarks
             this.Receive = false;
             int n = 7;
 
-            var l = testingService.CreateLock(1);
+            var l = ts.LockFactory.CreateLock(1);
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(async () =>
             {
-                testingService.StartTask(1);
+                ts.Api.StartTask(1);
                 for (int i = 0; i < n; i++)
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (l.Acquire())
                     {
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         if (this.Send)
                         {
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             InsertLogElement(i);
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             this.Send = false;
                             this.Receive = true;
                         }
                     }
                 }
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(2);
+                ts.Api.StartTask(2);
                 for (int i = 0; i < n; i++)
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (l.Acquire())
                     {
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         if (this.Receive)
                         {
-                            testingService.ContextSwitch();
-                            testingService.Assert(RemoveLogElement() == i, "Bug found!");
+                            ts.Api.ContextSwitch();
+                            ts.Api.Assert(RemoveLogElement() == i, "Bug found!");
                             this.Receive = false;
                             this.Send = true;
                         }
                     }
                 }
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
             await Task.WhenAll(t1, t2);

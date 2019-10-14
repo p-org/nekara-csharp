@@ -4,14 +4,14 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class TokenRing
     {
         [TestMethod]
-        public static async Task RunTest(ITestingService testingService)
+        public static async Task RunTest(TestingServiceProxy ts)
         {
             int x1 = 1;
             int x2 = 2;
@@ -21,68 +21,68 @@ namespace Benchmarks
             bool flag2 = false;
             bool flag3 = false;
 
-            var l = testingService.CreateLock(1);
+            var l = ts.LockFactory.CreateLock(1);
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(async () =>
             {
-                testingService.StartTask(1);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(1);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     x1 = (x3 + 1) % 4;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     flag1 = true;
                 }
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(2);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(2);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     x2 = x1;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     flag2 = true;
                 }
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t3 = Task.Run(async () =>
             {
-                testingService.StartTask(3);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(3);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     x3 = x2;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     flag3 = true;
                 }
-                testingService.EndTask(3);
+                ts.Api.EndTask(3);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t4 = Task.Run(async () =>
             {
-                testingService.StartTask(4);
-                testingService.ContextSwitch();
+                ts.Api.StartTask(4);
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     if (flag1 && flag2 && flag3)
                     {
-                        testingService.ContextSwitch();
-                        testingService.Assert(x1 == x2 && x2 == x3, "Bug found!");
+                        ts.Api.ContextSwitch();
+                        ts.Api.Assert(x1 == x2 && x2 == x3, "Bug found!");
                     }
                 }
-                testingService.EndTask(4);
+                ts.Api.EndTask(4);
             });
 
             await Task.WhenAll(t1, t2, t3, t4);

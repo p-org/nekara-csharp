@@ -4,14 +4,14 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class Reorder5
     {
         [TestMethod]
-        public static async Task Run(ITestingService testingService)
+        public static async Task Run(TestingServiceProxy ts)
         {
             int numSetTasks = 4;
             int numCheckTasks = 1;
@@ -25,31 +25,31 @@ namespace Benchmarks
             for (int i = 0; i < numSetTasks; i++)
             {
                 int ti = 1 + i;
-                testingService.CreateTask();
+                ts.Api.CreateTask();
                 setPool[i] = Task.Run(() =>
                 {
-                    testingService.StartTask(ti);
-                    testingService.ContextSwitch();
+                    ts.Api.StartTask(ti);
+                    ts.Api.ContextSwitch();
                     a = 1;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     b = -1;
-                    testingService.EndTask(ti);
+                    ts.Api.EndTask(ti);
                 });
             }
 
             for (int i = 0; i < numCheckTasks; i++)
             {
                 int ti = 1 + numSetTasks + i;
-                testingService.CreateTask();
+                ts.Api.CreateTask();
                 checkPool[i] = Task.Run(() =>
                 {
-                    testingService.StartTask(ti);
-                    testingService.ContextSwitch();
+                    ts.Api.StartTask(ti);
+                    ts.Api.ContextSwitch();
                     int localA = a;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     int localB = b;
-                    testingService.Assert((localA == 0 && localB == 0) || (localA == 1 && localB == -1), "Bug found!");
-                    testingService.EndTask(ti);
+                    ts.Api.Assert((localA == 0 && localB == 0) || (localA == 1 && localB == -1), "Bug found!");
+                    ts.Api.EndTask(ti);
                 });
             }
 

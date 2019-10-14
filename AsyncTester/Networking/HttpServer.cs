@@ -19,7 +19,7 @@ using System.Security.Principal;
  *   - Need Sessions (Cookie-based for HTTP): cannot currently distinguish between different requests
  */
 
-namespace AsyncTester
+namespace AsyncTester.Networking
 {
     delegate void Middleware(Request request, Response response, Action next);
 

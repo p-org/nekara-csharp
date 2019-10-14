@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace AsyncTester
+namespace AsyncTester.Networking
 {
     public class WebSocketServer
     {

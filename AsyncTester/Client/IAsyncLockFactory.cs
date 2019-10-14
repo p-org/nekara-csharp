@@ -4,13 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AsyncTester
+namespace AsyncTester.Client
 {
-    public class ProxyProgram
+    public interface IAsyncLockFactory
     {
-        public ProxyProgram()
-        {
-
-        }
+        IAsyncLock CreateLock(int resourceId);
     }
 }

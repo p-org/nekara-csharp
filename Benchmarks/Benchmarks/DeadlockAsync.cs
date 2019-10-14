@@ -6,14 +6,14 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     class DeadlockAsync
     {
         [TestMethod]
-        public static async Task Execute(ITestingService testingService)
+        public static async Task Execute(TestingServiceProxy ts)
         {
             Console.WriteLine("  Starting Deadlock Benchmark ...");
 
@@ -22,52 +22,52 @@ namespace Benchmarks
             AsyncLock a = AsyncLock.Create("A");
             AsyncLock b = AsyncLock.Create("B");
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(async () =>
             {
-                testingService.StartTask(1);
+                ts.Api.StartTask(1);
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 var releaserA = await a.AcquireAsync("X");
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 var releaserB = await b.AcquireAsync("X"); // Deadlock
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 counter++;
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 releaserB.Dispose("X");
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 releaserA.Dispose("X");
 
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(2);
+                ts.Api.StartTask(2);
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 var releaserB = await b.AcquireAsync("Y");
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 var releaserA = await a.AcquireAsync("Y"); // Deadlock
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 counter--;
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 releaserA.Dispose("Y");
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 releaserB.Dispose("Y");
 
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
             await Task.WhenAll(t1, t2);

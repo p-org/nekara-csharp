@@ -10,8 +10,9 @@ using System.Runtime.Remoting.Channels;
 using System.Runtime.Remoting.Channels.Ipc;
 using AsyncTester.Networking;
 using Newtonsoft.Json.Linq;
+using AsyncTester.Core;
 
-namespace AsyncTester.Core
+namespace AsyncTester.Networking
 {
     public class OmniClient : IClient, IDisposable
     {

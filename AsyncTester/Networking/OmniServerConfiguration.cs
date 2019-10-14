@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 
-namespace AsyncTester.Core
+namespace AsyncTester.Networking
 {
     // AsyncTester could be used in a network setting. Easily switch between transports with this config flag.
     //   IPC - Inter-process communication (.net native)

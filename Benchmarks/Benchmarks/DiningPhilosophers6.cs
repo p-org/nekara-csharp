@@ -4,55 +4,55 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class DiningPhilosophers6
     {
         [TestMethod]
-        public static async Task Run(ITestingService testingService)
+        public static async Task Run(TestingServiceProxy ts)
         {
             int n = 6;
             int phil = 0;
 
-            var countLock = testingService.CreateLock(0);
+            var countLock = ts.LockFactory.CreateLock(0);
 
             IAsyncLock[] locks = new TestRuntimeLock[n];
             for (int i = 0; i < n; i++)
             {
-                locks[i] = testingService.CreateLock(1 + i);
+                locks[i] = ts.LockFactory.CreateLock(1 + i);
             }
 
             Task[] tasks = new Task[n];
             for (int i = 0; i < n; i++)
             {
                 int ti = 1 + i;
-                testingService.CreateTask();
+                ts.Api.CreateTask();
                 tasks[i] = Task.Run(() =>
                 {
-                    testingService.StartTask(ti);
+                    ts.Api.StartTask(ti);
 
                     int id = i;
                     int left = id % n;
                     int right = (id + 1) % n;
 
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     var releaserR = locks[right].Acquire();
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     var releaserL = locks[left].Acquire();
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     releaserL.Dispose();
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     releaserR.Dispose();
 
                     using (countLock.Acquire())
                     {
                         ++phil;
-                        testingService.Assert(phil != n, "Bug found!");
+                        ts.Api.Assert(phil != n, "Bug found!");
                     }
 
-                    testingService.EndTask(ti);
+                    ts.Api.EndTask(ti);
                 });
             }
 

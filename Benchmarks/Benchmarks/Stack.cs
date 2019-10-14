@@ -4,18 +4,18 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class Stack
     {
-        public static ITestingService testingService;
+        public static TestingServiceProxy ts;
 
         [TestMethod]
-        public static async void RunTest(ITestingService testingService)
+        public static async void RunTest(TestingServiceProxy ts)
         {
-            Stack.testingService = testingService;
+            Stack.ts = ts;
 
             // create an instance of stack
             var stack = new Stack();
@@ -58,46 +58,46 @@ namespace Benchmarks
             int[] stack = new int[size];
             bool flag = false;
 
-            var l = testingService.CreateLock(0);
+            var l = ts.LockFactory.CreateLock(0);
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(() =>
             {
-                testingService.StartTask(2);
+                ts.Api.StartTask(2);
                 for (int i = 0; i < size; i++)
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (l.Acquire())
                     {
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         this.Push(stack, i);
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         flag = true;
                     }
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                 }
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(3);
+                ts.Api.StartTask(3);
                 for (int i = 0; i < size; i++)
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (l.Acquire())
                     {
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         if (flag)
                         {
-                            testingService.ContextSwitch();
-                            testingService.Assert(this.Pop(stack) != -2, "Bug found!");
+                            ts.Api.ContextSwitch();
+                            ts.Api.Assert(this.Pop(stack) != -2, "Bug found!");
                         }
                     }
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                 }
-                testingService.EndTask(3);
+                ts.Api.EndTask(3);
             });
 
             await Task.WhenAll(t1, t2);

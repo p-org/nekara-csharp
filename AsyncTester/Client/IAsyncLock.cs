@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AsyncTester.Core
+namespace AsyncTester.Client
 {
     public interface IAsyncLock
     {

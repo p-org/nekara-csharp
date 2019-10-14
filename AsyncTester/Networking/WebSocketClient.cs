@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Net.WebSockets;
 using Newtonsoft.Json;
 
-namespace AsyncTester
+namespace AsyncTester.Networking
 {
     // Wrapping the native ClientWebSocket class to provide a different high-level interface
     class WebSocketClient : JsonP2P, IDisposable

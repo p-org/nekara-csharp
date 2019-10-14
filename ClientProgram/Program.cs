@@ -2,16 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using AsyncTester;
-using AsyncTester.Core;
+using AsyncTester.Networking;
+using AsyncTester.Client;
 using System.Threading;
-using System.Dynamic;
-using System.Net.Sockets;
 
 namespace ClientProgram
 {

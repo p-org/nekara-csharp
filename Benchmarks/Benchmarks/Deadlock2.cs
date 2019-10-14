@@ -1,69 +1,68 @@
 ﻿using System;
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     class Deadlock2
     {
         static int x = 0;
+        static TestingServiceProxy ts;
         static IAsyncLock lck;
 
-        static ITestingService testingService;
-
         [TestMethod]
-        public static void Execute(ITestingService testingService)
+        public static void Execute(TestingServiceProxy ts)
         {
             // initialize all relevant state
-            Deadlock2.testingService = testingService;
+            Deadlock2.ts = ts;
 
-            lck = Deadlock2.testingService.CreateLock(0);
+            lck = ts.LockFactory.CreateLock(0);
             x = 0;
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task.Run(() => Foo());
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task.Run(() => Bar());
         }
 
         static void Foo()
         {
-            testingService.StartTask(1);
+            ts.Api.StartTask(1);
 
             Console.WriteLine("Foo/Acquire()");
             lck.Acquire();
 
             Console.WriteLine("Foo/ContextSwitch()");
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             int lx1 = x;
 
             Console.WriteLine("Foo/ContextSwitch()");
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             int lx2 = x;
 
             Console.WriteLine("Foo/Release()");
             lck.Release();
 
-            testingService.Assert(lx1 == lx2, "Race!");
+            ts.Api.Assert(lx1 == lx2, "Race!");
 
             Console.WriteLine("Foo EndTask");
-            testingService.EndTask(1);
+            ts.Api.EndTask(1);
         }
 
         static void Bar()
         {
-            testingService.StartTask(2);
+            ts.Api.StartTask(2);
 
             //Acquire();
 
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             x = 1;
 
             // Release();
 
             Console.WriteLine("Bar EndTask");
-            testingService.EndTask(2);
+            ts.Api.EndTask(2);
         }
     }
 }

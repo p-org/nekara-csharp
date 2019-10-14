@@ -5,68 +5,68 @@
 
 using System;
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     class Deadlock3
     {
         [TestMethod]
-        public static async Task Execute(ITestingService testingService)
+        public static async Task Execute(TestingServiceProxy ts)
         {
             Console.WriteLine("  Starting Deadlock Benchmark ...");
 
             int counter = 1;
 
-            var a = testingService.CreateLock(1);
-            var b = testingService.CreateLock(2);
+            var a = ts.LockFactory.CreateLock(1);
+            var b = ts.LockFactory.CreateLock(2);
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(async () =>
             {
-                testingService.StartTask(1);
+                ts.Api.StartTask(1);
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 a.Acquire();
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 b.Acquire(); // Deadlock
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 counter++;
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 b.Release();
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 a.Release();
 
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(2);
+                ts.Api.StartTask(2);
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 b.Acquire();
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 a.Acquire(); // Deadlock
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 counter--;
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 a.Release();
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 // Specification.InjectContextSwitch();
                 b.Release();
 
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
             await Task.WhenAll(t1, t2);

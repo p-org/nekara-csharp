@@ -9,8 +9,9 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Reflection;
 using System.IO;
+using AsyncTester.Core;
 
-namespace AsyncTester.Core
+namespace AsyncTester.Networking
 {
     // This is the main "host" object that is created by the server process.
     // It does not contain the testing logic - that resides in the TestingService

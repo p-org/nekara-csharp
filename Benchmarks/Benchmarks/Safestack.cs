@@ -6,19 +6,19 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class Safestack
     {
         // private static IMachineRuntime Runtime;
-        public static ITestingService testingService;
+        public static TestingServiceProxy ts;
 
         [TestMethod]
-        public static async void RunTest(ITestingService testingService)
+        public static async void RunTest(TestingServiceProxy ts)
         {
-            Safestack.testingService = testingService;
+            Safestack.ts = ts;
 
             // create an instance of stack
             var stack = new Safestack();
@@ -56,9 +56,9 @@ namespace Benchmarks
 
                 this.Array[pushCount - 1].Next = -1;
 
-                this.ArrayLock = testingService.CreateLock(1);
-                this.HeadLock = testingService.CreateLock(2);
-                this.CountLock = testingService.CreateLock(3);
+                this.ArrayLock = ts.LockFactory.CreateLock(1);
+                this.HeadLock = ts.LockFactory.CreateLock(2);
+                this.CountLock = ts.LockFactory.CreateLock(3);
 
                 //Runtime.InvokeMonitor<StateMonitor>(new StateMonitor.UpdateStateEvent(this.Array));
             }
@@ -66,19 +66,19 @@ namespace Benchmarks
             public async Task PushAsync(int id, int index)
             {
                 //Runtime.Logger.WriteLine($"Task {id} starts push {index}.");
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 int head = this.Head;
                 //Runtime.Logger.WriteLine($"Task {id} reads head {head} in push {index}.");
                 bool compareExchangeResult = false;
 
                 do
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     this.Array[index].Next = head;
                     //Runtime.Logger.WriteLine($"Task {id} sets [{index}].next to {head} during push.");
                     //Runtime.InvokeMonitor<StateMonitor>(new StateMonitor.UpdateStateEvent(this.Array));
 
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (this.HeadLock.Acquire())
                     {
                         if (this.Head == head)
@@ -97,7 +97,7 @@ namespace Benchmarks
                 }
                 while (!compareExchangeResult);
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 using (this.CountLock.Acquire())
                 {
                     this.Count++;
@@ -116,12 +116,12 @@ namespace Benchmarks
                 //Runtime.Logger.WriteLine($"Task {id} starts pop.");
                 while (this.Count > 1)
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     int head = this.Head;
                     // Runtime.Logger.WriteLine($"Task {id} reads head {head} in pop ([{head}].next is {this.Array[head].Next}).");
 
                     int next;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (this.ArrayLock.Acquire())
                     {
                         next = this.Array[head].Next;
@@ -130,10 +130,10 @@ namespace Benchmarks
                         // Runtime.InvokeMonitor<StateMonitor>(new StateMonitor.UpdateStateEvent(this.Array));
                     }
 
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     int headTemp = head;
                     bool compareExchangeResult = false;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (this.HeadLock.Acquire())
                     {
                         if (this.Head == headTemp)
@@ -152,7 +152,7 @@ namespace Benchmarks
 
                     if (compareExchangeResult)
                     {
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         using (this.CountLock.Acquire())
                         {
                             this.Count--;
@@ -168,7 +168,7 @@ namespace Benchmarks
                     }
                     else
                     {
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         using (this.ArrayLock.Acquire())
                         {
                             this.Array[head].Next = next;
@@ -193,10 +193,10 @@ namespace Benchmarks
             for (int i = 0; i < numTasks; i++)
             {
                 int ti = 1 + i;
-                testingService.CreateTask();
+                ts.Api.CreateTask();
                 tasks[i] = Task.Run(async () =>
                 {
-                    testingService.StartTask(ti);
+                    ts.Api.StartTask(ti);
                     int id = i;
                     //Runtime.Logger.WriteLine($"Starting task {id}.");
                     for (int j = 0; j != 2; j += 1)
@@ -204,21 +204,21 @@ namespace Benchmarks
                         int elem = await stack.PopAsync(id);
                         if (elem <= 0)
                         {
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             continue;
                         }
 
                         stack.Array[elem].Value = id;
                         // Runtime.Logger.WriteLine($"Task {id} popped item '{elem}' and writes value '{id}'.");
                         // Runtime.InvokeMonitor<StateMonitor>(new StateMonitor.UpdateStateEvent(stack.Array));
-                        testingService.ContextSwitch();
-                        testingService.Assert(stack.Array[elem].Value == id,
+                        ts.Api.ContextSwitch();
+                        ts.Api.Assert(stack.Array[elem].Value == id,
                             $"Task {id} found bug: [{elem}].{stack.Array[elem].Value} is not '{id}'!");
                         
-                        testingService.CreateTask();
+                        ts.Api.CreateTask();
                         await stack.PushAsync(id, elem);
                     }
-                    testingService.EndTask(ti);
+                    ts.Api.EndTask(ti);
                 });
             }
 

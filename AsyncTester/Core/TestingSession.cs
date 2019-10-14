@@ -2,7 +2,6 @@
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -250,12 +249,6 @@ namespace AsyncTester.Core
 
             this.PushTrace("EndTask", new JToken[] { taskId }, null);
             AppendLog(counter++, "EndTask", taskId, "exit", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.taskStatus.Count, programState.taskToTcs.Count);
-        }
-
-        // this method should not be called over the network; it's a client-side helper method
-        public IAsyncLock CreateLock(int resourceId)
-        {
-            throw new NotImplementedException();
         }
 
         public void CreateResource(int resourceId)

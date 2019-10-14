@@ -14,8 +14,6 @@ namespace AsyncTester.Core
 
         void EndTask(int taskId);
 
-        IAsyncLock CreateLock(int resourceId);
-
         void CreateResource(int resourceId);
 
         void DeleteResource(int resourceId);

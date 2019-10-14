@@ -5,28 +5,28 @@
 
 using System;
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class Carter
     {
         [TestMethod]
-        public static async Task RunTest(ITestingService testingService)
+        public static async Task RunTest(TestingServiceProxy ts)
         {
             int a = 0;
             int b = 0;
 
-            var l1 = testingService.CreateLock(1);
-            var l2 = testingService.CreateLock(2);
+            var l1 = ts.LockFactory.CreateLock(1);
+            var l2 = ts.LockFactory.CreateLock(2);
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(async () =>
             {
-                testingService.StartTask(1);
+                ts.Api.StartTask(1);
                 IDisposable releaser2 = null;
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 using (l1.Acquire())
                 {
                     a++;
@@ -36,7 +36,7 @@ namespace Benchmarks
                     }
                 }
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 using (l1.Acquire())
                 {
                     a--;
@@ -45,16 +45,16 @@ namespace Benchmarks
                         releaser2.Dispose();
                     }
                 }
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(2);
+                ts.Api.StartTask(2);
                 IDisposable releaser2 = null;
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 using (l1.Acquire())
                 {
                     b++;
@@ -64,7 +64,7 @@ namespace Benchmarks
                     }
                 }
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 using (l1.Acquire())
                 {
                     b--;
@@ -73,21 +73,21 @@ namespace Benchmarks
                         releaser2.Dispose();
                     }
                 }
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t3 = Task.Run(() =>
             {
-                testingService.StartTask(3);
-                testingService.EndTask(3);
+                ts.Api.StartTask(3);
+                ts.Api.EndTask(3);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t4 = Task.Run(() =>
             {
-                testingService.StartTask(4);
-                testingService.EndTask(4);
+                ts.Api.StartTask(4);
+                ts.Api.EndTask(4);
             });
 
             await Task.WhenAll(t1, t2, t3, t4);

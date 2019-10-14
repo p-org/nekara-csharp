@@ -6,6 +6,8 @@ using System.Threading;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
+using AsyncTester.Networking;
+
 namespace AsyncTester.Core
 {
     /* The objects below are transport-agnostic and deals only with the user-facing testing API.

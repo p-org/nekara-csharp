@@ -4,18 +4,18 @@
 // ------------------------------------------------------------------------------------------------
 
 using System.Threading.Tasks;
-using AsyncTester.Core;
+using AsyncTester.Client;
 
 namespace Benchmarks
 {
     public class Queue
     {
-        public static ITestingService testingService;
+        public static TestingServiceProxy ts;
 
         [TestMethod]
-        public static async void RunTest(ITestingService testingService)
+        public static async void RunTest(TestingServiceProxy ts)
         {
-            Queue.testingService = testingService;
+            Queue.ts = ts;
 
             // create an instance of stack
             var queue = new Queue();
@@ -35,19 +35,19 @@ namespace Benchmarks
 
         int Enqueue(QType q, int x)
         {
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             q.Element[q.Tail] = x;
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             q.Amount++;
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             if (q.Tail == this.Size)
             {
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 q.Tail = 1;
             }
             else
             {
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 q.Tail++;
             }
 
@@ -56,19 +56,19 @@ namespace Benchmarks
 
         int Dequeue(QType q)
         {
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             int x = q.Element[q.Head];
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             q.Amount--;
-            testingService.ContextSwitch();
+            ts.Api.ContextSwitch();
             if (q.Head == this.Size)
             {
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 q.Head = 1;
             }
             else
             {
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 q.Head++;
             }
 
@@ -91,68 +91,68 @@ namespace Benchmarks
             bool enqueue = true;
             bool dequeue = false;
 
-            var l = testingService.CreateLock(1);
+            var l = ts.LockFactory.CreateLock(1);
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t1 = Task.Run(async () =>
             {
-                testingService.StartTask(1);
+                ts.Api.StartTask(1);
                 int value;
 
-                testingService.ContextSwitch();
+                ts.Api.ContextSwitch();
                 using (l.Acquire())
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     value = 0;
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     storedElements[0] = value;
                 }
 
                 for (int i = 0; i < (this.Size - 1); i++)
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (l.Acquire())
                     {
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         if (enqueue)
                         {
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             value++;
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             this.Enqueue(queue, value);
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             storedElements[i + 1] = value;
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             enqueue = false;
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             dequeue = true;
                         }
                     }
                 }
-                testingService.EndTask(1);
+                ts.Api.EndTask(1);
             });
 
-            testingService.CreateTask();
+            ts.Api.CreateTask();
             Task t2 = Task.Run(async () =>
             {
-                testingService.StartTask(2);
+                ts.Api.StartTask(2);
                 for (int i = 0; i < this.Size; i++)
                 {
-                    testingService.ContextSwitch();
+                    ts.Api.ContextSwitch();
                     using (l.Acquire())
                     {
-                        testingService.ContextSwitch();
+                        ts.Api.ContextSwitch();
                         if (dequeue)
                         {
-                            testingService.Assert(this.Dequeue(queue) == storedElements[i], "<Queue> Bug found!");
-                            testingService.ContextSwitch();
+                            ts.Api.Assert(this.Dequeue(queue) == storedElements[i], "<Queue> Bug found!");
+                            ts.Api.ContextSwitch();
                             dequeue = false;
-                            testingService.ContextSwitch();
+                            ts.Api.ContextSwitch();
                             enqueue = true;
                         }
                     }
                 }
-                testingService.EndTask(2);
+                ts.Api.EndTask(2);
             });
 
             await Task.WhenAll(t1, t2);
