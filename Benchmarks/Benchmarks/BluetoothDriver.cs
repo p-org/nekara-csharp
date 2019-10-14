@@ -35,7 +35,7 @@ namespace Benchmarks
 
         private async Task<int> BCSP_IoIncrement(DeviceExtension e)
         {
-            ts.Api.StartTask(1);
+            // ts.Api.StartTask(1);
             ts.Api.ContextSwitch();
             if (e.StoppingFlag)
             {
@@ -48,13 +48,13 @@ namespace Benchmarks
                 e.PendingIo++;
             }
 
-            ts.Api.EndTask(1);
+            // ts.Api.EndTask(1);
             return 0;
         }
 
         private async Task BCSP_IoDecrement(DeviceExtension e)
         {
-            ts.Api.StartTask(2);
+            // ts.Api.StartTask(2);
             int pendingIo;
 
             ts.Api.ContextSwitch();
@@ -69,13 +69,13 @@ namespace Benchmarks
                 ts.Api.ContextSwitch();
                 e.StoppingEvent = true;
             }
-            ts.Api.EndTask(2);
+            // ts.Api.EndTask(2);
         }
 
         private async Task BCSP_PnpAdd(DeviceExtension e)
         {
-            ts.Api.StartTask(3);
-            ts.Api.CreateTask();
+            //ts.Api.StartTask(3);
+            //ts.Api.CreateTask();
             int status = await BCSP_IoIncrement(e);
             if (status == 0)
             {
@@ -84,9 +84,9 @@ namespace Benchmarks
                 ts.Api.Assert(!this.Stopped, "Bug found!");
             }
 
-            ts.Api.CreateTask();
+            //ts.Api.CreateTask();
             await BCSP_IoDecrement(e);
-            ts.Api.EndTask(3);
+            //ts.Api.EndTask(3);
         }
 
         public async Task Run()
@@ -107,7 +107,7 @@ namespace Benchmarks
                 ts.Api.StartTask(1);
                 ts.Api.ContextSwitch();
                 e.StoppingFlag = true;
-                ts.Api.CreateTask();
+                // ts.Api.CreateTask();
                 await BCSP_IoDecrement(e);
                 ts.Api.ContextSwitch();
                 if (e.StoppingEvent)
@@ -118,8 +118,7 @@ namespace Benchmarks
                 }
                 ts.Api.EndTask(1);
             });
-
-            ts.Api.CreateTask();
+            
             await BCSP_PnpAdd(e);
             await Task.WhenAll(t);
         }
