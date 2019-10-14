@@ -26,7 +26,7 @@ namespace AsyncTester
             // Console.WriteLine("Promise on Thread {0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
-        public Task<object> task { get { return this.tcs.Task; } }
+        public Task<object> Task { get { return this.tcs.Task; } }
 
         public Promise Then(Func<object, object> onResolve)
         {

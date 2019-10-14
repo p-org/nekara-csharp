@@ -71,6 +71,12 @@ namespace AsyncTester.Client
             assembly = Assembly.LoadFrom(path);
         }
 
+        public void LoadTestSubject(Assembly assembly)
+        {
+            Console.WriteLine("Loading Assembly {0}", assembly.GetName().FullName);
+            this.assembly = assembly;
+        }
+
         public List<MethodInfo> ListTestMethods()
         {
             List<MethodInfo> testMethods = null;
@@ -101,11 +107,18 @@ namespace AsyncTester.Client
             return testMethods;
         }
 
-        public MethodInfo GetMethodToBeTested(string methodName = "RunTest")
+        public MethodInfo GetMethodToBeTested(string typeName, string methodName)
         {
             var testMethods = ListTestMethods();
 
-            var testMethod = testMethods.Find(info => info.Name == methodName);
+            var testMethod = testMethods.Find(info => info.DeclaringType.Name == typeName && info.Name == methodName);
+
+            if (testMethod == null)
+            {
+                Console.WriteLine("Test method {0} not found", methodName);
+                Console.WriteLine("Choose one of:\n{0}", String.Join("\n", testMethods.Select(info => $"\t {info.DeclaringType.Name}.{info.Name}")));
+                throw new TestMethodNotFoundException($"Test method {methodName} not found");
+            }
 
             /*if (testMethods.Count > 1)
             {
@@ -121,7 +134,7 @@ namespace AsyncTester.Client
             // var testMethod = testMethods[0];
 
             if (testMethod.GetParameters().Length != 1 ||
-                testMethod.GetParameters()[0].ParameterType != typeof(ITestingService))
+                testMethod.GetParameters()[0].ParameterType != typeof(TestingServiceProxy))
             {
                 Console.WriteLine("Incorrect signature of the test method");
                 throw new TestMethodLoadFailureException();
@@ -187,17 +200,6 @@ namespace AsyncTester.Client
             return await this.sessions[sessionId].Task;
         }
 
-        /*public void EndTest(string sessionId, bool passed)
-        {
-            this.sessions[sessionId].SetResult(passed);
-        }*/
-
-        /*public async Task IsFinished()
-        {
-            Console.WriteLine("{0}\tIsFinished\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            await IterFinished.Task;
-        }*/
-
         public Task ReplayTestSession(string sessionId)
         {
             return new Promise((resolve, reject) =>
@@ -217,7 +219,7 @@ namespace AsyncTester.Client
                 Console.WriteLine("    [{2} .{1}] in {0}", info.assemblyName, info.methodName, info.methodDeclaringClass);
 
                 LoadTestSubject(info.assemblyPath);
-                var testMethod = GetMethodToBeTested(info.methodName);
+                var testMethod = GetMethodToBeTested(info.methodDeclaringClass, info.methodName);
 
                 this.sessions.Add(info.id, new TaskCompletionSource<bool>());
                 // this.requestQueues.Add(info.id, new Queue<Task>());
@@ -250,7 +252,7 @@ namespace AsyncTester.Client
                 // this.requestQueues.Remove(info.id);
 
                 return null;
-            }).task;
+            }).Task;
         }
     }
 }

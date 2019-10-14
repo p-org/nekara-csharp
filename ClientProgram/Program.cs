@@ -46,7 +46,7 @@ namespace ClientProgram
                     var methods = client.ListTestMethods();
                     var testMethod = methods[choice];
 
-                    var run = Helpers.RepeatTask(() => client.RunTest(testMethod, Helpers.RandomInt()).task, repeat);
+                    var run = Helpers.RepeatTask(() => client.RunTest(testMethod, Helpers.RandomInt()).Task, repeat);
 
                     run.Wait();
 
@@ -109,7 +109,7 @@ namespace ClientProgram
                 // Ask how many iterations
                 int repeat = Helpers.PromptInt("How many iterations? ", 0, 500);
 
-                if (repeat > 0) return Helpers.RepeatTask(() => client.RunTest(testMethod, Helpers.RandomInt()).task, repeat);
+                if (repeat > 0) return Helpers.RepeatTask(() => client.RunTest(testMethod, Helpers.RandomInt()).Task, repeat);
                 else return Task.CompletedTask;
             });
             // replay a test run

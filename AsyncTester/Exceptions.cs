@@ -110,6 +110,9 @@ namespace AsyncTester
         public SessionAlreadyFinishedException(string message) : base(message) { }
     }
 
+    public class TestMethodNotFoundException : Exception {
+        public TestMethodNotFoundException(string message) : base(message) { }
+    }
     class RequestTimeoutException : Exception { }
     class UnexpectedMessageException : Exception { }
     class UnexpectedResponseException : Exception { }
