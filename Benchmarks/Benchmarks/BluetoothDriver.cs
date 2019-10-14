@@ -15,6 +15,8 @@ namespace Benchmarks
         [TestMethod]
         public static async void RunTest(TestingServiceProxy ts)
         {
+            System.Diagnostics.Debugger.Launch();
+
             BluetoothDriver.ts = ts;
 
             // create an instance of stack
@@ -33,9 +35,8 @@ namespace Benchmarks
         IAsyncLock Lock;
         bool Stopped;
 
-        private async Task<int> BCSP_IoIncrement(DeviceExtension e)
+        private int BCSP_IoIncrement(DeviceExtension e)
         {
-            // ts.Api.StartTask(1);
             ts.Api.ContextSwitch();
             if (e.StoppingFlag)
             {
@@ -48,13 +49,11 @@ namespace Benchmarks
                 e.PendingIo++;
             }
 
-            // ts.Api.EndTask(1);
             return 0;
         }
 
-        private async Task BCSP_IoDecrement(DeviceExtension e)
+        private void BCSP_IoDecrement(DeviceExtension e)
         {
-            // ts.Api.StartTask(2);
             int pendingIo;
 
             ts.Api.ContextSwitch();
@@ -69,14 +68,11 @@ namespace Benchmarks
                 ts.Api.ContextSwitch();
                 e.StoppingEvent = true;
             }
-            // ts.Api.EndTask(2);
         }
 
-        private async Task BCSP_PnpAdd(DeviceExtension e)
+        private void BCSP_PnpAdd(DeviceExtension e)
         {
-            //ts.Api.StartTask(3);
-            //ts.Api.CreateTask();
-            int status = await BCSP_IoIncrement(e);
+            int status = BCSP_IoIncrement(e);
             if (status == 0)
             {
                 // Do work here.
@@ -84,9 +80,7 @@ namespace Benchmarks
                 ts.Api.Assert(!this.Stopped, "Bug found!");
             }
 
-            //ts.Api.CreateTask();
-            await BCSP_IoDecrement(e);
-            //ts.Api.EndTask(3);
+            BCSP_IoDecrement(e);
         }
 
         public async Task Run()
@@ -101,14 +95,11 @@ namespace Benchmarks
             this.Lock = ts.LockFactory.CreateLock(0);
             this.Stopped = false;
 
-            ts.Api.CreateTask();
-            Task t = Task.Run(async () =>
+            var mt = MyRun(1, () =>
             {
-                ts.Api.StartTask(1);
                 ts.Api.ContextSwitch();
                 e.StoppingFlag = true;
-                // ts.Api.CreateTask();
-                await BCSP_IoDecrement(e);
+                BCSP_IoDecrement(e);
                 ts.Api.ContextSwitch();
                 if (e.StoppingEvent)
                 {
@@ -116,11 +107,57 @@ namespace Benchmarks
                     ts.Api.ContextSwitch();
                     this.Stopped = true;
                 }
-                ts.Api.EndTask(1);
             });
-            
-            await BCSP_PnpAdd(e);
-            await Task.WhenAll(t);
+
+            BCSP_PnpAdd(e);
+
+            await MyAwait(mt);
+        }
+
+        class MyTask
+        {
+            public int Id;
+            public Task InnerTask;
+            public bool Completed;
+
+            public MyTask(int id)
+            {
+                Id = id;
+                InnerTask = null;
+                Completed = false;
+            }
+        }
+
+        static MyTask MyRun(int TaskId, System.Action action)
+        {
+            var mt = new MyTask(TaskId);
+            ts.Api.CreateTask();
+            ts.Api.CreateResource(TaskId);
+            var t = Task.Run(() =>
+                {
+                    ts.Api.StartTask(TaskId);
+                    action();
+                    mt.Completed = true;
+                    ts.Api.SignalUpdatedResource(TaskId);
+                    ts.Api.EndTask(TaskId);
+                });
+
+            mt.InnerTask = t;
+            return mt;
+        }
+
+        static async Task MyAwait(MyTask mt)
+        {
+            ts.Api.ContextSwitch();
+            if (mt.Completed)
+            {
+                return;
+            }
+            else
+            {
+                ts.Api.BlockedOnResource(mt.Id);
+                await mt.InnerTask;
+            }
         }
     }
 }
