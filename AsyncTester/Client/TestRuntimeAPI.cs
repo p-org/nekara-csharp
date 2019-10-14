@@ -164,9 +164,6 @@ namespace AsyncTester.Client
             Console.WriteLine("CreateNondetBool\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             var value = InvokeAndHandleException(() => this.socket.SendRequest("CreateNondetBool", this.sessionId), "CreateNondetBool");
             return value.ToObject<bool>();
-            /*var request = this.socket.SendRequest("CreateNondetBool", this.sessionId);
-            request.Wait();
-            return request.Result.ToObject<bool>();*/
         }
 
         public int CreateNondetInteger(int maxValue)
@@ -174,9 +171,6 @@ namespace AsyncTester.Client
             Console.WriteLine("{0}\tCreateNondetInteger()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
             var value = InvokeAndHandleException(() => this.socket.SendRequest("CreateNondetInteger", this.sessionId), "CreateNondetInteger");
             return value.ToObject<int>();
-            /*var request = this.socket.SendRequest("CreateNondetInteger", this.sessionId);
-            request.Wait();
-            return request.Result.ToObject<int>();*/
         }
 
         public void Assert(bool predicate, string s)

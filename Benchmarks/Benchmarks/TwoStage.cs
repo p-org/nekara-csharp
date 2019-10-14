@@ -26,8 +26,8 @@ namespace Benchmarks
 
             for (int i = 0; i < numTTasks; i++)
             {
-                ts.Api.CreateTask();
                 int ti = 1 + i;
+                ts.Api.CreateTask();
                 tPool[i] = Task.Run(() =>
                 {
                     ts.Api.StartTask(ti);
@@ -64,6 +64,7 @@ namespace Benchmarks
                     {
                         if (data1Value == 0)
                         {
+                            ts.Api.EndTask(ti);
                             return;
                         }
                         t1 = data1Value;
