@@ -8,15 +8,13 @@ namespace Benchmarks
     class Deadlock2
     {
         static int x = 0;
-        static ITestingService nekara;
+        static ITestingService nekara = RuntimeEnvironment.Client.Api;
         static Lock lck;
 
         [TestMethod]
         public static void Execute()
         {
             // initialize all relevant state
-            Deadlock2.nekara = RuntimeEnvironment.Client.Api;
-
             lck = new Lock(0);
             x = 0;
 

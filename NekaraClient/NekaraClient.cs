@@ -91,12 +91,12 @@ namespace Nekara.Client
         {
             var testMethods = ListTestMethods(assembly);
 
-            var testMethod = testMethods.Find(info => info.DeclaringType.Name == typeName && info.Name == methodName);
+            var testMethod = testMethods.Find(info => info.DeclaringType.FullName == typeName && info.Name == methodName);
 
             if (testMethod == null)
             {
-                Console.WriteLine("Test method {0} not found", methodName);
-                Console.WriteLine("Choose one of:\n{0}", String.Join("\n", testMethods.Select(info => $"\t {info.DeclaringType.Name}.{info.Name}")));
+                Console.WriteLine("Test method {0} .{1} not found", typeName, methodName);
+                Console.WriteLine("Choose one of:\n{0}", String.Join("\n", testMethods.Select(info => $"\t {info.DeclaringType.FullName}.{info.Name}")));
                 throw new TestMethodNotFoundException($"Test method {methodName} not found");
             }
 
@@ -190,7 +190,7 @@ namespace Nekara.Client
                 SessionInfo info = new SessionInfo(data["id"].ToObject<string>(), data["assemblyName"].ToObject<string>(), data["assemblyPath"].ToObject<string>(), data["methodDeclaringClass"].ToObject<string>(), data["methodName"].ToObject<string>(), data["schedulingSeed"].ToObject<int>());
 
                 Console.WriteLine("Session Id : {0}", info.id);
-                Console.WriteLine("    [{2} .{1}] in {0}", info.assemblyName, info.methodName, info.methodDeclaringClass);
+                Console.WriteLine("  [{2} .{1}] in {0}", info.assemblyName, info.methodName, info.methodDeclaringClass);
 
                 var assembly = Assembly.LoadFrom(info.assemblyPath);
                 var testMethod = GetMethodToBeTested(assembly, info.methodDeclaringClass, info.methodName);

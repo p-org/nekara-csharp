@@ -8,22 +8,20 @@ namespace Benchmarks
     class Deadlock
     {
         static int x = 0;
-        static ITestingService ts;
+        static ITestingService nekara = RuntimeEnvironment.Client.Api;
         static Lock lck;
 
         [TestMethod]
         public async static void Execute()
         {
             // initialize all relevant state
-            Deadlock.ts = RuntimeEnvironment.Client.Api;
-
             lck = new Lock(0);
             x = 0;
 
-            //ts.Api.CreateTask();
+            //nekara.Api.CreateTask();
             var t1 = Task.Run(() => Foo());
 
-            //ts.Api.CreateTask();
+            //nekara.Api.CreateTask();
             var t2 = Task.Run(() => Bar());
 
             await t1;
@@ -36,26 +34,26 @@ namespace Benchmarks
             lck.Acquire();
 
             Console.WriteLine("Foo/ContextSwitch()");
-            ts.ContextSwitch();
+            nekara.ContextSwitch();
             int lx1 = x;
 
             Console.WriteLine("Foo/ContextSwitch()");
-            ts.ContextSwitch();
+            nekara.ContextSwitch();
             int lx2 = x;
 
             Console.WriteLine("Foo/Release()");
             lck.Release();
 
-            ts.Assert(lx1 == lx2, "Race!");
+            nekara.Assert(lx1 == lx2, "Race!");
 
             Console.WriteLine("Foo EndTask");
         }
 
         static void Bar()
         {
-            lck.Acquire();
+            //lck.Acquire();
 
-            ts.ContextSwitch();
+            nekara.ContextSwitch();
             x = 1;
 
             // Release();

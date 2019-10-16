@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Reflection;
 using Nekara.Client;
 
@@ -16,8 +17,8 @@ namespace NekaraTests
             }
 
             var info = args[0].Split('.');
-            var typeName = info[0];
-            var methodName = info[1];
+            var typeName = String.Join(".", info.SkipLast(1));
+            var methodName = info.Last();
             var repeat = Int32.Parse(args[1]);
 
             var random = new Random(DateTime.Now.Second);

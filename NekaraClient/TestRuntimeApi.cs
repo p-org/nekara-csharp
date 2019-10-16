@@ -62,6 +62,10 @@ namespace Nekara.Client
                     Console.WriteLine("\n\n{0} Ignoring Exceptions thrown from {1} pending tasks...\n", ex.GetType().Name, tasks.Length);
                     //Console.WriteLine(ex.Message);
                 }
+                finally
+                {
+                    this.pendingTasks.Clear();
+                }
             }
         }
 
