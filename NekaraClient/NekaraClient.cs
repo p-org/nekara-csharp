@@ -11,7 +11,7 @@ namespace Nekara.Client
 {
     // This is the client-side proxy of the tester service.
     // Used when the system is operating in a network setting.
-    public class NekaraClient
+    public class NekaraClient : IDisposable
     {
         public IClient socket;
         private TestRuntimeApi testingApi;
@@ -100,8 +100,7 @@ namespace Nekara.Client
                 throw new TestMethodNotFoundException($"Test method {methodName} not found");
             }
 
-            if (testMethod.GetParameters().Length != 1 ||
-                testMethod.GetParameters()[0].ParameterType != typeof(NekaraClient))
+            if (testMethod.GetParameters().Length != 0)
             {
                 Console.WriteLine("Incorrect signature of the test method");
                 throw new TestMethodLoadFailureException("Incorrect signature of the test method");
@@ -202,6 +201,12 @@ namespace Nekara.Client
 
                 return null;
             }).Task;
+        }
+
+        public void Dispose()
+        {
+            socket.Dispose();
+            return;
         }
     }
 }

@@ -90,7 +90,7 @@ namespace Nekara
             }
         }
 
-        public (Task<JToken>, CancellationTokenSource) Request(string recipient, string func, JToken[] args, int timeout = 30000)
+        public (Task<JToken>, CancellationTokenSource) Request(string recipient, string func, JToken[] args, int timeout = 300000)
         {
             Console.WriteLine("\n<-- Requesting {0} ({1})", func, String.Join(", ", args.Select(arg => arg.ToString())));
             var tcs = new TaskCompletionSource<JToken>();   // This tcs will be settled when the response comes back

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using NativeTasks = System.Threading.Tasks;
@@ -89,6 +90,11 @@ namespace Nekara.Models
 
             mt.InnerTask = t;
             return mt;
+        }
+
+        public static NativeTasks.Task WhenAll(params Task[] tasks)
+        {
+            return NativeTasks.Task.WhenAll(tasks.Select(t => t.InnerTask).ToArray());
         }
     }
 

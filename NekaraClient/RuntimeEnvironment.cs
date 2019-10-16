@@ -1,4 +1,5 @@
-﻿using Nekara.Core;
+﻿using System;
+using System.Diagnostics;
 using Nekara.Networking;
 
 namespace Nekara.Client
@@ -10,6 +11,14 @@ namespace Nekara.Client
 
         static RuntimeEnvironment()
         {
+            // Debug
+            AppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>
+            {
+                Debug.WriteLine(eventArgs.Exception.ToString());
+            };
+
+            // Debugger.Launch();
+
             // client-side socket
             OmniClient socket = new OmniClient(new OmniClientConfiguration());
 

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <StartupObject>NekaraTests.Program</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NekaraClient\NekaraClient.csproj" />
+    <ProjectReference Include="..\NekaraModels\NekaraModels.csproj" />
+    <ProjectReference Include="..\Nekara\Nekara.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Orleans\" />
+  </ItemGroup>
+
+</Project>
