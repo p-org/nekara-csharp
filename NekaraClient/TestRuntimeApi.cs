@@ -1,31 +1,32 @@
 ﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
-using AsyncTester.Networking;
-using AsyncTester.Core;
+using Nekara.Networking;
+using Nekara.Core;
 
-namespace AsyncTester.Client
+namespace Nekara.Client
 {
-    public class TestRuntimeAPI : ITestingService
+    public class TestRuntimeApi : ITestingService
     {
         private static int gCount = 0;
 
         private object stateLock;
         public IClient socket;
-        private HashSet<CancellationTokenSource> pendingTasks;
+        private HashSet<(Task,CancellationTokenSource)> pendingTasks;
 
         public string sessionId;
         private int count;
         private bool finished;
 
-        public TestRuntimeAPI(IClient socket)
+        public TestRuntimeApi(IClient socket)
         {
             this.stateLock = new object();
             this.socket = socket;
-            this.pendingTasks = new HashSet<CancellationTokenSource>();
+            this.pendingTasks = new HashSet<(Task,CancellationTokenSource)>();
 
             this.sessionId = null;
             this.count = 0;
@@ -41,6 +42,29 @@ namespace AsyncTester.Client
             this.finished = false;
         }
 
+        public void Finish()
+        {
+            lock (this.stateLock)
+            {
+                this.finished = true;
+
+                var tasks = this.pendingTasks.Select(tuple => tuple.Item1).ToArray();
+                Console.WriteLine("\n\n    ... Trying to clean up {0} pending tasks\n", tasks.Length);
+
+                var pending = Task.WhenAll(tasks);
+                
+                try
+                {
+                    pending.Wait();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("\n\n{0} Ignoring Exceptions thrown from {1} pending tasks...\n", ex.GetType().Name, tasks.Length);
+                    //Console.WriteLine(ex.Message);
+                }
+            }
+        }
+
         private JToken InvokeAndHandleException(Func<(Task<JToken>, CancellationTokenSource)> action, string func = "Anonymous Function")
         {
             Task<JToken> task = null;
@@ -50,7 +74,7 @@ namespace AsyncTester.Client
                 if (!this.finished)
                 {
                     (task, canceller) = action();
-                    this.pendingTasks.Add(canceller);
+                    this.pendingTasks.Add((task, canceller));
                 }
                 else throw new SessionAlreadyFinishedException($"Session already finished, suspending further requests: [{func}]");
             }
@@ -58,54 +82,20 @@ namespace AsyncTester.Client
             try
             {
                 task.Wait();
-                this.pendingTasks.Remove(canceller);
+                this.pendingTasks.Remove((task, canceller));
             }
             catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
             {
-                Console.WriteLine("AggregateException caught during {0}!", func);
-                aex.Handle(ex => {
-                    if (ex is TestingServiceException)
-                    {
-                        Console.WriteLine("    !!! Exception during test: {0}", ex.Message);
-                        Console.WriteLine("    !!! Cancelling {0} requests....", this.pendingTasks.Count);
-                        lock (this.stateLock)
-                        {
-                            this.finished = true;
-                            foreach (var cts in this.pendingTasks)
-                            {
-                                cts.Cancel();
-                            }
-                            this.pendingTasks.Clear();
-                        }
-                        this.AcknowledgeServerThrownException(ex.Message);
-                        return true;
-                    }
-                    else if (ex is LogisticalException)
-                    {
-                        Console.WriteLine(ex.Message);
-                        return false;
-                    }
-                    else if (ex is RequestTimeoutException)
-                    {
-                        Console.WriteLine("    !!! Request Timed Out for method: {0}", func);
-                        return false;
-                    }
-                    else
-                    {
-                        Console.WriteLine(ex);
-                        return false;
-                    }
-                });
+                Console.WriteLine("\n\n[TestRuntimeApi.InvokeAndHandleException] AggregateException caught during {0}!", func);
+                if (aex.InnerException is AssertionFailureException
+                    || aex.InnerException is TestFailedException) throw new IntentionallyIgnoredException(aex.InnerException.Message, aex.InnerException);
+                else throw;
+            }
+            finally
+            {
+                // this.pendingTasks.Remove((task, canceller));
             }
             return task.Result;
-        }
-
-        public void AcknowledgeServerThrownException(string message)
-        {
-            Console.WriteLine("{0}\tAcknowledgeServerThrownException()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            var (task, canceller) = this.socket.SendRequest("AcknowledgeServerThrownException", this.sessionId, message);
-            task.Wait();
-            Console.WriteLine("{0}\tAcknowledgeServerThrownException()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
 
         /* API methods */

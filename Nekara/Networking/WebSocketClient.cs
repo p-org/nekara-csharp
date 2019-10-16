@@ -1,13 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.WebSockets;
-using Newtonsoft.Json;
 
-namespace AsyncTester.Networking
+namespace Nekara.Networking
 {
     // Wrapping the native ClientWebSocket class to provide a different high-level interface
     class WebSocketClient : JsonP2P, IDisposable
@@ -70,7 +68,7 @@ namespace AsyncTester.Networking
                                                 this.onMessage(payload);
                                             }
                                         }
-                                        catch (Exception ex) when (ex is UnexpectedMessageException || ex is ServerThrownException)
+                                        catch (UnexpectedMessageException ex)
                                         {
                                             Console.WriteLine(ex);
                                         }
@@ -105,7 +103,7 @@ namespace AsyncTester.Networking
                                         }
                                         catch (Exception ex)
                                         {
-                                            Console.WriteLine("! Exception caught while handling payload:\n{0}", payload);
+                                            Console.WriteLine("[WebSocketClient.Listen] ! Exception caught while handling payload");
                                             Console.WriteLine(ex);
                                             throw;
                                         }
@@ -144,18 +142,6 @@ namespace AsyncTester.Networking
             var sendTask = this.socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
             sendTask.ContinueWith(t => releaser.Dispose());
             return sendTask;
-
-            /*try
-            {
-                Monitor.Enter(sendLock);
-                var sendTask = this.socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
-                sendTask.ContinueWith(t => Monitor.Exit(sendLock));
-                return sendTask;
-            }
-            finally
-            {
-                Monitor.Exit(sendLock);
-            }*/
         }
 
         public void Dispose()

@@ -176,6 +176,12 @@ namespace AsyncTester.Client
                     // by this time server should have initialized main task 0
                     this.testingAPI.EndTask(0);
                 }
+                catch (SessionAlreadyFinishedException ex)
+                {
+                    // just ignore this exception and let the control flow resume
+                    Console.WriteLine(ex.Message);
+                    Console.WriteLine("Session {0} already finished, ignoring exception thrown by concurrent Tasks", sid);
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine(ex);

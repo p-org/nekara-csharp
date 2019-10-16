@@ -36,86 +36,8 @@
     <StartupObject>Benchmarks.Program</StartupObject>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Microsoft.Build.Framework, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.Build.Framework.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.CodeAnalysis, Version=1.2.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.CodeAnalysis.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.CodeAnalysis.CSharp, Version=1.2.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.CodeAnalysis.CSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.CodeAnalysis.CSharp.Workspaces, Version=1.2.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.CodeAnalysis.CSharp.Workspaces.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.CodeAnalysis.Workspaces, Version=1.2.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.CodeAnalysis.Workspaces.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.CodeAnalysis.Workspaces.Desktop, Version=1.2.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.CodeAnalysis.Workspaces.Desktop.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.PSharp, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.PSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.PSharp.DataFlowAnalysis, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.PSharp.DataFlowAnalysis.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.PSharp.LanguageServices, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.PSharp.LanguageServices.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.PSharp.SharedObjects, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.PSharp.SharedObjects.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.PSharp.StaticAnalysis, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.PSharp.StaticAnalysis.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.PSharp.TestingServices, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\Microsoft.PSharp.TestingServices.dll</HintPath>
-    </Reference>
-    <Reference Include="PSharpCompiler, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\PSharpCompiler.exe</HintPath>
-    </Reference>
-    <Reference Include="PSharpCoverageReportMerger, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\PSharpCoverageReportMerger.exe</HintPath>
-    </Reference>
-    <Reference Include="PSharpReplayer, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\PSharpReplayer.exe</HintPath>
-    </Reference>
-    <Reference Include="PSharpSyntaxRewriter, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\PSharpSyntaxRewriter.exe</HintPath>
-    </Reference>
-    <Reference Include="PSharpSyntaxRewriterProcess, Version=1.6.9.0, Culture=neutral, PublicKeyToken=c4566cf0a7f74012, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\PSharpSyntaxRewriterProcess.exe</HintPath>
-    </Reference>
-    <Reference Include="PSharpTester, Version=1.6.9.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\PSharpTester.exe</HintPath>
-    </Reference>
     <Reference Include="System" />
-    <Reference Include="System.Collections.Immutable, Version=1.1.37.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\System.Collections.Immutable.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Composition.AttributedModel, Version=1.0.27.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\System.Composition.AttributedModel.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Composition.Convention, Version=1.0.27.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\System.Composition.Convention.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Composition.Hosting, Version=1.0.27.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\System.Composition.Hosting.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Composition.Runtime, Version=1.0.27.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\System.Composition.Runtime.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Composition.TypedParts, Version=1.0.27.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\System.Composition.TypedParts.dll</HintPath>
-    </Reference>
     <Reference Include="System.Core" />
-    <Reference Include="System.Reflection.Metadata, Version=1.2.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\System.Reflection.Metadata.dll</HintPath>
-    </Reference>
-    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.PSharp.1.6.9\lib\net46\System.ValueTuple.dll</HintPath>
-    </Reference>
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -128,8 +50,8 @@
     <Compile Include="Benchmarks\BluetoothDriver.cs" />
     <Compile Include="Benchmarks\Carter.cs" />
     <Compile Include="Benchmarks\CircularBuffer.cs" />
-    <Compile Include="Benchmarks\Deadlock.cs" />
-    <Compile Include="Benchmarks\Deadlock2.cs" />
+    <Compile Include="Benchmarks\DeadlockRaw.cs" />
+    <Compile Include="Benchmarks\DeadlockWrapped.cs" />
     <Compile Include="Benchmarks\Deadlock3.cs" />
     <Compile Include="Benchmarks\DeadlockAsync.cs" />
     <Compile Include="Benchmarks\DiningPhilosophers2.cs" />
@@ -139,6 +61,7 @@
     <Compile Include="Benchmarks\DiningPhilosophers6.cs" />
     <Compile Include="Benchmarks\DiningPhilosophers7.cs" />
     <Compile Include="Benchmarks\Lazy.cs" />
+    <Compile Include="Benchmarks\NestedTask1.cs" />
     <Compile Include="Benchmarks\Queue.cs" />
     <Compile Include="Benchmarks\Reorder10.cs" />
     <Compile Include="Benchmarks\Reorder20.cs" />
@@ -151,12 +74,12 @@
     <Compile Include="Benchmarks\TwoStage.cs" />
     <Compile Include="Benchmarks\WrongLock.cs" />
     <Compile Include="Common.cs" />
+    <Compile Include="Orleans\Hello.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AsyncTester\AsyncTester.csproj">
