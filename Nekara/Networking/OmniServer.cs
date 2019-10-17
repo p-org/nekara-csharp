@@ -37,7 +37,7 @@ namespace Nekara.Networking
             }*/
 
             // Depending on the transport, create the appropriate communication interface
-            switch (this.config.transport)
+            switch (this.config.Transport)
             {
                 case Transport.IPC:
                     SetupTransportIPC();

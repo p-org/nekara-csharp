@@ -3,7 +3,7 @@ using Nekara.Client;
 using Nekara.Models;
 using Nekara.Core;
 
-namespace Benchmarks
+namespace Nekara.Tests.Benchmarks
 {
     class Deadlock
     {

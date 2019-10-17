@@ -4,16 +4,23 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.0</TargetFramework>
     <StartupObject>NekaraTests.Program</StartupObject>
+    <RootNamespace>Nekara.Tests</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Orleans.Client" Version="2.4.3" />
+    <PackageReference Include="Microsoft.Orleans.CodeGenerator.MSBuild" Version="2.4.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Orleans.Core" Version="2.4.3" />
+    <PackageReference Include="Microsoft.Orleans.Server" Version="2.4.3" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\NekaraClient\NekaraClient.csproj" />
     <ProjectReference Include="..\NekaraModels\NekaraModels.csproj" />
     <ProjectReference Include="..\Nekara\Nekara.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Orleans\" />
   </ItemGroup>
 
 </Project>

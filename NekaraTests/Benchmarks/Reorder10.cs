@@ -6,7 +6,7 @@
 using Nekara.Client;
 using Nekara.Models;
 
-namespace Benchmarks
+namespace Nekara.Tests.Benchmarks
 {
     public class Reorder10
     {

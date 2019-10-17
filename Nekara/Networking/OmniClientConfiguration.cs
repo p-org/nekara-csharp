@@ -2,19 +2,14 @@
 {
     public class OmniClientConfiguration
     {
-        private Transport _transport;
         private string host;    // used if Transport == HTTP
         private int port;       // used if Transport == HTTP or TCP
 
-        public OmniClientConfiguration()
+        public OmniClientConfiguration(Transport tMode = Transport.WS)
         {
-            this._transport = Transport.WS;
+            this.Transport = tMode;
         }
 
-        public Transport transport
-        {
-            get { return this._transport; }
-            set { this._transport = value; }
-        }
+        public Transport Transport { get; set; }
     }
 }

@@ -3,7 +3,7 @@ using Nekara.Client;
 using Nekara.Core;
 using Nekara.Models;
 
-namespace Benchmarks
+namespace Nekara.Tests.Benchmarks
 {
     class Deadlock2
     {
@@ -46,12 +46,12 @@ namespace Benchmarks
 
         static void Bar()
         {
-            //Acquire();
+            //lck.Acquire();
 
             nekara.ContextSwitch();
             x = 1;
 
-            // Release();
+            //lck.Release();
 
             Console.WriteLine("Bar EndTask");
         }

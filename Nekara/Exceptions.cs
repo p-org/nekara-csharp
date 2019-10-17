@@ -12,10 +12,10 @@ namespace Nekara
             // we assume that the payload is the serialized Exception object, and cast it to JObject
             // WARNING: if the server sends anything other than JObject,
             // this will throw an exception silently and will be swallowed!
-            Console.WriteLine("<! --- Server Threw an Exception! --- !>");
+            Console.WriteLine("\n  !!!----- Server Threw an Exception -----!!!");
             var serialized = payload.ToObject<JObject>();
-            Console.WriteLine("  ClassName: {0}\n  Message: {1}\n  StackTrace:\n  {2}", serialized["ClassName"], serialized["Message"], serialized["StackTraceString"]);
-            Console.WriteLine("---------------------\n");
+            Console.WriteLine("\n  |  ClassName: {0}\n  |  Message: {1}\n  |  StackTrace:\n  |  {2}", serialized["ClassName"], serialized["Message"], serialized["StackTraceString"]);
+            Console.WriteLine("  -------------------------------------------\n");
 
             var ExceptionType = Assembly.GetExecutingAssembly().GetType(serialized["ClassName"].ToObject<string>());
             var exception = (Exception)Activator.CreateInstance(ExceptionType, new[] { serialized["Message"].ToObject<string>() });

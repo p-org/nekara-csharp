@@ -7,17 +7,20 @@ namespace Nekara.Client
     // This is a global singleton that gets updated dynamically during runtime
     public static class RuntimeEnvironment
     {
+        public static bool DebugMode = true;
         public static NekaraClient Client { get; set; }
 
         static RuntimeEnvironment()
         {
             // Debug
-            AppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>
+            if (DebugMode)
             {
-                Debug.WriteLine(eventArgs.Exception.ToString());
-            };
-
-            // Debugger.Launch();
+                AppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>
+                {
+                    Debug.WriteLine(eventArgs.Exception.ToString());
+                };
+                Debugger.Launch();
+            }
 
             // client-side socket
             OmniClient socket = new OmniClient(new OmniClientConfiguration());

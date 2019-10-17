@@ -13,14 +13,13 @@ namespace Nekara.Networking
 
     public class OmniServerConfiguration
     {
-        private Transport _transport;
         public readonly string logDirectory;
         private string host;    // used if Transport == HTTP
         private int port;       // used if Transport == HTTP or TCP
 
         public OmniServerConfiguration(Transport tMode = Transport.WS, string logDirectory = "logs")
         {
-            this._transport = tMode;
+            this.Transport = tMode;
             this.logDirectory = logDirectory;
 
             if (!Directory.Exists(logDirectory)) {
@@ -28,10 +27,6 @@ namespace Nekara.Networking
             };
         }
 
-        public Transport transport
-        {
-            get { return this._transport; }
-            set { this._transport = value; }
-        }
+        public Transport Transport { get; set; }
     }
 }

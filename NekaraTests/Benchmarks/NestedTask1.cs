@@ -3,7 +3,7 @@ using Nekara.Client;
 using Nekara.Models;
 using Nekara.Core;
 
-namespace Benchmarks.Benchmarks
+namespace Nekara.Tests.Benchmarks.Benchmarks
 {
     class NestedTask1
     {

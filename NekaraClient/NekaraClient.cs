@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Nekara.Networking;
 using Nekara.Core;
+using System.Runtime.CompilerServices;
 
 namespace Nekara.Client
 {
@@ -42,8 +43,12 @@ namespace Nekara.Client
                     
                     this.testingApi.Finish();   // clean up
 
-                    Console.WriteLine("\n==========[ Test {0} {1} ]==========\n", sid, passed ? "PASSED" : "FAILED");
-                    if (reason != "") Console.WriteLine(reason);
+                    Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sid, passed ? "PASSED" : "FAILED");
+                    if (reason != "")
+                    {
+                        Console.WriteLine("  " + reason);
+                        Console.WriteLine("\n==================================== END ===");
+                    }
 
                     this.sessions[sid].SetResult(true);
 
@@ -117,7 +122,8 @@ namespace Nekara.Client
             // and initialize the test session (receive a session ID)
             return new Promise((resolve, reject) =>
             {
-                Console.WriteLine("\n\nStarting new test session with seed = {0}", schedulingSeed);
+                Console.WriteLine("\n\n============================================");
+                Console.WriteLine(">>    Starting new session with seed = {0}", schedulingSeed);
                 var (request, canceller) = this.socket.SendRequest("InitializeTestSession", new JToken[] { assembly.FullName, assembly.Location, testMethod.DeclaringType.FullName, testMethod.Name, schedulingSeed });
                 request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
                 request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
@@ -138,30 +144,44 @@ namespace Nekara.Client
             var tcs = new TaskCompletionSource<bool>();
             this.sessions.Add(sessionId, tcs);
 
-            Console.WriteLine("Session Id : {0}", sessionId);
+            Console.WriteLine(">>    Session Id : {0}", sessionId);
+            Console.WriteLine("============================================\n");
             this.testingApi.SetSessionId(sessionId);
 
             // Create a main task so that we have control over
             // any exception thrown by arbitrary user code
             var mainTask = new Promise((resolve, reject) =>
             {
-                var t = Task.Factory.StartNew(() =>
-                {
-                    testMethod.Invoke(null, null);
-                }, TaskCreationOptions.AttachedToParent);
-                
-                t.ContinueWith(prev =>
-                {
-                    this.testingApi.EndTask(0);
-                    resolve(null);
-                }, TaskContinuationOptions.OnlyOnRanToCompletion);
+                Task task;
 
-                t.ContinueWith(prev =>
+                if (testMethod.ReturnType == typeof(Task))
                 {
-                    Console.WriteLine("  [NekaraClient.StartSession] Main Task threw an Exception!\n{0}", prev.Exception.Message);
-                    // do nothing
+                    task = (Task)testMethod.Invoke(null, null);
+                    this.testingApi.EndTask(0);
+                    task.Wait();
                     resolve(null);
-                }, TaskContinuationOptions.OnlyOnFaulted);
+                }
+                else
+                {
+                    task = Task.Factory.StartNew(() =>
+                    {
+                        testMethod.Invoke(null, null);
+
+                    }, TaskCreationOptions.AttachedToParent);
+
+                    task.ContinueWith(prev =>
+                    {
+                        this.testingApi.EndTask(0);
+                        resolve(null);
+                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
+
+                    task.ContinueWith(prev =>
+                    {
+                        Console.WriteLine("  [NekaraClient.StartSession] Main Task threw an Exception!\n{0}", prev.Exception.Message);
+                        // do nothing
+                        resolve(null);
+                    }, TaskContinuationOptions.OnlyOnFaulted);
+                }
             });
 
             var finished = Task.WhenAll(tcs.Task, mainTask.Task);

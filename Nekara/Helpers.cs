@@ -67,14 +67,21 @@ namespace Nekara
         {
             private SeededRandomizer randomizer = new SeededRandomizer(DateTime.Now.Second);
             private HashSet<int> issued = new HashSet<int>();
+            private bool sequentialMode;
+
+            public UniqueIdGenerator(bool sequential = true)
+            {
+                sequentialMode = sequential;
+            }
 
             public int Generate()
             {
                 int x;
                 do
                 {
-                    x = randomizer.NextInt(Int32.MaxValue);
+                    x = sequentialMode ? 1 + issued.Count : randomizer.NextInt(Int32.MaxValue);
                 } while (issued.Contains(x) || x < 1);
+                issued.Add(x);
                 return x;
             }
 

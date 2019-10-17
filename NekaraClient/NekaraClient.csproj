@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.0</TargetFramework>
     <StartupObject>Nekara.Client.Program</StartupObject>
+    <RootNamespace>Nekara.Client</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

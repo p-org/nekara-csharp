@@ -49,7 +49,7 @@ namespace Nekara.Client
                 this.finished = true;
 
                 var tasks = this.pendingTasks.Select(tuple => tuple.Item1).ToArray();
-                Console.WriteLine("\n\n    ... Trying to clean up {0} pending tasks\n", tasks.Length);
+                Console.WriteLine("\n\n    ... cleaning up {0} pending tasks", tasks.Length);
 
                 var pending = Task.WhenAll(tasks);
                 
@@ -59,7 +59,7 @@ namespace Nekara.Client
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("\n\n{0} Ignoring Exceptions thrown from {1} pending tasks...\n", ex.GetType().Name, tasks.Length);
+                    Console.WriteLine("    ... Ignoring {0} thrown from {1} pending tasks", ex.GetType().Name, tasks.Length);
                     //Console.WriteLine(ex.Message);
                 }
                 finally
