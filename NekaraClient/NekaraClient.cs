@@ -10,6 +10,20 @@ using System.Runtime.CompilerServices;
 
 namespace Nekara.Client
 {
+    public struct TestDefinition
+    {
+        public MethodInfo Setup;
+        public MethodInfo Run;
+        public MethodInfo Teardown;
+
+        public TestDefinition (MethodInfo Setup, MethodInfo Run, MethodInfo Teardown)
+        {
+            this.Setup = Setup;
+            this.Run = Run;
+            this.Teardown = Teardown;
+        }
+    }
+
     // This is the client-side proxy of the tester service.
     // Used when the system is operating in a network setting.
     public class NekaraClient : IDisposable
@@ -40,8 +54,10 @@ namespace Nekara.Client
                 if (this.sessions.ContainsKey(sid))
                 {
                     // this.EndTest(sid, true);                    
-                    
-                    this.testingApi.Finish();   // clean up
+
+                    // clean up
+                    this.testingApi.Finish();
+                    this.idGen.Reset();
 
                     Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sid, passed ? "PASSED" : "FAILED");
                     if (reason != "")
@@ -114,6 +130,25 @@ namespace Nekara.Client
             return testMethod;
         }
 
+        public TestDefinition GetTestDefinition(MethodInfo testMethod)
+        {
+            var bindingFlags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.InvokeMethod;
+            MethodInfo Setup = null;
+            MethodInfo Teardown = null;
+
+            var setupMethods = testMethod.DeclaringType.GetMethods(bindingFlags)
+                .Where(m => m.GetCustomAttributes(typeof(TestSetupMethodAttribute), false).Length > 0).ToList();
+
+            if (setupMethods.Count > 0) Setup = setupMethods[0];
+
+            var teardownMethods = testMethod.DeclaringType.GetMethods(bindingFlags)
+                .Where(m => m.GetCustomAttributes(typeof(TestTeardownMethodAttribute), false).Length > 0).ToList();
+
+            if (teardownMethods.Count > 0) Teardown = teardownMethods[0];
+
+            return new TestDefinition(Setup, testMethod, Teardown);
+        }
+
         public Promise RunTest(MethodInfo testMethod, int schedulingSeed = 0)
         {
             var assembly = testMethod.DeclaringType.Assembly;
@@ -139,6 +174,24 @@ namespace Nekara.Client
             });
         }
 
+        public Promise RunTest(TestDefinition definition, int numIteration)
+        {
+            return new Promise((resolve, reject) =>
+            {
+                if (definition.Setup != null) definition.Setup.Invoke(null, null);
+                resolve(null);
+            }).Then(prev =>
+            {
+                var run = Helpers.RepeatTask(() => this.RunTest(definition.Run, Helpers.RandomInt()).Task, numIteration);
+                run.Wait();
+                return null;
+            }).Then(prev =>
+            {
+                if (definition.Teardown != null) definition.Teardown.Invoke(null, null);
+                return null;
+            });
+        }
+
         public Task StartSession(string sessionId, MethodInfo testMethod)
         {
             var tcs = new TaskCompletionSource<bool>();
@@ -158,8 +211,18 @@ namespace Nekara.Client
                 {
                     task = (Task)testMethod.Invoke(null, null);
                     this.testingApi.EndTask(0);
-                    task.Wait();
-                    resolve(null);
+                    try
+                    {
+                        task.Wait();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("  [NekaraClient.StartSession] Main Task threw an Exception!\n{0}", ex.Message);
+                    }
+                    finally
+                    {
+                        resolve(null);
+                    }
                 }
                 else
                 {

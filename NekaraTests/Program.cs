@@ -29,12 +29,16 @@ namespace NekaraTests
 
             var assembly = Assembly.GetExecutingAssembly();
             var testMethod = client.GetMethodToBeTested(assembly, typeName, methodName);
+            var testDefinition = client.GetTestDefinition(testMethod);
 
-            for (int i = 0; i < repeat; i++)
+            /*for (int i = 0; i < repeat; i++)
             {
                 var run = client.RunTest(testMethod, random.Next()).Task;
                 run.Wait();
-            }
+            }*/
+
+            var run = client.RunTest(testDefinition, repeat).Task;
+            run.Wait();
 
             client.Dispose();
         }

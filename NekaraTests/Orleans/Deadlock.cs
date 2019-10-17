@@ -15,7 +15,7 @@ namespace Nekara.Tests.Orleans
         public static Lock lck;
     }
 
-    class Hello
+    class Deadlock
     {
         static ISiloHost silo;
         static IClusterClient client;
@@ -28,15 +28,16 @@ namespace Nekara.Tests.Orleans
         }
 
         [TestTeardownMethod]
-        public async static void Teardown()
+        public static void Teardown()
         {
-            await silo.StopAsync();
+            silo.StopAsync().Wait();
+            Console.WriteLine("Teardown");
         }
 
         [TestMethod]
         public async static NativeTasks.Task Execute()
         {
-            Setup();
+            // Setup();
 
             var foo = client.GetGrain<IFooGrain>(0);
             var bar = client.GetGrain<IBarGrain>(1);
@@ -50,7 +51,7 @@ namespace Nekara.Tests.Orleans
 
             await Task.WhenAll(t1, t2);
 
-            Teardown();
+            // Teardown();
         }
     }
 
