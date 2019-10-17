@@ -7,7 +7,7 @@ namespace Nekara.Client
     // This is a global singleton that gets updated dynamically during runtime
     public static class RuntimeEnvironment
     {
-        public static bool DebugMode = true;
+        public static bool DebugMode = false;
         public static NekaraClient Client { get; set; }
 
         static RuntimeEnvironment()
@@ -15,10 +15,10 @@ namespace Nekara.Client
             // Debug
             if (DebugMode)
             {
-                AppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>
+                /*AppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>
                 {
                     Debug.WriteLine(eventArgs.Exception.ToString());
-                };
+                };*/
                 Debugger.Launch();
             }
 

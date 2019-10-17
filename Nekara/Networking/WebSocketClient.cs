@@ -134,13 +134,22 @@ namespace Nekara.Networking
         public override Task Send(string recipient, string payload)
         {
             byte[] buffer = Encoding.UTF8.GetBytes(payload);
+            
             // We lock the socket because multiple tasks can be racing to use the websocket.
             // The websocket will fail if two tasks try to call client.Send concurrently.
-            // We use the low-level Monitor.Enter/Exit because we need to release asynchronously
-
             var releaser = this.sendLock.Acquire().Result;
+
+            // It is important that we use the default Task scheduler
+            // to make this lock work correctly with arbitrary frameworks.
+            // For instance, without specifying the default task scheduler, this lock fails in orleans,
+            // as described in: http://dotnet.github.io/orleans/Documentation/grains/external_tasks_and_grains.html
+            // The orleans task scheduler will enforce a single-threaded execution model and the lock will deadlock against the async IO operation
+
             var sendTask = this.socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
-            sendTask.ContinueWith(t => releaser.Dispose());
+            sendTask.ContinueWith(t => {
+                releaser.Dispose(); 
+            }, TaskScheduler.Default);
+
             return sendTask;
         }
 

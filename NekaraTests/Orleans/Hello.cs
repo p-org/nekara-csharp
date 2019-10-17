@@ -44,22 +44,13 @@ namespace Nekara.Tests.Orleans
             Globals.lck = new Lock(3);
             Globals.x = 0;
 
-            var t1 = Task.Run(() => {
-                Console.WriteLine("Calling foo.Foo() ...");
-                foo.Foo().Wait();
-                Console.WriteLine("foo.Foo() returned");
-            });
+            var t1 = Task.Run(() => foo.Foo().Wait());
 
-            var t2 = Task.Run(() => {
-                Console.WriteLine("Calling bar.Bar() ...");
-                bar.Bar().Wait();
-                Console.WriteLine("bar.Bar() returned");
-            });
+            var t2 = Task.Run(() => bar.Bar().Wait());
 
             await Task.WhenAll(t1, t2);
 
             Teardown();
-            Console.WriteLine("Exiting");
         }
     }
 
@@ -77,23 +68,18 @@ namespace Nekara.Tests.Orleans
     {
         public NativeTasks.Task Foo()
         {
-            Console.WriteLine("[Foo] trying to acquire lock");
             Globals.lck.Acquire();
 
-            Console.WriteLine("[Foo] context switch");
             Globals.nekara.ContextSwitch();
             int lx1 = Globals.x;
 
-            Console.WriteLine("[Foo] context switch");
             Globals.nekara.ContextSwitch();
             int lx2 = Globals.x;
 
-            Console.WriteLine("[Foo] releasing lock");
             Globals.lck.Release();
 
             Globals.nekara.Assert(lx1 == lx2, "Race!");
             
-            Console.WriteLine("[Foo] returning");
             return NativeTasks.Task.CompletedTask;
         }
     }
@@ -102,15 +88,13 @@ namespace Nekara.Tests.Orleans
     {
         public NativeTasks.Task Bar()
         {
-            //lck.Acquire();
+            //Globals.lck.Acquire();
 
-            Console.WriteLine("[Bar] context switch");
             Globals.nekara.ContextSwitch();
             Globals.x = 1;
 
-            // Release();
+            // Globals.lck.Release();
 
-            Console.WriteLine("Bar EndTask");
             return NativeTasks.Task.CompletedTask;
         }
     }
