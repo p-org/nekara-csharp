@@ -32,6 +32,7 @@ namespace Nekara.Client
         private TestRuntimeApi testingApi;
         private Helpers.UniqueIdGenerator idGen;
         private Dictionary<string, TaskCompletionSource<bool>> sessions;
+        private Dictionary<string, TestResult> results;
 
         // This object will "plug-in" the communication mechanism.
         // The separation between the transport architecture and the logical, abstract model is intentional.
@@ -42,6 +43,7 @@ namespace Nekara.Client
             this.idGen = new Helpers.UniqueIdGenerator();
 
             this.sessions = new Dictionary<string, TaskCompletionSource<bool>>();
+            this.results = new Dictionary<string, TestResult>();
 
             // FinishTest will be called during the test if an assert fails
             // or the test runs to completion.
@@ -67,6 +69,9 @@ namespace Nekara.Client
                     }
 
                     this.sessions[sid].SetResult(true);
+                    this.results.Add(sid, new TestResult(passed, reason));
+                    
+                    this.sessions.Remove(sid);
 
                     return Task.FromResult(JToken.FromObject(true));
                 }
@@ -76,6 +81,18 @@ namespace Nekara.Client
 
         public ITestingService Api { get { return this.testingApi; } }
         public Helpers.UniqueIdGenerator IdGen { get { return this.idGen; } }
+
+        public void PrintTestResults()
+        {
+            Console.WriteLine("\n\n=====[ Test Result ]===============\n");
+            int passed = 0;
+            foreach(var item in this.results)
+            {
+                Console.WriteLine("Session {0}:\t{1}{2}", item.Key, item.Value.passed ? "Pass" : "Fail", item.Value.passed ? "" : "\t(" + item.Value.reason + ")");
+                if (item.Value.passed) passed++;
+            }
+            Console.WriteLine("\n==========[ {0}/{1} Passed ]==========\n", passed, this.results.Count);
+        }
         
         /* API for managing test sessions */
         public List<MethodInfo> ListTestMethods(Assembly assembly)
@@ -277,10 +294,12 @@ namespace Nekara.Client
 
                 var assembly = Assembly.LoadFrom(info.assemblyPath);
                 var testMethod = GetMethodToBeTested(assembly, info.methodDeclaringClass, info.methodName);
+                var testDefinition = GetTestDefinition(testMethod);
 
+                if (testDefinition.Setup != null) testDefinition.Setup.Invoke(null, null);
                 var session = this.StartSession(info.id, testMethod);
-
                 session.Wait();
+                if (testDefinition.Teardown != null) testDefinition.Teardown.Invoke(null, null);
 
                 return null;
             }).Task;

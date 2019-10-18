@@ -38,10 +38,12 @@ namespace Nekara.Client
 
                     var methods = client.ListTestMethods(assembly);
                     var testMethod = methods[choice];
+                    var testDefinition = client.GetTestDefinition(testMethod);
 
-                    var run = Helpers.RepeatTask(() => client.RunTest(testMethod, Helpers.RandomInt()).Task, repeat);
-
+                    var run = client.RunTest(testDefinition, repeat).Task;
                     run.Wait();
+
+                    client.PrintTestResults();
 
                     client.socket.Dispose();
 
@@ -91,18 +93,25 @@ namespace Nekara.Client
                 // Load assembly and notify the server - this is asynchronous
                 var assembly = Assembly.LoadFrom(path);
                 var methods = client.ListTestMethods(assembly);
-                Console.WriteLine(String.Join("\n", methods.Select((info, index) => "    " + index.ToString() + ") " + info.DeclaringType.Name + "." + info.Name)));
+                Console.WriteLine(String.Join("\n", methods.Select((info, index) => "    " + index.ToString() + ") " + info.DeclaringType.FullName + "." + info.Name)));
 
                 var choice = Helpers.PromptInt("Which method? ", 0, methods.Count - 1);
 
                 var testMethod = methods[choice];
                 Console.WriteLine("... selected method: [{0}]", testMethod.DeclaringType.Name + "." + testMethod.Name);
+                
+                var testDefinition = client.GetTestDefinition(testMethod);
 
                 // Ask how many iterations
                 int repeat = Helpers.PromptInt("How many iterations? ", 0, 500);
-
-                if (repeat > 0) return Helpers.RepeatTask(() => client.RunTest(testMethod, Helpers.RandomInt()).Task, repeat);
-                else return Task.CompletedTask;
+                
+                if (repeat > 0)
+                {
+                    var run = client.RunTest(testDefinition, repeat).Task;
+                    run.Wait();
+                    client.PrintTestResults();
+                }
+                return Task.CompletedTask;
             });
             // replay a test run
             actions.Add("replay", () =>
@@ -119,7 +128,7 @@ namespace Nekara.Client
 
                 string choice = Helpers.Prompt("Enter a command? ", input => actions.ContainsKey(input));
 
-                return actions[choice]().ContinueWith(prev => Task.Delay(1000)); // delaying a little bit to wait for pending console IO
+                return actions[choice]().ContinueWith(prev => Task.Delay(500)); // delaying a little bit to wait for pending console IO
 
             }, cancellation.Token);
 

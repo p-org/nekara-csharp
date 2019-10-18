@@ -82,6 +82,7 @@ namespace Nekara.Models
                 {
                     Console.WriteLine("\n[NekaraModels.Task.Run] Exception in wrapped task, setting Error");
                     Console.WriteLine("    {0}: {1}", ex.GetType().Name, ex.Message);
+                    //Console.WriteLine(ex);
                     mt.Completed = true;
                     mt.Error = ex;
                     return;

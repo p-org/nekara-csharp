@@ -68,10 +68,12 @@ namespace Nekara
             private SeededRandomizer randomizer = new SeededRandomizer(DateTime.Now.Second);
             private HashSet<int> issued = new HashSet<int>();
             private bool sequentialMode;
+            private int idOffset;
 
-            public UniqueIdGenerator(bool sequential = true)
+            public UniqueIdGenerator(bool sequential = true, int idOffset = 1000001)
             {
                 sequentialMode = sequential;
+                this.idOffset = idOffset;
             }
 
             public int Generate()
@@ -79,7 +81,7 @@ namespace Nekara
                 int x;
                 do
                 {
-                    x = sequentialMode ? 1 + issued.Count : randomizer.NextInt(Int32.MaxValue);
+                    x = sequentialMode ? idOffset + issued.Count : randomizer.NextInt(Int32.MaxValue);
                 } while (issued.Contains(x) || x < 1);
                 issued.Add(x);
                 return x;

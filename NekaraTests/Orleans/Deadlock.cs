@@ -8,17 +8,11 @@ using Orleans.Hosting;
 
 namespace Nekara.Tests.Orleans
 {
-    public static class Globals
-    {
-        public static int x = 0;
-        public static ITestingService nekara = RuntimeEnvironment.Client.Api;
-        public static Lock lck;
-    }
-
     class Deadlock
     {
-        static ISiloHost silo;
-        static IClusterClient client;
+        public static ITestingService nekara = RuntimeEnvironment.Client.Api;
+        public static ISiloHost silo;
+        public static IClusterClient client;
 
         [TestSetupMethod]
         public static void Setup()
@@ -34,16 +28,19 @@ namespace Nekara.Tests.Orleans
             Console.WriteLine("Teardown");
         }
 
+        public static int x = 0;
+        public static Lock lck;
+
         [TestMethod]
-        public async static NativeTasks.Task Execute()
+        public async static NativeTasks.Task Run()
         {
             // Setup();
 
             var foo = client.GetGrain<IFooGrain>(0);
             var bar = client.GetGrain<IBarGrain>(1);
 
-            Globals.lck = new Lock(3);
-            Globals.x = 0;
+            lck = new Lock(3);
+            x = 0;
 
             var t1 = Task.Run(() => foo.Foo().Wait());
 
@@ -69,17 +66,17 @@ namespace Nekara.Tests.Orleans
     {
         public NativeTasks.Task Foo()
         {
-            Globals.lck.Acquire();
+            Deadlock.lck.Acquire();
 
-            Globals.nekara.ContextSwitch();
-            int lx1 = Globals.x;
+            Deadlock.nekara.ContextSwitch();
+            int lx1 = Deadlock.x;
 
-            Globals.nekara.ContextSwitch();
-            int lx2 = Globals.x;
+            Deadlock.nekara.ContextSwitch();
+            int lx2 = Deadlock.x;
 
-            Globals.lck.Release();
+            Deadlock.lck.Release();
 
-            Globals.nekara.Assert(lx1 == lx2, "Race!");
+            Deadlock.nekara.Assert(lx1 == lx2, "Race!");
             
             return NativeTasks.Task.CompletedTask;
         }
@@ -89,12 +86,12 @@ namespace Nekara.Tests.Orleans
     {
         public NativeTasks.Task Bar()
         {
-            //Globals.lck.Acquire();
+            //Deadlock.lck.Acquire();
 
-            Globals.nekara.ContextSwitch();
-            Globals.x = 1;
+            Deadlock.nekara.ContextSwitch();
+            Deadlock.x = 1;
 
-            // Globals.lck.Release();
+            // Deadlock.lck.Release();
 
             return NativeTasks.Task.CompletedTask;
         }

@@ -28,11 +28,10 @@ namespace Nekara.Tests.Benchmarks
             Task[] tasks = new Task[n];
             for (int i = 0; i < n; i++)
             {
-                int ti = 1 + i;
+                int id = i;
 
                 tasks[i] = Task.Run(() =>
                 {
-                    int id = i;
                     int left = id % n;
                     int right = (id + 1) % n;
 

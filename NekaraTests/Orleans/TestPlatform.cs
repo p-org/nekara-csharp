@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Orleans;
 using Orleans.Configuration;
 using Orleans.Hosting;
+using Nekara.Orleans;
 
 namespace Nekara.Tests.Orleans
 {
@@ -18,7 +19,8 @@ namespace Nekara.Tests.Orleans
                 {
                     options.ClusterId = "dev";
                     options.ServiceId = "OrleansBasics";
-                });
+                })
+                .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(LockGrain).Assembly).WithReferences());
                 //.ConfigureLogging(logging => logging.AddConsole());
 
             types.ToList().ForEach(t => builder.ConfigureApplicationParts(parts => parts.AddApplicationPart(t.Assembly).WithReferences()));

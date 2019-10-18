@@ -40,6 +40,8 @@ namespace NekaraTests
             var run = client.RunTest(testDefinition, repeat).Task;
             run.Wait();
 
+            client.PrintTestResults();
+
             client.Dispose();
         }
     }
