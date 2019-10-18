@@ -5,7 +5,7 @@ using Nekara.Models;
 
 namespace Nekara.Tests.Benchmarks
 {
-    class DeadlockWrapped
+    class DeadlockAsyncMethod
     {
         static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
@@ -19,12 +19,12 @@ namespace Nekara.Tests.Benchmarks
             lck = new Lock(0);
             x = 0;
 
-            Task.Run(() => Foo());
+            var t1 = Foo();
 
-            Task.Run(() => Bar());
+            var t2 = Bar();
         }
 
-        static void Foo()
+        static async Task Foo()
         {
             Console.WriteLine("Foo/Acquire()");
             lck.Acquire();
@@ -45,7 +45,7 @@ namespace Nekara.Tests.Benchmarks
             Console.WriteLine("Foo EndTask");
         }
 
-        static void Bar()
+        static async Task Bar()
         {
             //lck.Acquire();
 

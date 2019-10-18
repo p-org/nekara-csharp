@@ -76,10 +76,10 @@ namespace Nekara.Core
         public int schedulingSeed;
 
         // run-time objects
-        private StreamWriter traceFile;
+        private readonly StreamWriter traceFile;
         public StreamWriter logger;
         private Action<TestingSession> _onComplete;
-        private object stateLock;
+        private readonly object stateLock;
         private bool replayMode; // indicates it has already ran once
         private DateTime startedAt;
         private DateTime finishedAt;

@@ -219,7 +219,13 @@ namespace Nekara.Client
             this.testingApi.SetSessionId(sessionId);
 
             // Create a main task so that we have control over
-            // any exception thrown by arbitrary user code
+            // any exception thrown by arbitrary user code.
+            //
+            // The user code could be async or sync.
+            // In either case, there could be multiple Tasks throwing exceptions.
+            // This is challenging to deal with elegantly, so we simply silence exceptions
+            // thrown by child Tasks, and only handle the exception thrown by the top-level Task.
+            // See also: https://devblogs.microsoft.com/premier-developer/dissecting-the-async-methods-in-c/
             var mainTask = new Promise((resolve, reject) =>
             {
                 Task task;

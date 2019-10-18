@@ -5,8 +5,15 @@ using System.Threading;
 using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 
+/* Useful references:
+ *   https://github.com/dotnet/roslyn/blob/master/docs/features/task-types.md
+ *   https://devblogs.microsoft.com/premier-developer/extending-the-async-methods-in-c/
+ *   http://blog.i3arnon.com/2016/07/25/arbitrary-async-returns/
+ */
+
 namespace Nekara.Models
 {
+    [AsyncMethodBuilder(typeof(TaskMethodBuilder))]
     public class Task : IAsyncResult, IDisposable
     {
         private static NekaraClient Client = RuntimeEnvironment.Client;
@@ -99,10 +106,8 @@ namespace Nekara.Models
         }
     }
 
-    public class TaskAwaiter : INotifyCompletion
+    public class TaskAwaiter : INotifyCompletion, ICriticalNotifyCompletion
     {
-        private static NekaraClient Client = RuntimeEnvironment.Client;
-
         public Task Task;
 
         public TaskAwaiter(Task task)

@@ -7,18 +7,17 @@ namespace Nekara.Tests.Benchmarks
 {
     class Deadlock
     {
+        static ITestingService nekara = RuntimeEnvironment.Client.Api;
+
         static int x = 0;
         static bool lck = false;
 
-        static ITestingService nekara;
-
         [TestMethod]
-        public static void Execute()
+        public static void Run()
         {
             // initialize all relevant state
-            Deadlock.nekara = RuntimeEnvironment.Client.Api;
-            x = 0;
             lck = false;
+            x = 0;
 
             Task.Run(() => Foo());
 

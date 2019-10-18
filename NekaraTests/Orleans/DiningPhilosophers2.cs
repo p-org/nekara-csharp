@@ -3,7 +3,6 @@ using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Core;
 using Nekara.Models;
-using Nekara.Orleans;
 using Orleans;
 using Orleans.Hosting;
 
@@ -18,7 +17,7 @@ namespace Nekara.Tests.Orleans
         [TestSetupMethod]
         public static void Setup()
         {
-            (silo, client) = TestPlatform.Setup(typeof(PhilosopherGrain));
+            (silo, client) = TestPlatform.Setup(typeof(PhilosopherGrain2));
             Console.WriteLine("Setup");
         }
 
@@ -49,51 +48,52 @@ namespace Nekara.Tests.Orleans
                 locks[i] = new Lock(1 + i);
             }
 
-            // IPhilosopherGrain[] philosophers = new PhilosopherGrain[n];
             Task[] tasks = new Task[n];
 
             for (int i = 0; i < n; i++)
             {
-                var philosopher = client.GetGrain<IPhilosopherGrain>(i);
+                var philosopher = client.GetGrain<IPhilosopherGrain2>(i);
                 int ci = i;
                 tasks[i] = Task.Run(() => philosopher.Eat(ci).Wait());
             }
 
             await Task.WhenAll(tasks);
         }
-    }
 
-    public interface IPhilosopherGrain : IGrainWithIntegerKey
-    {
-        NativeTasks.Task Eat(int id);
-    }
-
-    public class PhilosopherGrain : Grain, IPhilosopherGrain
-    {
-        public NativeTasks.Task Eat(int id)
+        public interface IPhilosopherGrain2 : IGrainWithIntegerKey
         {
-            int left = id % DiningPhilosophers2.n;
-            int right = (id + 1) % DiningPhilosophers2.n;
-
-            DiningPhilosophers2.nekara.ContextSwitch();
-            var releaserR = DiningPhilosophers2.locks[right].Acquire();
-
-            DiningPhilosophers2.nekara.ContextSwitch();
-            var releaserL = DiningPhilosophers2.locks[left].Acquire();
-
-            DiningPhilosophers2.nekara.ContextSwitch();
-            releaserL.Dispose();
-
-            DiningPhilosophers2.nekara.ContextSwitch();
-            releaserR.Dispose();
-
-            using (DiningPhilosophers2.countLock.Acquire())
-            {
-                ++DiningPhilosophers2.phil;
-                DiningPhilosophers2.nekara.Assert(DiningPhilosophers2.phil != DiningPhilosophers2.n, "Bug found!");
-            }
-
-            return NativeTasks.Task.CompletedTask;
+            NativeTasks.Task Eat(int id);
         }
+
+        public class PhilosopherGrain2 : Grain, IPhilosopherGrain2
+        {
+            public NativeTasks.Task Eat(int id)
+            {
+                Console.WriteLine(n);
+                int left = id % n;
+                int right = (id + 1) % n;
+
+                nekara.ContextSwitch();
+                var releaserR = locks[right].Acquire();
+
+                nekara.ContextSwitch();
+                var releaserL = locks[left].Acquire();
+
+                nekara.ContextSwitch();
+                releaserL.Dispose();
+
+                nekara.ContextSwitch();
+                releaserR.Dispose();
+
+                using (countLock.Acquire())
+                {
+                    ++phil;
+                    nekara.Assert(phil != n, (n - phil).ToString() + " philosophers are starving!");
+                }
+
+                return NativeTasks.Task.CompletedTask;
+            }
+        }
+
     }
 }

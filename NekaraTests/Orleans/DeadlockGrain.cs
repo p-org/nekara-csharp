@@ -63,9 +63,9 @@ namespace Nekara.Tests.Orleans
 
         public class Foo2Grain : Grain, IFoo2Grain
         {
-            public NativeTasks.Task Foo()
+            public async NativeTasks.Task Foo()
             {
-                lck.Acquire();
+                await lck.Acquire();
 
                 nekara.ContextSwitch();
                 int lx1 = x;
@@ -73,27 +73,28 @@ namespace Nekara.Tests.Orleans
                 nekara.ContextSwitch();
                 int lx2 = x;
 
-                lck.Release();
+                await lck.Release();
 
                 nekara.Assert(lx1 == lx2, "Race!");
 
-                return NativeTasks.Task.CompletedTask;
+                return;
             }
         }
 
         public class Bar2Grain : Grain, IBar2Grain
         {
-            public NativeTasks.Task Bar()
+            public async NativeTasks.Task Bar()
             {
-                lck = client.GetGrain<ILockGrain>(3);
-                //lck.Acquire();
+                // lck = client.GetGrain<ILockGrain>(3);
+
+                await lck.Acquire();
 
                 nekara.ContextSwitch();
                 x = 1;
 
                 // lck.Release();
 
-                return NativeTasks.Task.CompletedTask;
+                return;
             }
         }
     }

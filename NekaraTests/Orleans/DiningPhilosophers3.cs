@@ -3,7 +3,6 @@ using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Core;
 using Nekara.Models;
-using Nekara.Orleans;
 using Orleans;
 using Orleans.Hosting;
 
@@ -49,7 +48,6 @@ namespace Nekara.Tests.Orleans
                 locks[i] = new Lock(1 + i);
             }
 
-            // IPhilosopherGrain[] philosophers = new PhilosopherGrain[n];
             Task[] tasks = new Task[n];
 
             for (int i = 0; i < n; i++)
@@ -61,40 +59,43 @@ namespace Nekara.Tests.Orleans
 
             await Task.WhenAll(tasks);
         }
-    }
 
-    public interface IPhilosopherGrain3 : IGrainWithIntegerKey
-    {
-        NativeTasks.Task Eat(int id);
-    }
-
-    public class PhilosopherGrain3 : Grain, IPhilosopherGrain3
-    {
-        public NativeTasks.Task Eat(int id)
+        public interface IPhilosopherGrain3 : IGrainWithIntegerKey
         {
-            Console.WriteLine(DiningPhilosophers3.n);
-            int left = id % DiningPhilosophers3.n;
-            int right = (id + 1) % DiningPhilosophers3.n;
-
-            DiningPhilosophers3.nekara.ContextSwitch();
-            var releaserR = DiningPhilosophers3.locks[right].Acquire();
-
-            DiningPhilosophers3.nekara.ContextSwitch();
-            var releaserL = DiningPhilosophers3.locks[left].Acquire();
-
-            DiningPhilosophers3.nekara.ContextSwitch();
-            releaserL.Dispose();
-
-            DiningPhilosophers3.nekara.ContextSwitch();
-            releaserR.Dispose();
-
-            using (DiningPhilosophers3.countLock.Acquire())
-            {
-                ++DiningPhilosophers3.phil;
-                DiningPhilosophers3.nekara.Assert(DiningPhilosophers3.phil != DiningPhilosophers3.n, "Bug found!");
-            }
-
-            return NativeTasks.Task.CompletedTask;
+            NativeTasks.Task Eat(int id);
         }
+
+        public class PhilosopherGrain3 : Grain, IPhilosopherGrain3
+        {
+            public NativeTasks.Task Eat(int id)
+            {
+                Console.WriteLine(n);
+                int left = id % n;
+                int right = (id + 1) % n;
+
+                nekara.ContextSwitch();
+                var releaserR = locks[right].Acquire();
+
+                nekara.ContextSwitch();
+                var releaserL = locks[left].Acquire();
+
+                Console.WriteLine("Philosopher {0} eats!", id);
+
+                nekara.ContextSwitch();
+                releaserL.Dispose();
+
+                nekara.ContextSwitch();
+                releaserR.Dispose();
+
+                using (countLock.Acquire())
+                {
+                    ++phil;
+                    nekara.Assert(phil != n, "Bug found!");
+                }
+
+                return NativeTasks.Task.CompletedTask;
+            }
+        }
+
     }
 }
