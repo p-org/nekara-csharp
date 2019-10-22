@@ -26,7 +26,17 @@ namespace Nekara.Core
             this.methodDeclaringClass = methodDeclaringClass;
             this.methodName = methodName;
             this.schedulingSeed = schedulingSeed;
-    }
+        }
+
+        public static SessionInfo FromJson(JObject data)
+        {
+            return new SessionInfo(data["id"].ToObject<string>(), 
+                data["assemblyName"].ToObject<string>(), 
+                data["assemblyPath"].ToObject<string>(), 
+                data["methodDeclaringClass"].ToObject<string>(), 
+                data["methodName"].ToObject<string>(), 
+                data["schedulingSeed"].ToObject<int>());
+        }
     }
 
     public struct TestResult
@@ -221,7 +231,6 @@ namespace Nekara.Core
             this.counter = 0;
             this.programState = new ProgramState();
             this.IterFinished = new TaskCompletionSource<TestResult>();
-            // this.programState.taskToTcs.Add(0, new TaskCompletionSource<bool>());
             this.numPendingTaskCreations = 0;
             //this.testTrace = new Queue<TraceStep>();
             this.testTrace = new List<DecisionTrace>();
@@ -554,6 +563,15 @@ namespace Nekara.Core
 
                 Thread.Sleep(10);
             }
+        }
+
+        public string WaitForMainTask()
+        {
+            this.EndTask(0);
+
+            this.IterFinished.Task.Wait();
+
+            return this.IterFinished.Task.Result.reason;
         }
     }
 }

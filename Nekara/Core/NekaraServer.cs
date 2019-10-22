@@ -75,10 +75,11 @@ namespace Nekara.Core
             {
                 // It is important that we fetch the client socket dynamically in this callback and not outside it,
                 // because the client socket may change when doing a session replay
-                var client = this.socket.GetClient();   // HACK - this always returns the same client; should be updated to load client by session ID
+                
+                /*var client = this.socket.GetClient();   // HACK - this always returns the same client; should be updated to load client by session ID
                 var message = new RequestMessage("Tester-Server", client.id, "FinishTest", new JToken[] { finished.id, finished.passed, finished.reason });
                 var serialized = JsonConvert.SerializeObject(message);
-                client.Send(serialized);
+                client.Send(serialized);*/
 
                 Console.WriteLine("Test {0} Finished!", finished.id);
 
@@ -98,7 +99,7 @@ namespace Nekara.Core
             this.currentSession = session;
 
             Console.WriteLine("\n\n============================================\n");
-            Console.WriteLine("Initialized session {3} for [{1}] in {0}, with seed = {2}", assemblyName, methodName, schedulingSeed, session.id);
+            Console.WriteLine("Initialized session {3} for [{1}] in {0}, with seed = {2}\n", assemblyName, methodName, schedulingSeed, session.id);
 
             return this.currentSession.id;
         }
@@ -130,7 +131,7 @@ namespace Nekara.Core
             session.Reset();
 
             Console.WriteLine("\n\n============================================\n");
-            Console.WriteLine("Replaying test {0}: [{2}] in {1}", sessionId, session.assemblyName, session.methodName);
+            Console.WriteLine("Replaying test {0}: [{2}] in {1}\n", sessionId, session.assemblyName, session.methodName);
 
             this.currentSession = session;
 
@@ -251,6 +252,12 @@ namespace Nekara.Core
         public void ContextSwitch(JToken sessionId)
         {
             RouteRemoteCall(sessionId, "ContextSwitch", null);
+        }
+
+        [RemoteMethod(name = "WaitForMainTask", description = "Wait for test to finish")]
+        public string WaitForMainTask(JToken sessionId)
+        {
+            return (string)RouteRemoteCall(sessionId, "WaitForMainTask", null);
         }
     }
 }

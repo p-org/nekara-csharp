@@ -23,5 +23,7 @@
         void Assert(bool value, string message);
 
         void ContextSwitch();
+
+        string WaitForMainTask();
     }
 }

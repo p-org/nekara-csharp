@@ -22,7 +22,7 @@ namespace Nekara.Core
             taskToTcs = new Dictionary<int, TaskCompletionSource<bool>>();
             resourceSet = new HashSet<int>();
             taskStatus = new Dictionary<int, int>();
-            
+
             currentTask = 0;
             taskToTcs.Add(0, new TaskCompletionSource<bool>());
         }

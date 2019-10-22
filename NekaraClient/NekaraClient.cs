@@ -213,10 +213,15 @@ namespace Nekara.Client
             {
                 Task task;
 
+                // this.testingApi.CreateTask();
+
                 if (testMethod.ReturnType == typeof(Task))
                 {
+                    // this.testingApi.StartTask(0);
                     task = (Task)testMethod.Invoke(null, null);
-                    this.testingApi.EndTask(0);
+                    //this.testingApi.EndTask(0);
+                    var reason = this.testingApi.WaitForMainTask();
+                    Console.WriteLine("Test Result: {0} {1}", reason == "" ? "PASSED" : "FAILED", reason != "" ? reason : "");
                     try
                     {
                         task.Wait();
@@ -234,13 +239,16 @@ namespace Nekara.Client
                 {
                     task = Task.Factory.StartNew(() =>
                     {
+                        // this.testingApi.StartTask(0);
                         testMethod.Invoke(null, null);
 
                     }, TaskCreationOptions.AttachedToParent);
 
                     task.ContinueWith(prev =>
                     {
-                        this.testingApi.EndTask(0);
+                        //this.testingApi.EndTask(0);
+                        var reason = this.testingApi.WaitForMainTask();
+                        Console.WriteLine("Test Result: {0} {1}", reason == "" ? "PASSED" : "FAILED", reason != "" ? reason : "");
                         resolve(null);
                     }, TaskContinuationOptions.OnlyOnRanToCompletion);
 
@@ -299,13 +307,13 @@ namespace Nekara.Client
                 request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
             }).Then(payload =>
             {
-                // From here we don't have static typing.
+                // WARN: From here we don't have static typing.
                 // The code below can throw arbitrary exceptions
                 // if the JSON payload format changes
                 JObject data = (JObject)payload;
-                SessionInfo info = new SessionInfo(data["id"].ToObject<string>(), data["assemblyName"].ToObject<string>(), data["assemblyPath"].ToObject<string>(), data["methodDeclaringClass"].ToObject<string>(), data["methodName"].ToObject<string>(), data["schedulingSeed"].ToObject<int>());
+                SessionInfo info = SessionInfo.FromJson(data);
 
-                Console.WriteLine("Session Id : {0}", info.id);
+                Console.WriteLine("  Seed : {0}", info.schedulingSeed);
                 Console.WriteLine("  [{2} .{1}] in {0}", info.assemblyName, info.methodName, info.methodDeclaringClass);
 
                 var assembly = Assembly.LoadFrom(info.assemblyPath);

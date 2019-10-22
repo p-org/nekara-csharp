@@ -180,5 +180,13 @@ namespace Nekara.Client
             InvokeAndHandleException(() => this.socket.SendRequest("ContextSwitch", this.sessionId), "ContextSwitch");
             Console.WriteLine("{0}\tContextSwitch()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
         }
+
+        public string WaitForMainTask()
+        {
+            Console.WriteLine("{0}\tWaitForMainTask()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            var reason = InvokeAndHandleException(() => this.socket.SendRequest("WaitForMainTask", this.sessionId), "WaitForMainTask");
+            Console.WriteLine("{0}\tWaitForMainTask()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            return reason.ToObject<string>();
+        }
     }
 }
