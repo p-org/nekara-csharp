@@ -48,6 +48,11 @@ namespace Nekara.Core
             this.passed = passed;
             this.reason = reason;
         }
+
+        override public string ToString()
+        {
+            return this.reason;
+        }
     }
 
     public struct DecisionTrace
@@ -208,7 +213,10 @@ namespace Nekara.Core
             Console.WriteLine("[TestingSession.Finish] was called! Finishing because {0}", reason);
             if (!this.IsFinished)
             {
-                // clean up if finished due to error
+                this.passed = passed;
+                this.reason = reason;
+                
+                // drop all pending tasks if finished due to error
                 if (!passed)
                 {
                     foreach (var item in this.programState.taskToTcs)
@@ -250,8 +258,8 @@ namespace Nekara.Core
                 this.finishedAt = DateTime.Now;
                 this.elapsed = this.finishedAt - this.startedAt;
 
-                this.passed = prev.Result.passed;
-                this.reason = prev.Result.reason;
+                /*this.passed = prev.Result.passed;
+                this.reason = prev.Result.reason;*/
 
                 // clear timer
                 this.timeout.Change(Timeout.Infinite, Timeout.Infinite);
@@ -495,7 +503,8 @@ namespace Nekara.Core
                     Assert(programState.taskToTcs.Count == 0, "Deadlock detected");
 
                     // all-done
-                    IterFinished.SetResult(new TestResult(true));
+                    // IterFinished.SetResult(new TestResult(true));
+                    this.Finish(true);
                     return;
                 }
 
@@ -569,9 +578,9 @@ namespace Nekara.Core
         {
             this.EndTask(0);
 
-            this.IterFinished.Task.Wait();
+            var result = this.IterFinished.Task.Result;
 
-            return this.IterFinished.Task.Result.reason;
+            return result.reason;
         }
     }
 }

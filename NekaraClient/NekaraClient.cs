@@ -31,7 +31,7 @@ namespace Nekara.Client
         public IClient socket;
         private TestRuntimeApi testingApi;
         private Helpers.UniqueIdGenerator idGen;
-        private Dictionary<string, TaskCompletionSource<bool>> sessions;
+        //private Dictionary<string, TaskCompletionSource<bool>> sessions;
         private Dictionary<string, TestResult> results;
 
         // This object will "plug-in" the communication mechanism.
@@ -42,12 +42,12 @@ namespace Nekara.Client
             this.testingApi = new TestRuntimeApi(socket);
             this.idGen = new Helpers.UniqueIdGenerator();
 
-            this.sessions = new Dictionary<string, TaskCompletionSource<bool>>();
+            //this.sessions = new Dictionary<string, TaskCompletionSource<bool>>();
             this.results = new Dictionary<string, TestResult>();
 
             // FinishTest will be called during the test if an assert fails
             // or the test runs to completion.
-            this.socket.AddRemoteMethod("FinishTest", (sender, args) =>
+            /*this.socket.AddRemoteMethod("FinishTest", (sender, args) =>
             {
                 string sid = args[0].ToString();
                 bool passed = args[1].ToObject<bool>();
@@ -78,7 +78,7 @@ namespace Nekara.Client
                     return Task.FromResult(JToken.FromObject(true));
                 }
                 else return Task.FromResult(JToken.FromObject(false));
-            });
+            });*/
         }
 
         public ITestingService Api { get { return this.testingApi; } }
@@ -194,8 +194,8 @@ namespace Nekara.Client
 
         public Task StartSession(string sessionId, MethodInfo testMethod)
         {
-            var tcs = new TaskCompletionSource<bool>();
-            this.sessions.Add(sessionId, tcs);
+            //var tcs = new TaskCompletionSource<bool>();
+            //this.sessions.Add(sessionId, tcs);
 
             Console.WriteLine(">>    Session Id : {0}", sessionId);
             Console.WriteLine("============================================\n");
@@ -249,27 +249,50 @@ namespace Nekara.Client
                         //this.testingApi.EndTask(0);
                         var reason = this.testingApi.WaitForMainTask();
                         Console.WriteLine("Test Result: {0} {1}", reason == "" ? "PASSED" : "FAILED", reason != "" ? reason : "");
-                        resolve(null);
+                        resolve(reason);
                     }, TaskContinuationOptions.OnlyOnRanToCompletion);
 
                     task.ContinueWith(prev =>
                     {
                         Console.WriteLine("  [NekaraClient.StartSession] Main Task threw an Exception!\n{0}", prev.Exception.Message);
+                        var reason = this.testingApi.WaitForMainTask();
+                        Console.WriteLine("Test Result: {0} {1}", reason == "" ? "PASSED" : "FAILED", reason != "" ? reason : "");
                         // do nothing
-                        resolve(null);
+                        resolve(reason);
                     }, TaskContinuationOptions.OnlyOnFaulted);
                 }
+
+            }).Then(data => {
+                string reason = (string)data;
+
+                // if result exists, this is a replayed session
+                if (!this.results.ContainsKey(sessionId)) this.results.Add(sessionId, new TestResult(reason == "", reason));
+
+                // clean up
+                this.testingApi.Finish();
+                this.idGen.Reset();
+
+                Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sessionId, reason == "" ? "PASSED" : "FAILED");
+                if (reason != "")
+                {
+                    Console.WriteLine("  " + reason);
+                    Console.WriteLine("\n==================================== END ===");
+                }
+
+                return null;
             });
 
-            var finished = Task.WhenAll(tcs.Task, mainTask.Task);
+            return mainTask.Task;
 
-            return finished;
+            /*var finished = Task.WhenAll(tcs.Task, mainTask.Task);
+
+            return finished;*/
         }
 
-        public async Task<bool> IsFinished(string sessionId)
+        /*public async Task<bool> IsFinished(string sessionId)
         {
             return await this.sessions[sessionId].Task;
-        }
+        }*/
 
         public Promise RunNewTestSession(MethodInfo testMethod, int schedulingSeed = 0)
         {
