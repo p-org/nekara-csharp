@@ -3,5 +3,5 @@ using Newtonsoft.Json.Linq;
 
 namespace Nekara.Networking
 {
-    public delegate Task<JToken> RemoteMethodAsync(params JToken[] args);
+    public delegate Task<JToken> RemoteMethodAsync(string senderId, params JToken[] args);
 }

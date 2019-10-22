@@ -3,9 +3,9 @@ using Nekara.Client;
 using Nekara.Core;
 using Nekara.Models;
 
-namespace Nekara.Tests.Benchmarks
+namespace Nekara.Models.Benchmarks
 {
-    class DeadlockWrapped
+    class CompileTest
     {
         static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
@@ -30,11 +30,9 @@ namespace Nekara.Tests.Benchmarks
             lck.Acquire();
 
             Console.WriteLine("Foo/ContextSwitch()");
-            nekara.ContextSwitch();
             int lx1 = x;
 
             Console.WriteLine("Foo/ContextSwitch()");
-            nekara.ContextSwitch();
             int lx2 = x;
 
             Console.WriteLine("Foo/Release()");
@@ -49,7 +47,6 @@ namespace Nekara.Tests.Benchmarks
         {
             //lck.Acquire();
 
-            nekara.ContextSwitch();
             x = 1;
 
             //lck.Release();

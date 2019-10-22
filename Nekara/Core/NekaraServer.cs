@@ -5,7 +5,6 @@ using System.IO;
 using System.Threading;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
 using Nekara.Networking;
 using System.Reflection;
 
@@ -27,13 +26,13 @@ namespace Nekara.Core
         private StreamWriter logFile;
         // private StreamWriter traceFile;
         private StreamWriter summaryFile;
-        private OmniServer server;      // keeping this reference is a temporary workaround to handle the InitializeTestSession notifyClient callback.
+        private OmniServer socket;      // keeping this reference is a temporary workaround to handle the InitializeTestSession notifyClient callback.
                                         // TODO: it should be handled more gracefully by revising the RemoteMethodAsync signature to accept a reference to ClientHandle
                                         //       and the respective reply/reject callbacks
 
         private TestingSession currentSession;
 
-        public NekaraServer(OmniServer server)
+        public NekaraServer(OmniServer socket)
         {
             // this.testResults = new Dictionary<string, TestResult>();
             this.testSessions = new Dictionary<string, TestingSession>();
@@ -46,7 +45,7 @@ namespace Nekara.Core
             this.summaryFile = File.AppendText(sumPath);
             this.summaryFile.WriteLine("Assembly,Class,Method,SessionId,Seed,Result,Reason,Elapsed");
 
-            this.server = server;
+            this.socket = socket;
 
             this.currentSession = null;
         }
@@ -74,7 +73,9 @@ namespace Nekara.Core
 
             session.OnComplete(finished =>
             {
-                var client = this.server.GetClient();   // HACK - this always returns the same client; should be updated to load client by session ID
+                // It is important that we fetch the client socket dynamically in this callback and not outside it,
+                // because the client socket may change when doing a session replay
+                var client = this.socket.GetClient();   // HACK - this always returns the same client; should be updated to load client by session ID
                 var message = new RequestMessage("Tester-Server", client.id, "FinishTest", new JToken[] { finished.id, finished.passed, finished.reason });
                 var serialized = JsonConvert.SerializeObject(message);
                 client.Send(serialized);
@@ -96,7 +97,8 @@ namespace Nekara.Core
             this.testSessions.Add(session.id, session);
             this.currentSession = session;
 
-            Console.WriteLine("\n\nInitialized session {3} for [{1}] in {0}, with seed = {2}", assemblyName, methodName, schedulingSeed, session.id);
+            Console.WriteLine("\n\n============================================\n");
+            Console.WriteLine("Initialized session {3} for [{1}] in {0}, with seed = {2}", assemblyName, methodName, schedulingSeed, session.id);
 
             return this.currentSession.id;
         }
@@ -127,6 +129,7 @@ namespace Nekara.Core
             TestingSession session = this.testSessions[sessionId];
             session.Reset();
 
+            Console.WriteLine("\n\n============================================\n");
             Console.WriteLine("Replaying test {0}: [{2}] in {1}", sessionId, session.assemblyName, session.methodName);
 
             this.currentSession = session;

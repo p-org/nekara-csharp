@@ -52,6 +52,14 @@ namespace Nekara
     }
 
     [Serializable]
+    public class TraceReproductionFailureException : TestingServiceException
+    {
+        public TraceReproductionFailureException(string message) : base(message)
+        {
+        }
+    }
+
+    [Serializable]
     public class TestFailedException : TestingServiceException
     {
         public TestFailedException(string message) : base(message)

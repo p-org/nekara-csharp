@@ -31,7 +31,16 @@ namespace Nekara
                 {
                     try
                     {
-                        resolve(onResolve(prev.Result));
+                        var nextResult = onResolve(prev.Result);
+                        if (nextResult is Promise)
+                        {
+                            ((Promise)nextResult).Then(res =>
+                            {
+                                resolve(res);
+                                return null;
+                            });
+                        }
+                        else resolve(nextResult);
                     }
                     catch (Exception e)
                     {

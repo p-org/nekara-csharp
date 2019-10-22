@@ -47,12 +47,12 @@ namespace Nekara.Client
 
             // FinishTest will be called during the test if an assert fails
             // or the test runs to completion.
-            this.socket.AddRemoteMethod("FinishTest", args =>
+            this.socket.AddRemoteMethod("FinishTest", (sender, args) =>
             {
                 string sid = args[0].ToString();
                 bool passed = args[1].ToObject<bool>();
                 string reason = args[2].ToObject<string>();
-                
+
                 if (this.sessions.ContainsKey(sid))
                 {
                     // this.EndTest(sid, true);                    
@@ -68,10 +68,12 @@ namespace Nekara.Client
                         Console.WriteLine("\n==================================== END ===");
                     }
 
-                    this.sessions[sid].SetResult(true);
-                    this.results.Add(sid, new TestResult(passed, reason));
-                    
+                    var session = this.sessions[sid];
                     this.sessions.Remove(sid);
+                    session.SetResult(true);
+
+                    // if result exists, this is a replayed session
+                    if (!this.results.ContainsKey(sid)) this.results.Add(sid, new TestResult(passed, reason));
 
                     return Task.FromResult(JToken.FromObject(true));
                 }
@@ -84,14 +86,17 @@ namespace Nekara.Client
 
         public void PrintTestResults()
         {
-            Console.WriteLine("\n\n=====[ Test Result ]===============\n");
-            int passed = 0;
-            foreach(var item in this.results)
+            lock (this.results)
             {
-                Console.WriteLine("Session {0}:\t{1}{2}", item.Key, item.Value.passed ? "Pass" : "Fail", item.Value.passed ? "" : "\t(" + item.Value.reason + ")");
-                if (item.Value.passed) passed++;
+                Console.WriteLine("\n\n=====[ Test Result ]===============\n");
+                int passed = 0;
+                foreach (var item in this.results)
+                {
+                    Console.WriteLine("Session {0}:\t{1}{2}", item.Key, item.Value.passed ? "Pass" : "Fail", item.Value.passed ? "" : "\t(" + item.Value.reason + ")");
+                    if (item.Value.passed) passed++;
+                }
+                Console.WriteLine("\n==========[ {0}/{1} Passed ]==========\n", passed, this.results.Count);
             }
-            Console.WriteLine("\n==========[ {0}/{1} Passed ]==========\n", passed, this.results.Count);
         }
         
         /* API for managing test sessions */
@@ -166,31 +171,6 @@ namespace Nekara.Client
             return new TestDefinition(Setup, testMethod, Teardown);
         }
 
-        public Promise RunTest(MethodInfo testMethod, int schedulingSeed = 0)
-        {
-            var assembly = testMethod.DeclaringType.Assembly;
-
-            // Communicate to the server here to notify the start of a test
-            // and initialize the test session (receive a session ID)
-            return new Promise((resolve, reject) =>
-            {
-                Console.WriteLine("\n\n============================================");
-                Console.WriteLine(">>    Starting new session with seed = {0}", schedulingSeed);
-                var (request, canceller) = this.socket.SendRequest("InitializeTestSession", new JToken[] { assembly.FullName, assembly.Location, testMethod.DeclaringType.FullName, testMethod.Name, schedulingSeed });
-                request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
-                request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
-            }).Then(sessionId =>
-            {
-                string sid = sessionId.ToString();
-
-                var session = this.StartSession(sid, testMethod);
-                
-                session.Wait();
-
-                return null;
-            });
-        }
-
         public Promise RunTest(TestDefinition definition, int numIteration)
         {
             return new Promise((resolve, reject) =>
@@ -199,7 +179,10 @@ namespace Nekara.Client
                 resolve(null);
             }).Then(prev =>
             {
-                var run = Helpers.RepeatTask(() => this.RunTest(definition.Run, Helpers.RandomInt()).Task, numIteration);
+                var run = Helpers.RepeatTask(() => 
+                        this.RunNewTestSession(definition.Run, Helpers.RandomInt())
+                        .Then(result => this.ReplayTestSession((string)result)).Task,
+                    numIteration);
                 run.Wait();
                 return null;
             }).Then(prev =>
@@ -280,10 +263,37 @@ namespace Nekara.Client
             return await this.sessions[sessionId].Task;
         }
 
-        public Task ReplayTestSession(string sessionId)
+        public Promise RunNewTestSession(MethodInfo testMethod, int schedulingSeed = 0)
+        {
+            var assembly = testMethod.DeclaringType.Assembly;
+
+            // Communicate to the server here to notify the start of a test
+            // and initialize the test session (receive a session ID)
+            return new Promise((resolve, reject) =>
+            {
+                Console.WriteLine("\n\n============================================");
+                Console.WriteLine(">>    Starting new session with seed = {0}", schedulingSeed);
+                var (request, canceller) = this.socket.SendRequest("InitializeTestSession", new JToken[] { assembly.FullName, assembly.Location, testMethod.DeclaringType.FullName, testMethod.Name, schedulingSeed });
+                request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
+                request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
+            }).Then(sessionId =>
+            {
+                string sid = sessionId.ToString();
+
+                var session = this.StartSession(sid, testMethod);
+
+                session.Wait();
+
+                return sid;
+            });
+        }
+
+        public Promise ReplayTestSession(string sessionId)
         {
             return new Promise((resolve, reject) =>
             {
+                Console.WriteLine("\n\n============================================");
+                Console.WriteLine(">>    Replaying session {0}", sessionId);
                 var (request, canceller) = this.socket.SendRequest("ReplayTestSession", new JToken[] { sessionId });
                 request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
                 request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
@@ -308,7 +318,7 @@ namespace Nekara.Client
                 if (testDefinition.Teardown != null) testDefinition.Teardown.Invoke(null, null);
 
                 return null;
-            }).Task;
+            });
         }
 
         public void Dispose()

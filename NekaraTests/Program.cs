@@ -1,7 +1,9 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Nekara.Client;
+using Nekara.Models;
 
 namespace NekaraTests
 {
@@ -11,6 +13,20 @@ namespace NekaraTests
         {
             if (args.Length < 2)
             {
+                if (args.Length == 1)
+                {
+                    var compiler = new NekaraCompiler();
+                    string source = File.ReadAllText(args[0]);
+
+                    var userCode = compiler.Compile(source);
+                    var type = userCode.GetType("Nekara.Models.Benchmarks.CompileTest");
+                    var method = type.GetMethod("Hello");
+                    // method.Invoke(null, null);
+
+                    Console.WriteLine(userCode);
+                    return;
+                }
+
                 Console.WriteLine("Provide Benchmark Name and Iteration Count");
                 Console.WriteLine("e.g. Benchmarks.exe DiningPhilosophers5.Run 100");
                 return;

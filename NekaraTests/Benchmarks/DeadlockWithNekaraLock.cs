@@ -1,31 +1,35 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Core;
-using Nekara.Models;
 
 namespace Nekara.Tests.Benchmarks
 {
-    class DeadlockAsyncMethod
+    class DeadlockWithNekaraLock
     {
         static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
         static int x = 0;
-        static Lock lck;
+        static Nekara.Models.Lock lck;
 
         [TestMethod]
         public static void Run()
         {
             // initialize all relevant state
-            lck = new Lock(0);
+            lck = new Nekara.Models.Lock(0);
             x = 0;
 
-            var t1 = Foo();
+            nekara.CreateTask();
+            Task.Run(() => Foo());
 
-            var t2 = Bar();
+            nekara.CreateTask();
+            Task.Run(() => Bar());
         }
 
-        static async Task Foo()
+        static void Foo()
         {
+            nekara.StartTask(1);
+
             Console.WriteLine("Foo/Acquire()");
             lck.Acquire();
 
@@ -43,10 +47,12 @@ namespace Nekara.Tests.Benchmarks
             nekara.Assert(lx1 == lx2, "Race!");
 
             Console.WriteLine("Foo EndTask");
+            nekara.EndTask(1);
         }
 
-        static async Task Bar()
+        static void Bar()
         {
+            nekara.StartTask(2);
             //lck.Acquire();
 
             nekara.ContextSwitch();
@@ -55,6 +61,7 @@ namespace Nekara.Tests.Benchmarks
             //lck.Release();
 
             Console.WriteLine("Bar EndTask");
+            nekara.EndTask(2);
         }
     }
 }

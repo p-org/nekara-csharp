@@ -77,7 +77,7 @@ namespace Nekara.Networking
             // var client = this.clients[socketId];
             // client.socket.Dispose();
             // client.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close OK", CancellationToken.None)
-                //.ContinueWith(prev => client.Dispose());
+            //.ContinueWith(prev => client.Dispose());
             this.clients.Remove(socketId);
         }
     }
@@ -190,25 +190,5 @@ namespace Nekara.Networking
             sendTask.ContinueWith(t => releaser.Dispose());
             return sendTask;
         }
-
-        /*public Task Send(Object payload)
-        {
-            string serialized = JsonConvert.SerializeObject(payload);
-            byte[] buffer = Encoding.UTF8.GetBytes(serialized);
-            // We lock the socket because multiple tasks can be racing to use the websocket.
-            // The websocket will fail if two tasks try to call client.Send concurrently.
-            // We use the low-level Monitor.Enter/Exit because we need to release asynchronously
-            try
-            {
-                Monitor.Enter(socket);
-                var sendTask = socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
-                sendTask.ContinueWith(t => Monitor.Exit(socket));
-                return sendTask;
-            }
-            finally
-            {
-                Monitor.Exit(socket);
-            }
-        }*/
     }
 }

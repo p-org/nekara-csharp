@@ -5,6 +5,7 @@
     <TargetFramework>netcoreapp3.0</TargetFramework>
     <StartupObject>NekaraTests.Program</StartupObject>
     <RootNamespace>Nekara.Tests</RootNamespace>
+    <Configurations>Debug;Release;NekaraCompiler</Configurations>
   </PropertyGroup>
 
   <ItemGroup>

@@ -47,8 +47,7 @@ namespace Nekara.Networking
                         return this.socket.ReceiveAsync(new ArraySegment<byte>(buffer), socketDestroyer.Token)
                             .ContinueWith(prev =>
                             {
-                                //Monitor.Exit(receiveLock);
-                                // Console.WriteLine("WebSocket received {0} bytes of {1} data, end of message = {2}", prev.Result.Count, prev.Result.MessageType, prev.Result.EndOfMessage);
+                                //Console.WriteLine("WebSocket received {0} bytes of {1} data, end of message = {2}", prev.Result.Count, prev.Result.MessageType, prev.Result.EndOfMessage);
 
                                 if (prev.Result.MessageType == WebSocketMessageType.Text)
                                 {

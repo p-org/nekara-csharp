@@ -53,7 +53,7 @@ namespace Nekara.Client
                     string sessionId = args[1];
 
                     // Make a replay request
-                    var run = client.ReplayTestSession(sessionId);
+                    var run = client.ReplayTestSession(sessionId).Task;
 
                     run.Wait();
 
@@ -119,7 +119,7 @@ namespace Nekara.Client
                 string sessionId = Helpers.Prompt("Provide Test Session ID? ", input => true);
 
                 // Make a replay request
-                return client.ReplayTestSession(sessionId);
+                return client.ReplayTestSession(sessionId).Task;
             });
 
             Helpers.AsyncTaskLoop(() =>

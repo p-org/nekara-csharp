@@ -28,6 +28,9 @@ namespace Nekara.Networking
             this.config = config;
             this.remoteMethods = new Dictionary<string, RemoteMethodAsync>();
 
+            // for debugging
+            this.remoteMethods.Add("echo", (senderId, args) => Task<JToken>.FromResult(JToken.FromObject(args)));
+
             // Initialize the testing service before setting up the transport
             // (if it is IPC, it will be initialized differently)
 
@@ -64,7 +67,7 @@ namespace Nekara.Networking
         {
             if (method.ReturnType == typeof(Task<JToken>))
             {
-                this.remoteMethods[name] = args =>
+                this.remoteMethods[name] = (senderId, args) =>
                 {
                     // Console.WriteLine("    Invoking Remote Method: Task<JToken> {0} ({1})", name, String.Join(",", args.Select(t => t.ToString())));
                     return (Task<JToken>)method.Invoke(instance, args);
@@ -72,7 +75,7 @@ namespace Nekara.Networking
             }
             else if (method.ReturnType == typeof(void))
             {
-                this.remoteMethods[name] = args =>
+                this.remoteMethods[name] = (senderId, args) =>
                 {
                     try
                     {
@@ -90,7 +93,7 @@ namespace Nekara.Networking
             }
             else
             {
-                this.remoteMethods[name] = args =>
+                this.remoteMethods[name] = (senderId, args) =>
                 {
                     // Console.WriteLine("    Invoking Remote Method: {0} ({1})", name, String.Join(",", args.Select(t => t.ToString())));
                     return Task<JToken>.FromResult(JToken.FromObject(method.Invoke(instance, args)));
@@ -104,9 +107,9 @@ namespace Nekara.Networking
         {
             // wrapping it to print some info
             // it can actually be directly assigned like: new RemoteMethodAsync(handler);
-            RemoteMethodAsync method = new RemoteMethodAsync(kwargs => {
-                Console.WriteLine("    Invoking Stateless Remote Method {0} ({1})", name, kwargs);
-                return handler(kwargs);
+            RemoteMethodAsync method = new RemoteMethodAsync((senderId, args) => {
+                Console.WriteLine("    Invoking Stateless Remote Method {0} ({1})", name, args);
+                return handler(args);
             });
             this.remoteMethods[name] = method;
             Console.WriteLine("    Registered Remote Method: {0}", name);
@@ -133,14 +136,8 @@ namespace Nekara.Networking
         // this method is called internally by the main message listener loop
         private Task<ResponseMessage> HandleRequest(RequestMessage message)
         {
-            Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
-
-            // this is a "meta" remote method, mostly for testing; should be removed later
-            if (message.func == "echo")
-            {
-                return Task.FromResult(message.CreateResponse("Tester-Server", JToken.FromObject(message.args)));
-            }
-            else if (this.remoteMethods.ContainsKey(message.func))
+            // Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
+            if (this.remoteMethods.ContainsKey(message.func))
             {
                 // If any Exception thrown during remoteMethod invocation,
                 // forward it to the client instead of failing on the server-side
@@ -149,7 +146,7 @@ namespace Nekara.Networking
                     // Spawning a new task to make the message handler "non-blocking"
                     // TODO: Errors thrown inside here will become silent, so that needs to be handled
                     // Also, now that the single execution flow is broken, the requests are under race conditions
-                    return Task.Factory.StartNew<Task<JToken>>(() => this.remoteMethods[message.func](message.args.ToArray<JToken>())).Unwrap()
+                    return Task.Factory.StartNew<Task<JToken>>(() => this.remoteMethods[message.func](message.sender, message.args.ToArray<JToken>())).Unwrap()
                     // return this.remoteMethods[message.func](message.args.ToArray())
                     .ContinueWith(prev => {
                         // Console.WriteLine("    ... responding to {2}:  {0} {1}", message.func, prev.IsFaulted, message.id);
@@ -166,12 +163,6 @@ namespace Nekara.Networking
                         return message.CreateResponse("Tester-Server", new JValue("OK"));
                     });
                 }
-                /*catch (AssertionFailureException ex)
-                {
-                    Console.WriteLine("!!! {0} Caught while invoking remote method {1}", ex.GetType().Name, message.func);
-                    // Console.WriteLine(ex);
-                    return Task.FromResult(message.CreateErrorResponse("Tester-Server", new JValue(ex.Message)));
-                }*/
                 catch (Exception ex)
                 {
                     Console.WriteLine("!!! {0} Caught while invoking [{1}]", ex.GetType().Name, message.func);
@@ -266,7 +257,7 @@ namespace Nekara.Networking
                     HandleRequest(message)
                     .ContinueWith(prev =>
                     {
-                        Console.WriteLine("<-- Returning Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id);
+                        // Console.WriteLine("<-- Returning Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id);
                         ResponseMessage reply = prev.Result;
 
                         client.Send(reply.Serialize());

@@ -58,7 +58,7 @@ namespace Nekara
             RequestMessage message = JsonConvert.DeserializeObject<RequestMessage>(payload);
             if (message.func != null && this.remoteMethods.ContainsKey(message.func))
             {
-                this.remoteMethods[message.func](message.args.ToArray());
+                this.remoteMethods[message.func](message.sender, message.args.ToArray());
             }
             else
             {

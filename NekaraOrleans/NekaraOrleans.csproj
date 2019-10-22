@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netcoreapp3.0</TargetFramework>
     <RootNamespace>Nekara.Orleans</RootNamespace>
+    <Configurations>Debug;Release;NekaraCompiler</Configurations>
   </PropertyGroup>
 
   <ItemGroup>

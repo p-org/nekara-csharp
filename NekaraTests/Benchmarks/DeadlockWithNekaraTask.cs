@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Threading.Tasks;
 using Nekara.Client;
+using Nekara.Models;
 using Nekara.Core;
 
 namespace Nekara.Tests.Benchmarks
 {
-    class Deadlock
+    class DeadlockWithNekaraTask
     {
         static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
@@ -19,16 +19,13 @@ namespace Nekara.Tests.Benchmarks
             lck = false;
             x = 0;
 
-            nekara.CreateTask();
             Task.Run(() => Foo());
 
-            nekara.CreateTask();
             Task.Run(() => Bar());
         }
 
         static void Foo()
         {
-            nekara.StartTask(1);
             Console.WriteLine("Foo/Acquire()");
             Acquire();
 
@@ -46,12 +43,10 @@ namespace Nekara.Tests.Benchmarks
             nekara.Assert(lx1 == lx2, "Race!");
 
             Console.WriteLine("Foo EndTask");
-            nekara.EndTask(1);
         }
 
         static void Bar()
         {
-            nekara.StartTask(2);
             //Acquire();
 
             nekara.ContextSwitch();
@@ -60,7 +55,6 @@ namespace Nekara.Tests.Benchmarks
             // Release();
 
             Console.WriteLine("Bar EndTask");
-            nekara.EndTask(2);
         }
 
         static void Acquire()
