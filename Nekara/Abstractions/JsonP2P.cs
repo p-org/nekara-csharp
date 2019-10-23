@@ -121,37 +121,5 @@ namespace Nekara
             var serialized = JsonConvert.SerializeObject(message);
             return this.Send(recipient, serialized);
         }
-
-        /*public void AddPeer(string peerId, JsonPeer peer)
-        {
-            this.peers.Add(peerId, peer);
-        }
-
-        public JsonPeer GetPeer(string peerId)
-        {
-            return this.peers[peerId];
-        }
-
-        public void RemovePeer(string peerId)
-        {
-            this.peers.Remove(peerId);
-        }*/
     }
-
-    /*public class JsonPeer
-    {
-        private string id;
-        private JsonP2P host;
-
-        public JsonPeer (string id, JsonP2P host)
-        {
-            this.id = id;
-            this.host = host;
-        }
-
-        public Task Send(string payload)
-        {
-            return this.host.Send(this.id, payload);
-        }
-    }*/
 }

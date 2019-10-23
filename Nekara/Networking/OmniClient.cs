@@ -90,8 +90,8 @@ namespace Nekara.Networking
             // Assign the appropriate SendRequest method
             this._sendRequest = (func, args) =>
             {
-                var task = client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args))
-                    .ContinueWith(prev => JToken.Parse(prev.Result));
+                var task = client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args).Serialize())
+                    .ContinueWith(prev => ResponseMessage.Deserialize(prev.Result).data);
                 return (task, new CancellationTokenSource());
             };
 
@@ -103,6 +103,8 @@ namespace Nekara.Networking
             this._dispose = () => {
                 client.Dispose();
             };
+
+            this._readyFlag = client.ReadyFlag;
         }
 
         private void SetupTransportGRPC()

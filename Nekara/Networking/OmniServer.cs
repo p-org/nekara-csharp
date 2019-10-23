@@ -136,7 +136,7 @@ namespace Nekara.Networking
         // this method is called internally by the main message listener loop
         private Task<ResponseMessage> HandleRequest(RequestMessage message)
         {
-            // Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
+            //Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
             if (this.remoteMethods.ContainsKey(message.func))
             {
                 // If any Exception thrown during remoteMethod invocation,
@@ -220,8 +220,9 @@ namespace Nekara.Networking
                 HandleRequest(message)
                 .ContinueWith(prev =>
                 {
+                    //Console.WriteLine("<-- Returning {3}Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id, prev.Result.error ? "Error " : "");
                     ResponseMessage reply = prev.Result;
-                    response.Send(200, reply);
+                    response.Send(prev.Result.error ? 500 : 200, reply);
                 });
             });
 
@@ -257,7 +258,7 @@ namespace Nekara.Networking
                     HandleRequest(message)
                     .ContinueWith(prev =>
                     {
-                        // Console.WriteLine("<-- Returning Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id);
+                        //Console.WriteLine("<-- Returning {3}Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id, prev.Result.error ? "Error " : "");
                         ResponseMessage reply = prev.Result;
 
                         client.Send(reply.Serialize());

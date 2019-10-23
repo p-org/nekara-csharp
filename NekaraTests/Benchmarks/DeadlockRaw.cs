@@ -24,6 +24,8 @@ namespace Nekara.Tests.Benchmarks
 
             nekara.CreateTask();
             Task.Run(() => Bar());
+
+            Task.Run(() => Distraction());
         }
 
         static void Foo()
@@ -61,6 +63,13 @@ namespace Nekara.Tests.Benchmarks
 
             Console.WriteLine("Bar EndTask");
             nekara.EndTask(2);
+        }
+
+        static void Distraction()
+        {
+            // nekara.StartTask(2);
+
+            nekara.ContextSwitch();
         }
 
         static void Acquire()

@@ -23,7 +23,7 @@ namespace Nekara.Client
             }
 
             // client-side socket
-            OmniClient socket = new OmniClient(new OmniClientConfiguration());
+            OmniClient socket = new OmniClient(new OmniClientConfiguration(Transport.HTTP));
 
             // testing service proxy object;uses the socket to communicate to the actual testing service
             Client = new NekaraClient(socket);

@@ -78,18 +78,24 @@ namespace Nekara
 
             public int Generate()
             {
-                int x;
-                do
+                lock (issued)
                 {
-                    x = sequentialMode ? idOffset + issued.Count : randomizer.NextInt(Int32.MaxValue);
-                } while (issued.Contains(x) || x < 1);
-                issued.Add(x);
-                return x;
+                    int x;
+                    do
+                    {
+                        x = sequentialMode ? idOffset + issued.Count : randomizer.NextInt(Int32.MaxValue);
+                    } while (issued.Contains(x) || x < 1);
+                    issued.Add(x);
+                    return x;
+                }
             }
 
             public void Reset()
             {
-                issued.Clear();
+                lock (issued)
+                {
+                    issued.Clear();
+                }
             }
         }
 

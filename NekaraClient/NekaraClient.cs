@@ -31,7 +31,6 @@ namespace Nekara.Client
         public IClient socket;
         private TestRuntimeApi testingApi;
         private Helpers.UniqueIdGenerator idGen;
-        //private Dictionary<string, TaskCompletionSource<bool>> sessions;
         private Dictionary<string, TestResult> results;
 
         // This object will "plug-in" the communication mechanism.
@@ -42,43 +41,7 @@ namespace Nekara.Client
             this.testingApi = new TestRuntimeApi(socket);
             this.idGen = new Helpers.UniqueIdGenerator();
 
-            //this.sessions = new Dictionary<string, TaskCompletionSource<bool>>();
             this.results = new Dictionary<string, TestResult>();
-
-            // FinishTest will be called during the test if an assert fails
-            // or the test runs to completion.
-            /*this.socket.AddRemoteMethod("FinishTest", (sender, args) =>
-            {
-                string sid = args[0].ToString();
-                bool passed = args[1].ToObject<bool>();
-                string reason = args[2].ToObject<string>();
-
-                if (this.sessions.ContainsKey(sid))
-                {
-                    // this.EndTest(sid, true);                    
-
-                    // clean up
-                    this.testingApi.Finish();
-                    this.idGen.Reset();
-
-                    Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sid, passed ? "PASSED" : "FAILED");
-                    if (reason != "")
-                    {
-                        Console.WriteLine("  " + reason);
-                        Console.WriteLine("\n==================================== END ===");
-                    }
-
-                    var session = this.sessions[sid];
-                    this.sessions.Remove(sid);
-                    session.SetResult(true);
-
-                    // if result exists, this is a replayed session
-                    if (!this.results.ContainsKey(sid)) this.results.Add(sid, new TestResult(passed, reason));
-
-                    return Task.FromResult(JToken.FromObject(true));
-                }
-                else return Task.FromResult(JToken.FromObject(false));
-            });*/
         }
 
         public ITestingService Api { get { return this.testingApi; } }
@@ -213,15 +176,11 @@ namespace Nekara.Client
             {
                 Task task;
 
-                // this.testingApi.CreateTask();
-
                 if (testMethod.ReturnType == typeof(Task))
                 {
-                    // this.testingApi.StartTask(0);
+                    // invoke user method asynchronously
                     task = (Task)testMethod.Invoke(null, null);
-                    //this.testingApi.EndTask(0);
                     var reason = this.testingApi.WaitForMainTask();
-                    Console.WriteLine("Test Result: {0} {1}", reason == "" ? "PASSED" : "FAILED", reason != "" ? reason : "");
                     try
                     {
                         task.Wait();
@@ -239,7 +198,6 @@ namespace Nekara.Client
                 {
                     task = Task.Factory.StartNew(() =>
                     {
-                        // this.testingApi.StartTask(0);
                         testMethod.Invoke(null, null);
 
                     }, TaskCreationOptions.AttachedToParent);
@@ -248,7 +206,6 @@ namespace Nekara.Client
                     {
                         //this.testingApi.EndTask(0);
                         var reason = this.testingApi.WaitForMainTask();
-                        Console.WriteLine("Test Result: {0} {1}", reason == "" ? "PASSED" : "FAILED", reason != "" ? reason : "");
                         resolve(reason);
                     }, TaskContinuationOptions.OnlyOnRanToCompletion);
 
@@ -256,20 +213,23 @@ namespace Nekara.Client
                     {
                         Console.WriteLine("  [NekaraClient.StartSession] Main Task threw an Exception!\n{0}", prev.Exception.Message);
                         var reason = this.testingApi.WaitForMainTask();
-                        Console.WriteLine("Test Result: {0} {1}", reason == "" ? "PASSED" : "FAILED", reason != "" ? reason : "");
                         // do nothing
                         resolve(reason);
                     }, TaskContinuationOptions.OnlyOnFaulted);
                 }
 
-            }).Then(data => {
+            }).Then(data =>
+            {
                 string reason = (string)data;
 
                 // if result exists, this is a replayed session
                 if (!this.results.ContainsKey(sessionId)) this.results.Add(sessionId, new TestResult(reason == "", reason));
+                else this.results[sessionId] = new TestResult(reason == "", reason);
 
                 // clean up
-                this.testingApi.Finish();
+                // this.testingApi.Finish();
+                // Task.Delay(200).Wait();
+                Console.WriteLine("\n    ... resetting task ID generator");
                 this.idGen.Reset();
 
                 Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sessionId, reason == "" ? "PASSED" : "FAILED");
@@ -280,19 +240,14 @@ namespace Nekara.Client
                 }
 
                 return null;
+            }).Catch(ex =>
+            {
+                Console.WriteLine(ex);
+                throw ex;
             });
 
             return mainTask.Task;
-
-            /*var finished = Task.WhenAll(tcs.Task, mainTask.Task);
-
-            return finished;*/
         }
-
-        /*public async Task<bool> IsFinished(string sessionId)
-        {
-            return await this.sessions[sessionId].Task;
-        }*/
 
         public Promise RunNewTestSession(MethodInfo testMethod, int schedulingSeed = 0)
         {

@@ -16,7 +16,7 @@ namespace Nekara.Client
 
         private object stateLock;
         public IClient socket;
-        private HashSet<(Task,CancellationTokenSource)> pendingTasks;
+        private HashSet<(Task,CancellationTokenSource)> pendingRequests;
 
         public string sessionId;
         private int count;
@@ -26,7 +26,7 @@ namespace Nekara.Client
         {
             this.stateLock = new object();
             this.socket = socket;
-            this.pendingTasks = new HashSet<(Task,CancellationTokenSource)>();
+            this.pendingRequests = new HashSet<(Task,CancellationTokenSource)>();
 
             this.sessionId = null;
             this.count = 0;
@@ -48,7 +48,8 @@ namespace Nekara.Client
             {
                 this.finished = true;
 
-                var tasks = this.pendingTasks.Select(tuple => tuple.Item1).ToArray();
+                this.pendingRequests.ToList().ForEach(tup => tup.Item2.Cancel());
+                var tasks = this.pendingRequests.Select(tuple => tuple.Item1).ToArray();
                 Console.WriteLine("\n\n    ... cleaning up {0} pending tasks", tasks.Length);
 
                 var pending = Task.WhenAll(tasks);
@@ -64,12 +65,12 @@ namespace Nekara.Client
                 }
                 finally
                 {
-                    this.pendingTasks.Clear();
+                    this.pendingRequests.Clear();
                 }
             }
         }
 
-        private JToken InvokeAndHandleException(Func<(Task<JToken>, CancellationTokenSource)> action, string func = "Anonymous Function")
+        private JToken InvokeAndHandleException(string func, params JToken[] args)
         {
             Task<JToken> task = null;
             CancellationTokenSource canceller = null;
@@ -77,8 +78,14 @@ namespace Nekara.Client
             {
                 if (!this.finished)
                 {
-                    (task, canceller) = action();
-                    this.pendingTasks.Add((task, canceller));
+                    var extargs = new JToken[args.Length + 1];
+                    extargs[0] = JToken.FromObject(this.sessionId);
+                    Array.Copy(args, 0, extargs, 1, args.Length);
+
+                    Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t--->>\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");
+                    (task, canceller) = this.socket.SendRequest(func, extargs);
+
+                    this.pendingRequests.Add((task, canceller));
                 }
                 else throw new SessionAlreadyFinishedException($"Session already finished, suspending further requests: [{func}]");
             }
@@ -86,7 +93,13 @@ namespace Nekara.Client
             try
             {
                 task.Wait();
-                this.pendingTasks.Remove((task, canceller));
+                lock (this.stateLock)
+                {
+                    this.pendingRequests.Remove((task, canceller));
+                    Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t<<---\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");
+
+                    if (this.finished) throw new SessionAlreadyFinishedException($"[{func}] returned but session already finished, throwing to prevent further progress");
+                }
             }
             catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
             {
@@ -97,7 +110,7 @@ namespace Nekara.Client
             }
             finally
             {
-                // this.pendingTasks.Remove((task, canceller));
+                // this.pendingRequests.Remove((task, canceller));
             }
             return task.Result;
         }
@@ -105,88 +118,66 @@ namespace Nekara.Client
         /* API methods */
         public void CreateTask()
         {
-            Console.WriteLine("{0}\tCreateTask()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            InvokeAndHandleException(() => this.socket.SendRequest("CreateTask", this.sessionId), "CreateTask");
-            Console.WriteLine("{0}\tCreateTask()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-
+            InvokeAndHandleException("CreateTask");
         }
 
         public void StartTask(int taskId)
         {
-            Console.WriteLine("{0}\tStartTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
-            InvokeAndHandleException(() => this.socket.SendRequest("StartTask", this.sessionId, taskId), "StartTask");
-            Console.WriteLine("{0}\tStartTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            InvokeAndHandleException("StartTask", taskId);
         }
 
         public void EndTask(int taskId)
         {
-            Console.WriteLine("{0}\tEndTask({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
-            InvokeAndHandleException(() => this.socket.SendRequest("EndTask", this.sessionId, taskId), "ContextSwitch");
-            Console.WriteLine("{0}\tEndTask({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, taskId);
+            InvokeAndHandleException("EndTask", taskId);
         }
 
         public void CreateResource(int resourceId)
         {
-            Console.WriteLine("{0}\tCreateResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            InvokeAndHandleException(() => this.socket.SendRequest("CreateResource", this.sessionId, resourceId), "CreateResource");
-            Console.WriteLine("{0}\tCreateResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            InvokeAndHandleException("CreateResource", resourceId);
         }
 
         public void DeleteResource(int resourceId)
         {
-            Console.WriteLine("{0}\tDeleteResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            InvokeAndHandleException(() => this.socket.SendRequest("DeleteResource", this.sessionId, resourceId), "DeleteResource");
-            Console.WriteLine("{0}\tDeleteResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            InvokeAndHandleException("DeleteResource", resourceId);
         }
 
         public void BlockedOnResource(int resourceId)
         {
-            Console.WriteLine("{0}\tBlockedOnResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            InvokeAndHandleException(() => this.socket.SendRequest("BlockedOnResource", this.sessionId, resourceId), "BlockedOnResource");
-            Console.WriteLine("{0}\tBlockedOnResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            InvokeAndHandleException("BlockedOnResource", resourceId);
         }
 
         public void SignalUpdatedResource(int resourceId)
         {
-            Console.WriteLine("{0}\tSignalUpdatedResource({3})\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
-            InvokeAndHandleException(() => this.socket.SendRequest("SignalUpdatedResource", this.sessionId, resourceId), "SignalUpdatedResource");
-            Console.WriteLine("{0}\tSignalUpdatedResource({3})\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, resourceId);
+            InvokeAndHandleException("SignalUpdatedResource", resourceId);
         }
 
         public bool CreateNondetBool()
         {
-            Console.WriteLine("CreateNondetBool\t{0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            var value = InvokeAndHandleException(() => this.socket.SendRequest("CreateNondetBool", this.sessionId), "CreateNondetBool");
-            return value.ToObject<bool>();
+            return InvokeAndHandleException("CreateNondetBool").ToObject<bool>();
         }
 
         public int CreateNondetInteger(int maxValue)
         {
-            Console.WriteLine("{0}\tCreateNondetInteger()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            var value = InvokeAndHandleException(() => this.socket.SendRequest("CreateNondetInteger", this.sessionId), "CreateNondetInteger");
-            return value.ToObject<int>();
+            return InvokeAndHandleException("CreateNondetInteger").ToObject<int>();
         }
 
         public void Assert(bool predicate, string s)
         {
-            Console.WriteLine("{0}\tAssert()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            InvokeAndHandleException(() => this.socket.SendRequest("Assert", this.sessionId, predicate, s), "Assert");
-            Console.WriteLine("{0}\tAssert()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            InvokeAndHandleException("Assert", predicate, s);
         }
 
         public void ContextSwitch()
         {
-            Console.WriteLine("{0}\tContextSwitch()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            InvokeAndHandleException(() => this.socket.SendRequest("ContextSwitch", this.sessionId), "ContextSwitch");
-            Console.WriteLine("{0}\tContextSwitch()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
+            InvokeAndHandleException("ContextSwitch");
         }
 
         public string WaitForMainTask()
         {
-            Console.WriteLine("{0}\tWaitForMainTask()\tenter\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            var reason = InvokeAndHandleException(() => this.socket.SendRequest("WaitForMainTask", this.sessionId), "WaitForMainTask");
-            Console.WriteLine("{0}\tWaitForMainTask()\texit\t{1}/{2}", count++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count);
-            return reason.ToObject<string>();
+            var reason = InvokeAndHandleException("WaitForMainTask").ToObject<string>();
+            
+            this.Finish();
+            
+            return reason;
         }
     }
 }

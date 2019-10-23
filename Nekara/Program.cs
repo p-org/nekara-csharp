@@ -14,7 +14,7 @@ namespace Nekara
             Console.WriteLine("Starting Nekara Server...");
 
             // Initialize a tester server
-            OmniServer socket = new OmniServer(new OmniServerConfiguration());
+            OmniServer socket = new OmniServer(new OmniServerConfiguration(Transport.HTTP));
             NekaraServer service = new NekaraServer(socket);
 
             socket.RegisterService(service);

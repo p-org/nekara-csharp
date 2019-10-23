@@ -139,7 +139,7 @@ namespace Nekara.Networking
         {
             this.request = request;
 
-            Console.WriteLine("HTTP: {0} {1}", request.HttpMethod, request.Url.PathAndQuery);
+            //Console.WriteLine("HTTP: {0} {1}", request.HttpMethod, request.Url.PathAndQuery);
 
             if (request.HasEntityBody)
             {
@@ -157,8 +157,8 @@ namespace Nekara.Networking
                 // Print some meta info
                 if (request.ContentType != null)
                 {
-                    Console.WriteLine("    Content-Type: {0}", request.ContentType);
-                    Console.WriteLine("    Payload Size: {0}", request.ContentLength64);
+                    //Console.WriteLine("    Content-Type: {0}", request.ContentType);
+                    //Console.WriteLine("    Payload Size: {0}", request.ContentLength64);
                 }
 
                 // Console.WriteLine("Start of client data:");
@@ -198,6 +198,7 @@ namespace Nekara.Networking
 
             // Get a response stream and write the response to it.
             this.response.ContentLength64 = buffer.Length;
+            this.response.StatusCode = statusCode;
             System.IO.Stream output = this.response.OutputStream;
             output.Write(buffer, 0, buffer.Length);
             // You must close the output stream.
@@ -217,6 +218,7 @@ namespace Nekara.Networking
 
             // Get a response stream and write the response to it.
             this.response.ContentLength64 = buffer.Length;
+            this.response.StatusCode = statusCode;
             this.response.ContentEncoding = Encoding.UTF8;
             this.response.ContentType = "application/json; charset=utf-8";
             System.IO.Stream output = this.response.OutputStream;

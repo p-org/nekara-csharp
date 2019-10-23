@@ -12,6 +12,7 @@ namespace Nekara.Networking
         private string serverUri;
         private System.Net.Http.HttpClient client;
         private WebSocketClient websocket;
+        public readonly Task ReadyFlag;
 
         public HttpClient(string serverUri)
         {
@@ -19,6 +20,8 @@ namespace Nekara.Networking
 
             // Create the client
             this.client = new System.Net.Http.HttpClient();
+
+            this.ReadyFlag = Task.CompletedTask;
         }
 
         public void Dispose()
@@ -47,7 +50,7 @@ namespace Nekara.Networking
             return tcs.Task;
         }
 
-        public async Task<Object> Post(string path, string payload)
+        /*public async Task<Object> Post(string path, string payload)
         {
             var tcs = new TaskCompletionSource<Object>();
             // Call asynchronous network methods in a try/catch block to handle exceptions.
@@ -69,13 +72,15 @@ namespace Nekara.Networking
             }
 
             return tcs.Task;
-        }
+        }*/
 
-        public async Task<string> Post(string path, object payload)
+        public async Task<string> Post(string path, string payload)
         {
             // try serializing object into JSON
             // this will throw an exception if the payload is not a serializable object - i.e., has DataContractAttribute
-            string serialized = JsonConvert.SerializeObject(payload);
+            
+            // string serialized = JsonConvert.SerializeObject(payload);
+            
             string responseBody;
 
             // var tcs = new TaskCompletionSource<string>();
@@ -83,13 +88,13 @@ namespace Nekara.Networking
             // Call asynchronous network methods in a try/catch block to handle exceptions.
             try
             {
-                Console.WriteLine("    ... POST {0}", this.serverUri + path);
-                var httpContent = new System.Net.Http.StringContent(serialized, Encoding.UTF8, "application/json");
+                // Console.WriteLine("    ... POST {0}", this.serverUri + path);
+                var httpContent = new System.Net.Http.StringContent(payload, Encoding.UTF8, "application/json");
                 System.Net.Http.HttpResponseMessage response = await this.client.PostAsync(this.serverUri + path, httpContent);
                 response.EnsureSuccessStatusCode();
                 responseBody = await response.Content.ReadAsStringAsync();
 
-                Console.WriteLine(responseBody);
+                //Console.WriteLine(responseBody);
 
                 // tcs.SetResult(responseBody);
             }

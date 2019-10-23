@@ -38,12 +38,17 @@ namespace Nekara
                             {
                                 resolve(res);
                                 return null;
+                            }, err => {
+                                Console.WriteLine(err);
+                                reject(err);
+                                return null;
                             });
                         }
                         else resolve(nextResult);
                     }
                     catch (Exception e)
                     {
+                        Console.WriteLine(e);
                         reject(e);
                     }
                 }, TaskContinuationOptions.OnlyOnRanToCompletion);
@@ -64,6 +69,7 @@ namespace Nekara
                     }
                     catch (Exception e)
                     {
+                        Console.WriteLine(e);
                         reject(e);
                     }
                 }, TaskContinuationOptions.OnlyOnRanToCompletion);
@@ -72,17 +78,19 @@ namespace Nekara
                 {
                     try
                     {
-                        resolve(onReject(prev.Result));
+                        Console.WriteLine(prev.Exception);
+                        resolve(onReject(prev.Exception));
                     }
                     catch (Exception e)
                     {
+                        Console.WriteLine(e);
                         reject(e);
                     }
                 }, TaskContinuationOptions.OnlyOnFaulted);
             });
         }
 
-        public Promise Catch(Func<object, object> onReject)
+        public Promise Catch(Func<Exception, object> onReject)
         {
             return new Promise((resolve, reject) =>
             {
@@ -92,10 +100,12 @@ namespace Nekara
                 {
                     try
                     {
-                        resolve(onReject(prev.Result));
+                        Console.WriteLine(prev.Exception);
+                        resolve(onReject(prev.Exception));
                     }
                     catch (Exception e)
                     {
+                        Console.WriteLine(e);
                         reject(e);
                     }
                 }, TaskContinuationOptions.OnlyOnFaulted);

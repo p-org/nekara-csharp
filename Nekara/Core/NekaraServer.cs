@@ -20,11 +20,9 @@ namespace Nekara.Core
     {
         public static int gCount = 0;
 
-        // private Dictionary<string, TestResult> testResults;
         private Dictionary<string, TestingSession> testSessions;
 
         private StreamWriter logFile;
-        // private StreamWriter traceFile;
         private StreamWriter summaryFile;
         private OmniServer socket;      // keeping this reference is a temporary workaround to handle the InitializeTestSession notifyClient callback.
                                         // TODO: it should be handled more gracefully by revising the RemoteMethodAsync signature to accept a reference to ClientHandle
@@ -34,7 +32,6 @@ namespace Nekara.Core
 
         public NekaraServer(OmniServer socket)
         {
-            // this.testResults = new Dictionary<string, TestResult>();
             this.testSessions = new Dictionary<string, TestingSession>();
 
             string logPath = "logs/log-" + DateTime.Now.Ticks.ToString() + ".csv";
@@ -73,24 +70,18 @@ namespace Nekara.Core
 
             session.OnComplete(finished =>
             {
-                // It is important that we fetch the client socket dynamically in this callback and not outside it,
-                // because the client socket may change when doing a session replay
-                
-                /*var client = this.socket.GetClient();   // HACK - this always returns the same client; should be updated to load client by session ID
-                var message = new RequestMessage("Tester-Server", client.id, "FinishTest", new JToken[] { finished.id, finished.passed, finished.reason });
-                var serialized = JsonConvert.SerializeObject(message);
-                client.Send(serialized);*/
-
-                Console.WriteLine("Test {0} Finished!", finished.id);
+                Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", finished.id, finished.passed ? "PASSED" : "FAILED");
+                if (finished.reason != "")
+                {
+                    Console.WriteLine("  " + finished.reason);
+                }
 
                 // Append Summary
                 string summary = String.Join(",", new string[] { assemblyName, methodDeclaringClass, methodName, finished.id, finished.schedulingSeed.ToString(), (finished.passed ? "pass" : "fail"), finished.reason, finished.ElapsedMilliseconds.ToString() });
-
-                Console.WriteLine(summary);
                 this.summaryFile.WriteLine(summary);
                 this.summaryFile.Flush();
 
-                Console.WriteLine("Results: {0}/{1}", this.testSessions.Where(item => item.Value.passed == true).Count(), this.testSessions.Count);
+                Console.WriteLine("\n===== END of {0} (ran in {1} ms) =====[ Results: {2}/{3} ]=====\n\n", finished.id, finished.ElapsedMilliseconds.ToString(), this.testSessions.Where(item => item.Value.passed == true).Count(), this.testSessions.Count);
 
                 this.currentSession = null;      // Clear the sessionId so the next session can begin
             });
@@ -98,8 +89,9 @@ namespace Nekara.Core
             this.testSessions.Add(session.id, session);
             this.currentSession = session;
 
-            Console.WriteLine("\n\n============================================\n");
-            Console.WriteLine("Initialized session {3} for [{1}] in {0}, with seed = {2}\n", assemblyName, methodName, schedulingSeed, session.id);
+            Console.WriteLine("\n\n===== BEGIN {0} ================================\n", session.id);
+            Console.WriteLine("  [{1}]\n  in {0}, with seed = {2}\n", assemblyName, methodDeclaringClass + "." + methodName, schedulingSeed);
+            Console.WriteLine("\nIndex\tCurThrd\t#Thrds\tCurTask\t#Tasks\tStage\tMethod\tArgs");
 
             return this.currentSession.id;
         }
@@ -130,58 +122,19 @@ namespace Nekara.Core
             TestingSession session = this.testSessions[sessionId];
             session.Reset();
 
-            Console.WriteLine("\n\n============================================\n");
-            Console.WriteLine("Replaying test {0}: [{2}] in {1}\n", sessionId, session.assemblyName, session.methodName);
+            Console.WriteLine("\n\n===== BEGIN REPLAY {0} =========================\n", sessionId);
+            Console.WriteLine("  [{1}]\n  in {0}\n", session.assemblyName, session.methodDeclaringClass + "." + session.methodName);
 
             this.currentSession = session;
 
             return info;
         }
 
-        private object RouteRemoteCall(JToken sessionId, string methodName, object[] args)
+        private object RouteRemoteCall(JToken sessionId, string methodName, params object[] args)
         {
             var session = this.testSessions[sessionId.ToObject<string>()];
-            if (session.IsFinished) throw new SessionAlreadyFinishedException(session.id + " has already finished");
-            var method = session.GetType().GetMethod(methodName);
-            try
-            {
-                return method.Invoke(session, args);
-            }
-            catch (TargetInvocationException ex)
-            {
-                // Console.WriteLine(ex);
-                Console.WriteLine("\n[RouteRemoteCall] TargetInvocationException");
-                if (ex.InnerException is AssertionFailureException) session.Finish(false, ex.InnerException.Message);
-                else if (ex.InnerException is AggregateException)
-                {
-                    Console.WriteLine("  [RouteRemoteCall] TargetInvocationException/AggregateException");
-                    Console.WriteLine("    {0}", ex.InnerException.InnerException);
-                    throw ex.InnerException.InnerException;
-                }
-                else if (ex.InnerException is TargetInvocationException)
-                {
-                    Console.WriteLine("  [RouteRemoteCall] TargetInvocationException/TargetInvocationException");
-                }
-                else Console.WriteLine(ex);
-                throw ex.InnerException;
-            }
-            /*catch (AggregateException aex)
-            {
-                Console.WriteLine("\n[RouteRemoteCall] AggregateException");
-                Console.WriteLine(aex);
-                aex.Flatten().Handle(ex =>
-                {
-                    if (ex is AssertionFailureException) session.Finish(false, ex.Message);
-                    return false;
-                });
-                throw aex.InnerException;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("\n[RouteRemoteCall] Exception");
-                Console.WriteLine(ex);
-                throw ex;
-            }*/
+
+            return session.InvokeAndHandleException(methodName, args);
         }
 
         /* Methods below are the actual methods called (remotely) by the client-side proxy object.
@@ -191,73 +144,73 @@ namespace Nekara.Core
         [RemoteMethod(name = "CreateTask", description = "Creates a new task")]
         public void CreateTask(JToken sessionId)
         {
-            RouteRemoteCall(sessionId, "CreateTask", null);
+            RouteRemoteCall(sessionId, "CreateTask");
         }
 
         [RemoteMethod(name = "StartTask", description = "Signals the start of a given task")]
         public void StartTask(JToken sessionId, JToken taskId)
         {
-            RouteRemoteCall(sessionId, "StartTask", new object[] { taskId.ToObject<int>() });
+            RouteRemoteCall(sessionId, "StartTask", taskId.ToObject<int>());
         }
 
         [RemoteMethod(name = "EndTask", description = "Signals the end of a given task")]
         public void EndTask(JToken sessionId, JToken taskId)
         {
-            RouteRemoteCall(sessionId, "EndTask", new object[] { taskId.ToObject<int>() });
+            RouteRemoteCall(sessionId, "EndTask", taskId.ToObject<int>());
         }
 
         [RemoteMethod(name = "CreateResource", description = "Notifies the creation of a new resource")]
         public void CreateResource(JToken sessionId, JToken resourceId)
         {
-            RouteRemoteCall(sessionId, "CreateResource", new object[] { resourceId.ToObject<int>() });
+            RouteRemoteCall(sessionId, "CreateResource", resourceId.ToObject<int>());
         }
 
         [RemoteMethod(name = "DeleteResource", description = "Signals the deletion of a given resource")]
         public void DeleteResource(JToken sessionId, JToken resourceId)
         {
-            RouteRemoteCall(sessionId, "DeleteResource", new object[] { resourceId.ToObject<int>() });
+            RouteRemoteCall(sessionId, "DeleteResource", resourceId.ToObject<int>());
         }
 
         [RemoteMethod(name = "BlockedOnResource", description = "")]
         public void BlockedOnResource(JToken sessionId, JToken resourceId)
         {
-            RouteRemoteCall(sessionId, "BlockedOnResource", new object[] { resourceId.ToObject<int>() });
+            RouteRemoteCall(sessionId, "BlockedOnResource", resourceId.ToObject<int>());
         }
 
         [RemoteMethod(name = "SignalUpdatedResource", description = "")]
         public void SignalUpdatedResource(JToken sessionId, JToken resourceId)
         {
-            RouteRemoteCall(sessionId, "SignalUpdatedResource", new object[] { resourceId.ToObject<int>() });
+            RouteRemoteCall(sessionId, "SignalUpdatedResource", resourceId.ToObject<int>());
         }
 
         [RemoteMethod(name = "CreateNondetBool", description = "")]
         public bool CreateNondetBool(JToken sessionId)
         {
-            return (bool)RouteRemoteCall(sessionId, "CreateNondetBool", null);
+            return (bool)RouteRemoteCall(sessionId, "CreateNondetBool");
         }
 
         [RemoteMethod(name = "CreateNondetInteger", description = "")]
         public int CreateNondetInteger(JToken sessionId, JToken maxValue)
         {
-            return (int)RouteRemoteCall(sessionId, "CreateNondetInteger", new object[] { maxValue.ToObject<int>() });
+            return (int)RouteRemoteCall(sessionId, "CreateNondetInteger", maxValue.ToObject<int>());
         }
 
         [RemoteMethod(name = "Assert", description = "")]
         public void Assert(JToken sessionId, JToken value, JToken message)
         {
-            RouteRemoteCall(sessionId, "Assert", new object[] { value.ToObject<bool>(), message.ToObject<string>() });
+            RouteRemoteCall(sessionId, "Assert", value.ToObject<bool>(), message.ToObject<string>());
         }
 
         [RemoteMethod(name = "ContextSwitch", description = "Signals the deletion of a given resource")]
         public void ContextSwitch(JToken sessionId)
         {
-            RouteRemoteCall(sessionId, "ContextSwitch", null);
+            RouteRemoteCall(sessionId, "ContextSwitch");
         }
 
         [RemoteMethod(name = "WaitForMainTask", description = "Wait for test to finish")]
         public string WaitForMainTask(JToken sessionId)
         {
-            return (string)RouteRemoteCall(sessionId, "WaitForMainTask", null);
+            return (string)RouteRemoteCall(sessionId, "WaitForMainTask");
         }
     }
 }
