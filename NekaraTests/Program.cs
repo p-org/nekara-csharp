@@ -33,7 +33,7 @@ namespace NekaraTests
             }
 
             var info = args[0].Split('.');
-            var typeName = String.Join(".", info.SkipLast(1));
+            var typeName = String.Join(".", info.Take(info.Length - 1));
             var methodName = info.Last();
             var repeat = Int32.Parse(args[1]);
 

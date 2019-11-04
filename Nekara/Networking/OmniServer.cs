@@ -87,6 +87,13 @@ namespace Nekara.Networking
                     catch (TargetInvocationException ex)
                     {
                         Console.WriteLine("[OmniServer.RegisterRemoteMethod] Caught TargetInvocationException/{0}!", ex.InnerException.GetType().Name);
+                        if (ex.InnerException is AmbiguousMatchException
+                            || ex.InnerException is InvalidOperationException
+                            || ex.InnerException is TargetInvocationException
+                            || ex.InnerException is AggregateException)
+                        {
+                            Console.WriteLine(ex.InnerException);
+                        }
                         throw ex.InnerException;
                     }
                 };
@@ -136,7 +143,7 @@ namespace Nekara.Networking
         // this method is called internally by the main message listener loop
         private Task<ResponseMessage> HandleRequest(RequestMessage message)
         {
-            //Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
+            // Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
             if (this.remoteMethods.ContainsKey(message.func))
             {
                 // If any Exception thrown during remoteMethod invocation,
@@ -152,7 +159,8 @@ namespace Nekara.Networking
                         // Console.WriteLine("    ... responding to {2}:  {0} {1}", message.func, prev.IsFaulted, message.id);
                         if (prev.IsFaulted)
                         {
-                            Console.WriteLine("[OmniServer.HandleRequest] {0} Caught while handling [{1}]!", prev.Exception.GetType().Name, message.func);
+                            // Console.WriteLine("[OmniServer.HandleRequest] {0} Caught while handling [{1}]!", prev.Exception.GetType().Name, message.func);
+                            // Console.WriteLine(prev.Exception);
                             if (prev.Exception is AggregateException)
                             {
                                 return message.CreateErrorResponse("Tester-Server", JToken.FromObject(prev.Exception.Flatten().InnerException));
@@ -222,7 +230,7 @@ namespace Nekara.Networking
                 {
                     //Console.WriteLine("<-- Returning {3}Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id, prev.Result.error ? "Error " : "");
                     ResponseMessage reply = prev.Result;
-                    response.Send(prev.Result.error ? 500 : 200, reply);
+                    response.Send(200, reply);
                 });
             });
 

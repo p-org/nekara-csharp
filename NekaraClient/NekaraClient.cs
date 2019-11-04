@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Nekara.Networking;
 using Nekara.Core;
-using System.Runtime.CompilerServices;
 
 namespace Nekara.Client
 {
@@ -53,11 +52,24 @@ namespace Nekara.Client
             {
                 Console.WriteLine("\n\n=====[ Test Result ]===============\n");
                 int passed = 0;
+                var passedTime = new List<double>();
+                var failedTime = new List<double>();
                 foreach (var item in this.results)
                 {
-                    Console.WriteLine("Session {0}:\t{1}{2}", item.Key, item.Value.passed ? "Pass" : "Fail", item.Value.passed ? "" : "\t(" + item.Value.reason + ")");
-                    if (item.Value.passed) passed++;
+                    Console.WriteLine("Session {0} (seed = {1}):\t{2} ms\t{3}{4}", item.Key, item.Value.seed, item.Value.elapsedMs, item.Value.passed ? "Pass" : "Fail", item.Value.passed ? "" : "\t(" + item.Value.reason + ")");
+                    if (item.Value.passed)
+                    {
+                        passed++;
+                        passedTime.Add(item.Value.elapsedMs);
+                    }
+                    else
+                    {
+                        failedTime.Add(item.Value.elapsedMs);
+                    }
                 }
+                Console.WriteLine("\n----------[ {0}/{1} Passed ]----------\n", passed, this.results.Count);
+                if (passedTime.Count > 0) Console.WriteLine("    Average Time for Bug-free Sessions:\t{0} ms", passedTime.Average());
+                if (failedTime.Count > 0) Console.WriteLine("    Average Time for Buggy Sessions:\t{0} ms", failedTime.Average());
                 Console.WriteLine("\n==========[ {0}/{1} Passed ]==========\n", passed, this.results.Count);
             }
         }
@@ -155,7 +167,7 @@ namespace Nekara.Client
             });
         }
 
-        public Task StartSession(string sessionId, MethodInfo testMethod)
+        public Task StartSession(string sessionId, MethodInfo testMethod, int schedulingSeed)
         {
             //var tcs = new TaskCompletionSource<bool>();
             //this.sessions.Add(sessionId, tcs);
@@ -191,7 +203,7 @@ namespace Nekara.Client
                     }
                     finally
                     {
-                        resolve(null);
+                        resolve(reason);
                     }
                 }
                 else
@@ -220,11 +232,11 @@ namespace Nekara.Client
 
             }).Then(data =>
             {
-                string reason = (string)data;
+                TestResult result = TestResult.Deserialize((string)data);
 
                 // if result exists, this is a replayed session
-                if (!this.results.ContainsKey(sessionId)) this.results.Add(sessionId, new TestResult(reason == "", reason));
-                else this.results[sessionId] = new TestResult(reason == "", reason);
+                if (!this.results.ContainsKey(sessionId)) this.results.Add(sessionId, result);
+                else this.results[sessionId] = result;
 
                 // clean up
                 // this.testingApi.Finish();
@@ -232,11 +244,11 @@ namespace Nekara.Client
                 Console.WriteLine("\n    ... resetting task ID generator");
                 this.idGen.Reset();
 
-                Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sessionId, reason == "" ? "PASSED" : "FAILED");
-                if (reason != "")
+                Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sessionId, result.reason == "" ? "PASSED" : "FAILED");
+                if (result.reason != "")
                 {
-                    Console.WriteLine("  " + reason);
-                    Console.WriteLine("\n==================================== END ===");
+                    Console.WriteLine("  " + result.reason);
+                    Console.WriteLine("\n==================================== END ===[ {0} ms ]===", result.elapsedMs);
                 }
 
                 return null;
@@ -266,7 +278,7 @@ namespace Nekara.Client
             {
                 string sid = sessionId.ToString();
 
-                var session = this.StartSession(sid, testMethod);
+                var session = this.StartSession(sid, testMethod, schedulingSeed);
 
                 session.Wait();
 
@@ -299,7 +311,7 @@ namespace Nekara.Client
                 var testDefinition = GetTestDefinition(testMethod);
 
                 if (testDefinition.Setup != null) testDefinition.Setup.Invoke(null, null);
-                var session = this.StartSession(info.id, testMethod);
+                var session = this.StartSession(info.id, testMethod, info.schedulingSeed);
                 session.Wait();
                 if (testDefinition.Teardown != null) testDefinition.Teardown.Invoke(null, null);
 

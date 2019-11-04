@@ -100,8 +100,8 @@ namespace Nekara.Networking
             }
             catch (System.Net.Http.HttpRequestException e)
             {
-                Console.WriteLine("\nException Caught!");
-                Console.WriteLine("Message :{0} ", e.Message);
+                Console.WriteLine("\nUnexpected Server Error!");
+                Console.WriteLine("Message :\n{0} ", e.Message);
                 responseBody = "";
             }
             return responseBody;

@@ -24,8 +24,58 @@ namespace Nekara.Tests.Benchmarks
 
             nekara.CreateTask();
             Task.Run(() => Bar());
+        }
 
-            Task.Run(() => Distraction());
+        [TestMethod]
+        public static void RunLiveLock()
+        {
+            // initialize all relevant state
+            lck = false;
+            x = 0;
+
+            nekara.CreateTask();
+            Task.Run(() => Foo());
+
+            nekara.CreateTask();
+            Task.Run(() => Bar());
+
+            Task.Run(() => Distraction());  // this is an undeclared Task, so we should expect the server to fail.
+        }
+
+        [TestMethod]
+        public static void RunLiveLockTrivial()
+        {
+            // initialize all relevant state
+            
+            nekara.CreateTask();
+            Task.Run(() => {
+                nekara.StartTask(1);
+
+                nekara.ContextSwitch();
+
+                nekara.EndTask(1);
+            });
+
+            Task.Run(() =>
+            {
+                nekara.ContextSwitch();
+            });
+        }
+
+        [TestMethod]
+        public static void RunUserMistake()
+        {
+            // initialize all relevant state
+            lck = false;
+            x = 0;
+
+            nekara.CreateTask();
+            Task.Run(() => Foo());
+
+            nekara.CreateTask();
+            Task.Run(() => Bar());
+
+            Task.Run(() => UndeclaredTask());  // this is an undeclared Task, so we should expect the server to fail.
         }
 
         static void Foo()
@@ -67,7 +117,14 @@ namespace Nekara.Tests.Benchmarks
 
         static void Distraction()
         {
-            // nekara.StartTask(2);
+            // nekara.StartTask(3);
+
+            nekara.ContextSwitch();
+        }
+
+        static void UndeclaredTask()
+        {
+            nekara.StartTask(3);
 
             nekara.ContextSwitch();
         }

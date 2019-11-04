@@ -2,31 +2,24 @@
 using Nekara.Client;
 using Nekara.Models;
 using Nekara.Core;
-using System;
 
 namespace Nekara.Tests.Benchmarks
 {
-    class NestedTask1
+    class NestedTask2
     {
         static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
         [TestMethod]
         public async static NativeTasks.Task Execute()
         {
-            await Foo();
-            // await Bar();
+            await Foo(5);
             return;
         }
 
-        public async static Task Foo()
+        public async static Task Foo(int count)
         {
-            await Bar();
-            return;
-        }
-
-        public async static Task Bar()
-        {
-            await NativeTasks.Task.Delay(100);
+            if (count == 0) return;
+            await Foo(count - 1);
             return;
         }
     }

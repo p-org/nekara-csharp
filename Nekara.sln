@@ -22,8 +22,8 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{512148E5-4667-4BB0-900A-5E438651143F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{512148E5-4667-4BB0-900A-5E438651143F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{512148E5-4667-4BB0-900A-5E438651143F}.NekaraCompiler|Any CPU.ActiveCfg = NekaraCompiler|Any CPU
-		{512148E5-4667-4BB0-900A-5E438651143F}.NekaraCompiler|Any CPU.Build.0 = NekaraCompiler|Any CPU
+		{512148E5-4667-4BB0-900A-5E438651143F}.NekaraCompiler|Any CPU.ActiveCfg = Release|Any CPU
+		{512148E5-4667-4BB0-900A-5E438651143F}.NekaraCompiler|Any CPU.Build.0 = Release|Any CPU
 		{512148E5-4667-4BB0-900A-5E438651143F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{512148E5-4667-4BB0-900A-5E438651143F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{BC72E62B-B8DC-489B-97EE-572F239DDBEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU

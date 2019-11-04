@@ -28,8 +28,6 @@ namespace Nekara.Core
                                         // TODO: it should be handled more gracefully by revising the RemoteMethodAsync signature to accept a reference to ClientHandle
                                         //       and the respective reply/reject callbacks
 
-        private TestingSession currentSession;
-
         public NekaraServer(OmniServer socket)
         {
             this.testSessions = new Dictionary<string, TestingSession>();
@@ -43,22 +41,12 @@ namespace Nekara.Core
             this.summaryFile.WriteLine("Assembly,Class,Method,SessionId,Seed,Result,Reason,Elapsed");
 
             this.socket = socket;
-
-            this.currentSession = null;
         }
 
         [RemoteMethod(name = "InitializeTestSession", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
         // treating this method as a special case because it spawns another Task we have to resolve later
         public string InitializeTestSession(JToken arg0, JToken arg1, JToken arg2, JToken arg3, JToken arg4)
         {
-            // HACK: Wait till previous session finishes
-            // - a better way to deal with this is to keep a dictionary of sessions
-            // and associate each request with a particular session so that the sessions are isolated
-            while (this.currentSession != null)
-            {
-                Thread.Sleep(200);
-            }
-
             string assemblyName = arg0.ToObject<string>();
             string assemblyPath = arg1.ToObject<string>();
             string methodDeclaringClass = arg2.ToObject<string>();
@@ -70,62 +58,58 @@ namespace Nekara.Core
 
             session.OnComplete(finished =>
             {
-                Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", finished.id, finished.passed ? "PASSED" : "FAILED");
-                if (finished.reason != "")
+                Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", finished.Id, finished.lastResult.passed ? "PASSED" : "FAILED");
+                if (finished.lastResult.reason != "")
                 {
-                    Console.WriteLine("  " + finished.reason);
+                    Console.WriteLine("  " + finished.lastResult.reason);
                 }
 
                 // Append Summary
-                string summary = String.Join(",", new string[] { assemblyName, methodDeclaringClass, methodName, finished.id, finished.schedulingSeed.ToString(), (finished.passed ? "pass" : "fail"), finished.reason, finished.ElapsedMilliseconds.ToString() });
+                string summary = String.Join(",", new string[] { assemblyName, methodDeclaringClass, methodName, finished.Id, finished.Info.schedulingSeed.ToString(), (finished.lastResult.passed ? "pass" : "fail"), finished.lastResult.reason, finished.lastResult.elapsedMs.ToString() });
                 this.summaryFile.WriteLine(summary);
                 this.summaryFile.Flush();
 
-                Console.WriteLine("\n===== END of {0} (ran in {1} ms) =====[ Results: {2}/{3} ]=====\n\n", finished.id, finished.ElapsedMilliseconds.ToString(), this.testSessions.Where(item => item.Value.passed == true).Count(), this.testSessions.Count);
+                Console.WriteLine("\n===== END of {0} (ran in {1} ms) =====[ Results: {2}/{3} ]=====\n\n", finished.Id, finished.lastResult.elapsedMs.ToString(), this.testSessions.Where(item => item.Value.lastResult.passed == true).Count(), this.testSessions.Count);
 
-                this.currentSession = null;      // Clear the sessionId so the next session can begin
             });
-            
-            this.testSessions.Add(session.id, session);
-            this.currentSession = session;
 
-            Console.WriteLine("\n\n===== BEGIN {0} ================================\n", session.id);
+            lock (this.testSessions)
+            {
+                this.testSessions.Add(session.Id, session);
+            }
+
+            Console.WriteLine("\n\n===== BEGIN {0} ================================\n", session.Id);
             Console.WriteLine("  [{1}]\n  in {0}, with seed = {2}\n", assemblyName, methodDeclaringClass + "." + methodName, schedulingSeed);
-            Console.WriteLine("\nIndex\tCurThrd\t#Thrds\tCurTask\t#Tasks\tStage\tMethod\tArgs");
+            Console.WriteLine("\nIndex\tThrd\t#Thrds\tCurTask\t#Tasks\t#Blckd\tPending\tStage\tMethod\tArgs");
 
-            return this.currentSession.id;
+            return session.Id;
         }
 
         [RemoteMethod(name = "GetSessionInfo", description = "Gets the Session info based on the session ID")]
         public SessionInfo GetSessionInfo(JToken arg)
         {
             string sessionId = arg.ToObject<string>();
-            if (!this.testSessions.ContainsKey(sessionId)) throw new SessionRecordNotFoundException("Session " + sessionId + " not found");
-
-            return this.testSessions[sessionId].info;
+            lock (this.testSessions)
+            {
+                if (!this.testSessions.ContainsKey(sessionId)) throw new SessionRecordNotFoundException("Session " + sessionId + " not found");
+                return this.testSessions[sessionId].Info;
+            }
         }
 
         [RemoteMethod(name = "ReplayTestSession", description = "Replays the test session identified by the given session ID")]
         public SessionInfo ReplayTestSession(JToken arg)
         {
-            // HACK: Wait till previous session finishes
-            // - a better way to deal with this is to keep a dictionary of sessions
-            // and associate each request with a particular session so that the sessions are isolated
-            while (this.currentSession != null)
-            {
-                Thread.Sleep(200);
-            }
-
             string sessionId = arg.ToObject<string>();
 
             SessionInfo info = GetSessionInfo(sessionId);
-            TestingSession session = this.testSessions[sessionId];
-            session.Reset();
+            lock (this.testSessions)
+            {
+                TestingSession session = this.testSessions[sessionId];
+                session.Reset();
 
-            Console.WriteLine("\n\n===== BEGIN REPLAY {0} =========================\n", sessionId);
-            Console.WriteLine("  [{1}]\n  in {0}\n", session.assemblyName, session.methodDeclaringClass + "." + session.methodName);
-
-            this.currentSession = session;
+                Console.WriteLine("\n\n===== BEGIN REPLAY {0} =========================\n", sessionId);
+                Console.WriteLine("  [{1}]\n  in {0}\n", info.assemblyName, info.methodDeclaringClass + "." + info.methodName);
+            }
 
             return info;
         }
@@ -133,7 +117,6 @@ namespace Nekara.Core
         private object RouteRemoteCall(JToken sessionId, string methodName, params object[] args)
         {
             var session = this.testSessions[sessionId.ToObject<string>()];
-
             return session.InvokeAndHandleException(methodName, args);
         }
 

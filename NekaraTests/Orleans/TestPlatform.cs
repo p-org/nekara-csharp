@@ -18,7 +18,7 @@ namespace Nekara.Tests.Orleans
                 .Configure<ClusterOptions>(options =>
                 {
                     options.ClusterId = "dev";
-                    options.ServiceId = "OrleansBasics";
+                    options.ServiceId = "NekaraOrleansBenchmarks";
                 })
                 .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(LockGrain).Assembly).WithReferences());
                 //.ConfigureLogging(logging => logging.AddConsole());

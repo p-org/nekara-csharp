@@ -90,9 +90,15 @@ namespace Nekara.Networking
             // Assign the appropriate SendRequest method
             this._sendRequest = (func, args) =>
             {
-                var task = client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args).Serialize())
-                    .ContinueWith(prev => ResponseMessage.Deserialize(prev.Result).data);
-                return (task, new CancellationTokenSource());
+                var tcs = new TaskCompletionSource<JToken>();
+                var cts = new CancellationTokenSource();
+                client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args).Serialize())
+                    .ContinueWith(prev => {
+                        var resp = ResponseMessage.Deserialize(prev.Result);
+                        if (resp.error) tcs.SetException(Exceptions.DeserializeServerSideException(resp.data));
+                        else tcs.SetResult(resp.data);
+                    });
+                return (tcs.Task, cts);
             };
 
             this._addRemoteMethod = (string func, RemoteMethodAsync handler) =>

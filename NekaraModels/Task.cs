@@ -134,6 +134,7 @@ namespace Nekara.Models
     }
 
 
+    [AsyncMethodBuilder(typeof(TaskMethodBuilder<>))]
     public class Task<T> : IAsyncResult, IDisposable
     {
         private static NekaraClient Client = RuntimeEnvironment.Client;

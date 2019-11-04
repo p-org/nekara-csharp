@@ -146,26 +146,25 @@ namespace Nekara.Networking
                 Stream stream = request.InputStream;
                 Encoding encoding = request.ContentEncoding;
                 StreamReader reader = new StreamReader(stream, encoding);
-                /*
-                if (request.ContentType != null)
+
+                /*if (request.ContentType != null)
                 {
                     Console.WriteLine("Client data content type {0}", request.ContentType);
                 }
-                Console.WriteLine("Client data content length {0}", request.ContentLength64);
-                */
+                Console.WriteLine("Client data content length {0}", request.ContentLength64);*/
 
                 // Print some meta info
-                if (request.ContentType != null)
+                /*if (request.ContentType != null)
                 {
-                    //Console.WriteLine("    Content-Type: {0}", request.ContentType);
-                    //Console.WriteLine("    Payload Size: {0}", request.ContentLength64);
-                }
+                    Console.WriteLine("    Content-Type: {0}", request.ContentType);
+                    Console.WriteLine("    Payload Size: {0}", request.ContentLength64);
+                }*/
 
                 // Console.WriteLine("Start of client data:");
                 // Convert the data to a string and display it on the console.
                 this._body = reader.ReadToEnd();
 
-                // Console.WriteLine(s);
+                //Console.WriteLine(this._body);
                 // Console.WriteLine("End of client data:");
                 stream.Close();
                 reader.Close();

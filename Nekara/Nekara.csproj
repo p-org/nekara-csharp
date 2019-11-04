@@ -1,10 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <StartupObject>Nekara.Program</StartupObject>
-    <Configurations>Debug;Release;NekaraCompiler</Configurations>
+    <Configurations>Debug;Release</Configurations>
+    <ApplicationIcon />
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
+    <PackageReference Include="System.AppContext" Version="4.1.0" />
   </ItemGroup>
 
 </Project>

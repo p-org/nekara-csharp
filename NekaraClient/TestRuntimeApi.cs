@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Nekara.Networking;
 using Nekara.Core;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace Nekara.Client
 {
@@ -16,7 +17,7 @@ namespace Nekara.Client
 
         private object stateLock;
         public IClient socket;
-        private HashSet<(Task,CancellationTokenSource)> pendingRequests;
+        private HashSet<(Task,CancellationTokenSource,string)> pendingRequests;
 
         public string sessionId;
         private int count;
@@ -26,7 +27,7 @@ namespace Nekara.Client
         {
             this.stateLock = new object();
             this.socket = socket;
-            this.pendingRequests = new HashSet<(Task,CancellationTokenSource)>();
+            this.pendingRequests = new HashSet<(Task,CancellationTokenSource,string)>();
 
             this.sessionId = null;
             this.count = 0;
@@ -51,6 +52,7 @@ namespace Nekara.Client
                 this.pendingRequests.ToList().ForEach(tup => tup.Item2.Cancel());
                 var tasks = this.pendingRequests.Select(tuple => tuple.Item1).ToArray();
                 Console.WriteLine("\n\n    ... cleaning up {0} pending tasks", tasks.Length);
+                Console.WriteLine(String.Join("", this.pendingRequests.Select(tup => "\n\t  ... " + tup.Item3)));
 
                 var pending = Task.WhenAll(tasks);
                 
@@ -72,6 +74,8 @@ namespace Nekara.Client
 
         private JToken InvokeAndHandleException(string func, params JToken[] args)
         {
+            string callName = $"{func}({String.Join(",", args.Select(arg => arg.ToString()))})";
+
             Task<JToken> task = null;
             CancellationTokenSource canceller = null;
             lock (this.stateLock)
@@ -85,7 +89,7 @@ namespace Nekara.Client
                     Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t--->>\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");
                     (task, canceller) = this.socket.SendRequest(func, extargs);
 
-                    this.pendingRequests.Add((task, canceller));
+                    this.pendingRequests.Add((task, canceller, callName));
                 }
                 else throw new SessionAlreadyFinishedException($"Session already finished, suspending further requests: [{func}]");
             }
@@ -95,7 +99,7 @@ namespace Nekara.Client
                 task.Wait();
                 lock (this.stateLock)
                 {
-                    this.pendingRequests.Remove((task, canceller));
+                    this.pendingRequests.Remove((task, canceller, callName));
                     Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t<<---\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");
 
                     if (this.finished) throw new SessionAlreadyFinishedException($"[{func}] returned but session already finished, throwing to prevent further progress");
@@ -103,7 +107,7 @@ namespace Nekara.Client
             }
             catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
             {
-                Console.WriteLine("\n\n[TestRuntimeApi.InvokeAndHandleException] AggregateException caught during {0}!", func);
+                Console.WriteLine("\n\n[TestRuntimeApi.InvokeAndHandleException] AggregateException/{1} caught during {0}!", func, aex.InnerException.GetType().Name);
                 if (aex.InnerException is AssertionFailureException
                     || aex.InnerException is TestFailedException) throw new IntentionallyIgnoredException(aex.InnerException.Message, aex.InnerException);
                 else throw;
@@ -158,7 +162,7 @@ namespace Nekara.Client
 
         public int CreateNondetInteger(int maxValue)
         {
-            return InvokeAndHandleException("CreateNondetInteger").ToObject<int>();
+            return InvokeAndHandleException("CreateNondetInteger", maxValue).ToObject<int>();
         }
 
         public void Assert(bool predicate, string s)
@@ -173,11 +177,11 @@ namespace Nekara.Client
 
         public string WaitForMainTask()
         {
-            var reason = InvokeAndHandleException("WaitForMainTask").ToObject<string>();
+            var serializedResult = InvokeAndHandleException("WaitForMainTask").ToObject<string>();
             
             this.Finish();
-            
-            return reason;
+
+            return serializedResult;
         }
     }
 }
