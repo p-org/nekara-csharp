@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Nekara.Networking;
 using Nekara.Core;
-using System.Runtime.InteropServices.ComTypes;
 
 namespace Nekara.Client
 {
@@ -23,6 +21,10 @@ namespace Nekara.Client
         private int count;
         private bool finished;
 
+        // performance data
+        public int numRequests;
+        public double avgRtt;      // average round-trip time (time taken between sending of request and receiving of response)
+
         public TestRuntimeApi(IClient socket)
         {
             this.stateLock = new object();
@@ -32,6 +34,9 @@ namespace Nekara.Client
             this.sessionId = null;
             this.count = 0;
             this.finished = false;
+
+            this.numRequests = 0;
+            this.avgRtt = 0;
         }
 
         // Called by the parent object (TestingServiceProxy) to give 
@@ -41,6 +46,9 @@ namespace Nekara.Client
             this.sessionId = sessionId;
             this.count = 0;
             this.finished = false;
+
+            this.numRequests = 0;
+            this.avgRtt = 0;
         }
 
         public void Finish()
@@ -75,6 +83,7 @@ namespace Nekara.Client
         private JToken InvokeAndHandleException(string func, params JToken[] args)
         {
             string callName = $"{func}({String.Join(",", args.Select(arg => arg.ToString()))})";
+            DateTime sentAt;
 
             Task<JToken> task = null;
             CancellationTokenSource canceller = null;
@@ -82,11 +91,13 @@ namespace Nekara.Client
             {
                 if (!this.finished)
                 {
+                    sentAt = DateTime.Now;
+
                     var extargs = new JToken[args.Length + 1];
                     extargs[0] = JToken.FromObject(this.sessionId);
                     Array.Copy(args, 0, extargs, 1, args.Length);
 
-                    Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t--->>\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");
+                    //Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t--->>\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");
                     (task, canceller) = this.socket.SendRequest(func, extargs);
 
                     this.pendingRequests.Add((task, canceller, callName));
@@ -99,8 +110,11 @@ namespace Nekara.Client
                 task.Wait();
                 lock (this.stateLock)
                 {
+                    Interlocked.Exchange(ref this.avgRtt, ((DateTime.Now - sentAt).TotalMilliseconds + numRequests * avgRtt) / (numRequests + 1));
+                    Interlocked.Increment(ref this.numRequests);
+
                     this.pendingRequests.Remove((task, canceller, callName));
-                    Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t<<---\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");
+                    //Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t<<---\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");
 
                     if (this.finished) throw new SessionAlreadyFinishedException($"[{func}] returned but session already finished, throwing to prevent further progress");
                 }

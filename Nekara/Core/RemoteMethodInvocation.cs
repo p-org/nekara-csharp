@@ -8,9 +8,6 @@ namespace Nekara.Core
 {
     public class RemoteMethodInvocation
     {
-        // metadata
-        public readonly DateTime CalledAt;
-
         // parameters
         public readonly object Instance;
         public readonly MethodInfo Function;
@@ -25,8 +22,6 @@ namespace Nekara.Core
 
         public RemoteMethodInvocation(object instance, MethodInfo func, object[] args)
         {
-            CalledAt = DateTime.Now;
-
             Instance = instance;
             Function = func;
             Arguments = args;

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Nekara.Core;
+using System;
 
 namespace Nekara.Client
 {
@@ -9,5 +10,15 @@ namespace Nekara.Client
     [AttributeUsage(AttributeTargets.Method)]
     public sealed class TestMethodAttribute : Attribute
     {
+        public int TimeoutMs = Constants.SessionTimeoutMs;
+        public int MaxDecisions = Constants.SessionMaxDecisions;
+
+        public TestMethodAttribute() {}
+
+        public TestMethodAttribute(int timeout, int maxDecisions)
+        {
+            this.TimeoutMs = timeout;
+            this.MaxDecisions = maxDecisions;
+        }
     }
 }

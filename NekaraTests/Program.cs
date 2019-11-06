@@ -32,29 +32,38 @@ namespace NekaraTests
                 return;
             }
 
-            var info = args[0].Split('.');
-            var typeName = String.Join(".", info.Take(info.Length - 1));
-            var methodName = info.Last();
-            var repeat = Int32.Parse(args[1]);
-
-            var random = new Random(DateTime.Now.Second);
+            // var random = new Random(DateTime.Now.Second);
 
             Console.WriteLine("Running Benchmarks...");
 
             NekaraClient client = RuntimeEnvironment.Client;
 
-            var assembly = Assembly.GetExecutingAssembly();
-            var testMethod = client.GetMethodToBeTested(assembly, typeName, methodName);
-            var testDefinition = client.GetTestDefinition(testMethod);
-
-            /*for (int i = 0; i < repeat; i++)
+            if (args[0] == "replay")
             {
-                var run = client.RunTest(testMethod, random.Next()).Task;
+                // Make a replay request
+                var run = client.ReplayTestSession(args[1]).Task;
                 run.Wait();
-            }*/
+            }
+            else
+            {
+                var info = args[0].Split('.');
+                var typeName = String.Join(".", info.Take(info.Length - 1));
+                var methodName = info.Last();
+                var repeat = Int32.Parse(args[1]);
 
-            var run = client.RunTest(testDefinition, repeat).Task;
-            run.Wait();
+                var assembly = Assembly.GetExecutingAssembly();
+                var testMethod = client.GetMethodToBeTested(assembly, typeName, methodName);
+                var testDefinition = client.GetTestDefinition(testMethod);
+
+                /*for (int i = 0; i < repeat; i++)
+                {
+                    var run = client.RunTest(testMethod, random.Next()).Task;
+                    run.Wait();
+                }*/
+
+                var run = client.RunTest(testDefinition, repeat).Task;
+                run.Wait();
+            }
 
             client.PrintTestResults();
 

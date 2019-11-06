@@ -103,7 +103,24 @@ namespace Nekara.Networking
                 this.remoteMethods[name] = (senderId, args) =>
                 {
                     // Console.WriteLine("    Invoking Remote Method: {0} ({1})", name, String.Join(",", args.Select(t => t.ToString())));
-                    return Task<JToken>.FromResult(JToken.FromObject(method.Invoke(instance, args)));
+                    try
+                    {
+                        object result = method.Invoke(instance, args);
+
+                        return Task<JToken>.FromResult(JToken.FromObject(result));
+                    }
+                    catch (TargetInvocationException ex)
+                    {
+                        Console.WriteLine("[OmniServer.RegisterRemoteMethod] Caught TargetInvocationException/{0}!", ex.InnerException.GetType().Name);
+                        if (ex.InnerException is AmbiguousMatchException
+                            || ex.InnerException is InvalidOperationException
+                            || ex.InnerException is TargetInvocationException
+                            || ex.InnerException is AggregateException)
+                        {
+                            Console.WriteLine(ex.InnerException);
+                        }
+                        throw ex.InnerException;
+                    }
                 };
             }
             Console.WriteLine("    Registered Remote Method: {0}.{1}", instance.GetType().Name, name);

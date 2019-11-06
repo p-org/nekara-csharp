@@ -5,27 +5,26 @@ using System.Linq;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reflection;
 
 namespace Nekara.Core
 {
     public class TestingSession : ITestingService
     {
-        // hyperparameters
-        private static int timeoutDelay = 5000;     // timeout for client-side inactivity
-        private static int maxDecisions = 500;     // threshold for determining live-lock
+        // It appears that Process.GetCurrentProcess is a very expensive call
+        // (makes the whole app 10 ~ 15x slower when called in AppendLog), so we save the reference here.
+        // However, this object is used only for debugging and can be omitted entirely.
+        private static Process currentProcess = Process.GetCurrentProcess();
+        private static int PrintVerbosity = 1;
 
         // metadata
-        public SessionInfo Info;
+        public SessionInfo Meta;
 
         // run-time objects
-        public StreamWriter logger;
         private readonly StreamWriter traceFile;
-        private Action<TestingSession> _onComplete;
+        private readonly StreamWriter logFile;
+        private Action<SessionRecord> _onComplete;
         private readonly object stateLock;
-        private bool replayMode; // indicates it has already ran once
-        private DateTime startedAt;
-        private DateTime finishedAt;
-        private TimeSpan elapsed;
         private Timer timeout;
 
         // testing service objects
@@ -33,39 +32,53 @@ namespace Nekara.Core
         private int counter;
         ProgramState programState;
         int numPendingTaskCreations;
-        TaskCompletionSource<TestResult> SessionFinished;
+        TaskCompletionSource<SessionRecord> SessionFinished;
         HashSet<RemoteMethodInvocation> pendingRequests;    // to keep track of unresolved requests. This can actually be done with a simple counter, but we want to present useful information to the client.
         List<DecisionTrace> testTrace;
+        List<string> runtimeLog;
 
         // result data
-        public TestResult lastResult;
+        public List<SessionRecord> records;
+        public SessionRecord currentRecord;
 
-        public TestingSession(string assemblyName, string assemblyPath, string methodDeclaringClass, string methodName, int schedulingSeed)
+        public TestingSession(string assemblyName, string assemblyPath, string methodDeclaringClass, string methodName, int schedulingSeed, int timeoutMs = Constants.SessionTimeoutMs, int maxDecisions = Constants.SessionMaxDecisions)
         {
 
-            this.Info = new SessionInfo(Helpers.RandomString(8), assemblyName, assemblyPath, methodDeclaringClass, methodName, schedulingSeed);
+            this.Meta = new SessionInfo(Helpers.RandomString(8), assemblyName, assemblyPath, methodDeclaringClass, methodName, schedulingSeed, timeoutMs, maxDecisions);
 
-            this.lastResult = default(TestResult);
+            this.records = new List<SessionRecord>();
 
             // initialize run-time objects
-            this._onComplete = self => { };     // empty onComplete handler
+            this._onComplete = record => { };     // empty onComplete handler
             this.stateLock = new object();
-            this.replayMode = false;
-            this.traceFile = File.AppendText("logs/trace-" + this.Id + ".csv");
+            this.traceFile = File.AppendText(this.traceFilePath);
+            this.logFile = File.AppendText(this.logFilePath);
 
             this.Reset();
         }
 
-        public string Id { get { return this.Info.id; } }
+        public TestingSession(SessionInfo meta) :
+            this(meta.assemblyName,
+                meta.assemblyPath,
+                meta.methodDeclaringClass,
+                meta.methodName,
+                meta.schedulingSeed,
+                meta.timeoutMs,
+                meta.maxDecisions) { }
 
-        // public SessionInfo info { get { return new SessionInfo(this.id, this.assemblyName, this.assemblyPath, this.methodDeclaringClass, this.methodName, this.schedulingSeed); } }
+        public string Id { get { return this.Meta.id; } }
+
+        public string traceFilePath { get { return "logs/run-" + this.Id + "-trace.csv"; } }
+
+        public string logFilePath { get { return "logs/run-" + this.Id + "-log.csv"; } }
 
         public bool IsFinished { get; set; }
 
-        public double ElapsedMilliseconds { get { return this.elapsed.TotalMilliseconds; } }
-        public double ElapsedSeconds { get { return this.elapsed.TotalSeconds; } }
+        public bool IsReplayMode { get { return this.records.Count > 0; } }
 
-        public void OnComplete(Action<TestingSession> action)
+        public SessionRecord LastRecord { get { return this.records.Last(); } }
+
+        public void OnComplete(Action<SessionRecord> action)
         {
             this._onComplete = action;
         }
@@ -83,16 +96,49 @@ namespace Nekara.Core
 
         private void AppendLog(params object[] cols)
         {
-            lock (this.logger)
+            lock (this.runtimeLog)
             {
-                Console.WriteLine(String.Join("\t", cols.Select(obj => obj.ToString())));
-                this.logger.WriteLine(String.Join(",", cols.Select(obj => obj.ToString())));
+                this.runtimeLog.Add(String.Join("\t", cols.Select(obj => obj.ToString())));
             }
         }
 
         private void PrintTrace(List<DecisionTrace> list)
         {
             list.ForEach(trace => Console.WriteLine(trace.ToReadableString()));
+        }
+
+        public void Reset()
+        {
+            lock (this.stateLock)
+            {
+                // reset run-time objects
+                this.randomizer = new Helpers.SeededRandomizer(this.Meta.schedulingSeed);
+                this.counter = 0;
+                this.programState = new ProgramState();
+                this.numPendingTaskCreations = 0;
+                this.SessionFinished = new TaskCompletionSource<SessionRecord>();
+                this.pendingRequests = new HashSet<RemoteMethodInvocation>();
+                this.testTrace = new List<DecisionTrace>();
+                this.runtimeLog = new List<string>();
+                this.IsFinished = false;
+                this.timeout = new Timer(_ =>
+                {
+                    string currentTask = this.programState.currentTask.ToString();
+                    var errorInfo = $"No activity for {(Meta.timeoutMs / 1000).ToString()} seconds! Currently on task {currentTask}.\nPossible reasons:\n\t- Not calling EndTask({currentTask})\n\t- Calling ContextSwitch from an undeclared Task\n\t- Some Tasks not being modelled";
+                    this.Finish(false, errorInfo);
+                }, null, Meta.timeoutMs, Timeout.Infinite);
+
+                this.currentRecord = new SessionRecord(this.Id, this.Meta.schedulingSeed);
+                this.currentRecord.RecordBegin();
+            }
+
+            // create a continuation callback that will notify the client once the test is finished
+            this.SessionFinished.Task.ContinueWith(prev => {
+                Console.WriteLine("\n[TestingSession.SessionFinished] was settled");
+
+                // emit onComplete event
+                this._onComplete(prev.Result);
+            });
         }
 
         public void Finish(bool passed, string reason = "")
@@ -131,7 +177,7 @@ namespace Nekara.Core
                 // because this call to Finish must return to the caller
                 Task.Run(() =>
                 {
-                    TestResult result;
+                    SessionRecord record = this.currentRecord;
 
                     // Wait for other threads to return first
                     // if there is some thread that is not returning, then there is something wrong with the user program.
@@ -159,55 +205,57 @@ namespace Nekara.Core
 
                     Console.WriteLine("\n\nOnly {0} last request to complete...", this.pendingRequests.Count);
 
-                    this.finishedAt = DateTime.Now;
-                    this.elapsed = this.finishedAt - this.startedAt;
+                    record.RecordEnd();
+                    record.numDecisions = testTrace.Count;
 
                     Console.WriteLine("\n===[ Decision Trace ({0} decision points) ]=====\n", testTrace.Count);
-                    PrintTrace(testTrace);
+                    if (PrintVerbosity > 1) PrintTrace(testTrace);
 
                     // if result is set, then there was something wrong with the user program so we do not record the trace
                     if (userProgramFaulty)
                     {
                         var pendingList = String.Join("", this.pendingRequests.Select(req => "\n\t  - " + req.ToString()));
                         var errorInfo = $"Could not resolve {this.pendingRequests.Count} pending requests!\n\t  waiting on:{pendingList}.\n\nPossible reasons:\n\t- Some Tasks not being modelled\n\t- Calling ContextSwitch in a Task that is not declared";
-                        result = new TestResult(this.Info.schedulingSeed, false, errorInfo, this.elapsed.TotalMilliseconds);
+                        
+                        record.RecordResult(false, errorInfo);
                     }
                     else
                     {
+                        bool reproducible = false;
+
                         // Write trace only if this is the first time running this session
-                        if (this.replayMode == false)
+                        if (!this.IsReplayMode)
                         {
-                            result = new TestResult(this.Info.schedulingSeed, passed, reason, this.elapsed.TotalMilliseconds);
+                            record.RecordResult(passed, reason);
 
                             this.traceFile.Write(String.Join("\n", this.testTrace.Select(step => step.ToString())));
                             this.traceFile.Close();
+
+                            this.logFile.Write(String.Join("\n", this.runtimeLog));
+                            this.logFile.Close();
                         }
                         // If it is in replay mode, compare with previous trace
                         else
                         {
                             // if the results are different, then something is wrong with the user program
-                            // if (this.passed != passed || this.reason != reason)
-                            if (this.lastResult.passed != passed || this.lastResult.reason != reason)
+                            if (this.LastRecord.passed != passed || this.LastRecord.reason != reason)
                             {
                                 var errorInfo = $"Could not reproduce the trace for Session {this.Id}.\nPossible reasons:\n\t- Some Tasks not being modelled";
-                                result = new TestResult(this.Info.schedulingSeed, false, "Could not reproduce the trace for Session " + this.Id, this.elapsed.TotalMilliseconds);
-                                Console.WriteLine("\n\n!!! Result Mismatch: {0} {1},  {2} {3} \n", this.lastResult.passed.ToString(), this.lastResult.reason, passed.ToString(), reason);
+                                record.RecordResult(false, errorInfo);
+                                Console.WriteLine("\n\n!!! Result Mismatch:\n  Last: {0} {1},\n   Now: {2} {3} \n", this.LastRecord.passed.ToString(), this.LastRecord.reason, passed.ToString(), reason);
                             }
                             else
                             {
-                                var traceText = File.ReadAllText("logs/trace-" + this.Id + ".csv");
+                                var traceText = File.ReadAllText(this.traceFilePath);
                                 List<DecisionTrace> previousTrace = traceText.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(line => DecisionTrace.FromString(line)).ToList();
 
                                 // if the traces are different, then something is wrong with the user program
                                 if (this.testTrace.Count != previousTrace.Count)
                                 {
-                                    // throw new TraceReproductionFailureException("Could not reproduce the trace for Session " + this.id);
                                     var errorInfo = $"Could not reproduce the trace for Session {this.Id}.\nPossible reasons:\n\t- Some Tasks not being modelled";
-                                    result = new TestResult(this.Info.schedulingSeed, false, errorInfo, this.elapsed.TotalMilliseconds);
-                                    Console.WriteLine("\n\n!!! Trace Length Mismatch: {0} vs {1}\n", this.testTrace.Count.ToString(), previousTrace.Count.ToString());
-                                    PrintTrace(previousTrace);
-                                    Console.WriteLine("----- versus -----");
-                                    PrintTrace(this.testTrace);
+                                    record.RecordResult(false, errorInfo);
+
+                                    Console.WriteLine("\n\n!!! Trace Length Mismatch: Last = {0} vs Now = {1}\n", this.testTrace.Count.ToString(), previousTrace.Count.ToString());
                                 }
                                 else
                                 {
@@ -216,9 +264,9 @@ namespace Nekara.Core
                                     // if the traces are different, then something is wrong with the user program
                                     if (!match)
                                     {
-                                        // throw new TraceReproductionFailureException("Could not reproduce the trace for Session " + this.id);
                                         var errorInfo = $"Could not reproduce the trace for Session {this.Id}.\nPossible reasons:\n\t- Some Tasks not being modelled";
-                                        result = new TestResult(this.Info.schedulingSeed, false, errorInfo, this.elapsed.TotalMilliseconds);
+                                        record.RecordResult(false, errorInfo);
+
                                         Console.WriteLine("\n\n!!! Trace Mismatch \n");
                                         PrintTrace(previousTrace);
                                         Console.WriteLine("----- versus -----");
@@ -227,61 +275,33 @@ namespace Nekara.Core
                                     else
                                     {
                                         Console.WriteLine("\n\t... Decision trace was reproduced successfully");
-                                        result = new TestResult(this.Info.schedulingSeed, passed, reason, this.elapsed.TotalMilliseconds);
+                                        record.RecordResult(passed, reason);
+                                        reproducible = true;
                                     }
                                 }
                             }
                         }
 
-                        this.lastResult = result;
-
-                        this.replayMode = true;
+                        lock (this.records)
+                        {
+                            if (!this.IsReplayMode || reproducible) this.records.Add(record);
+                        }
                     }
 
                     // signal the end of the test, so that WaitForMainTask can return
-                    this.SessionFinished.SetResult(result);
+                    this.SessionFinished.SetResult(record);
                 });
             }
             else Monitor.Exit(this.stateLock);
-        }
-
-        public void Reset()
-        {
-            lock (this.stateLock)
-            {
-                // reset run-time objects
-                this.randomizer = new Helpers.SeededRandomizer(this.Info.schedulingSeed);
-                this.counter = 0;
-                this.programState = new ProgramState();
-                this.numPendingTaskCreations = 0;
-                this.SessionFinished = new TaskCompletionSource<TestResult>();
-                this.pendingRequests = new HashSet<RemoteMethodInvocation>();
-                this.testTrace = new List<DecisionTrace>();
-                this.IsFinished = false;
-                this.timeout = new Timer(_ =>
-                {
-                    string currentTask = this.programState.currentTask.ToString();
-                    var errorInfo = $"No activity for {(timeoutDelay / 1000).ToString()} seconds! Currently on task {currentTask}.\nPossible reasons:\n\t- Not calling EndTask({currentTask})\n\t- Calling ContextSwitch from an undeclared Task\n\t- Some Tasks not being modelled";
-                    this.Finish(false, errorInfo);
-                }, null, timeoutDelay, Timeout.Infinite);
-
-                this.startedAt = DateTime.Now;
-            }
-
-            // create a continuation callback that will notify the client once the test is finished
-            this.SessionFinished.Task.ContinueWith(prev => {
-                Console.WriteLine("\n[TestingSession.SessionFinished] was settled");
-
-                // emit onComplete event
-                this._onComplete(this);
-            });
         }
 
         public object InvokeAndHandleException(string func, params object[] args)
         {
             if (this.IsFinished) throw new SessionAlreadyFinishedException("Session " + this.Id + " has already finished");
 
-            var method = this.GetType().GetMethod(func, args.Select(arg => arg.GetType()).ToArray());
+            DateTime calledAt = DateTime.Now;
+
+            var method = typeof(TestingSession).GetMethod(func, args.Select(arg => arg.GetType()).ToArray());
             var invocation = new RemoteMethodInvocation(this, method, args);
 
             if (func != "WaitForMainTask")
@@ -294,18 +314,24 @@ namespace Nekara.Core
 
             invocation.OnError += (sender, ex) =>
             {
-                Console.WriteLine("[InvokeAndHandleException] Finishing due to {0}", ex.GetType().Name);
-                if (ex is AssertionFailureException) this.Finish(false, ex.Message);
+                Console.WriteLine("[InvokeAndHandleException] {0}", ex.GetType().Name);
+                if (ex is AssertionFailureException)
+                {
+                    this.Finish(false, ex.Message);
+                }
             };
 
             invocation.OnBeforeInvoke += (sender, ev) =>
             {
-                AppendLog(counter++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "enter", func, String.Join(";", args.Select(arg => arg.ToString())));
+                AppendLog(counter++, Thread.CurrentThread.ManagedThreadId, currentProcess.Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "enter", func, String.Join(";", args.Select(arg => arg.ToString())));
             };
 
             invocation.OnAfterInvoke += (sender, ev) =>
             {
-                AppendLog(counter++, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "exit", func, String.Join(";", args.Select(arg => arg.ToString())));
+                AppendLog(counter++, Thread.CurrentThread.ManagedThreadId, currentProcess.Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "exit", func, String.Join(";", args.Select(arg => arg.ToString())));
+
+                this.currentRecord.RecordMethodCall((DateTime.Now - calledAt).TotalMilliseconds);
+
                 if (func != "WaitForMainTask")
                 {
                     lock (this.pendingRequests)
@@ -319,10 +345,14 @@ namespace Nekara.Core
             {
                 return invocation.Invoke();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Console.WriteLine("\n[TestingSession.InvokeAndHandleException] rethrowing {0} !!!", e.GetType().Name);
-                throw e;
+                Console.WriteLine("\n[TestingSession.InvokeAndHandleException] rethrowing {0} !!!", ex.GetType().Name);
+                if (!(ex is TestingServiceException))
+                {
+                    Console.WriteLine(ex);
+                }
+                throw ex;
             }
         }
 
@@ -361,7 +391,7 @@ namespace Nekara.Core
             lock (programState)
             {
                 Assert(programState.taskToTcs.ContainsKey(taskId), $"EndTask called on unknown task: {taskId}");
-                Console.WriteLine($"EndTask({taskId}) Status: {programState.taskToTcs[taskId].Task.Status}");
+                //Console.WriteLine($"EndTask({taskId}) Status: {programState.taskToTcs[taskId].Task.Status}");
 
                 // The following assert will fail if the user is calling
                 // additional ContextSwitch without declaring creation of Tasks
@@ -480,11 +510,11 @@ namespace Nekara.Core
 
             // record the decision at this point, before making changes to the programState
             lock (programState) {
-                Assert(this.testTrace.Count < maxDecisions, "Maximum steps reached; the program may be in a live-lock state!");
-                AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "-", "*ContextSwitch*", $"{currentTask} --> {enabledTasks[next]}");
+                Assert(this.testTrace.Count < Meta.maxDecisions, "Maximum steps reached; the program may be in a live-lock state!");
+                // AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "-", "*ContextSwitch*", $"{currentTask} --> {enabledTasks[next]}");
 
                 this.PushTrace(currentTask, enabledTasks[next], programState);
-                this.timeout.Change(timeoutDelay, Timeout.Infinite);
+                this.timeout.Change(Meta.timeoutMs, Timeout.Infinite);
             }
 
             // if current task is not blocked and is selected, just continue
@@ -507,7 +537,8 @@ namespace Nekara.Core
                     // so that we can retrieve the control back
                     if (currentTaskStillRunning)
                     {
-                        Console.WriteLine($"ContextSwitch {currentTask} -> {enabledTasks[next]}\tCurrent Task: {programState.taskToTcs[currentTask].Task.Status}");
+                        //Console.WriteLine($"ContextSwitch {currentTask} -> {enabledTasks[next]}\tCurrent Task: {programState.taskToTcs[currentTask].Task.Status}");
+                        Console.Write(".");
 
                         // The following assert will fail if the user is calling
                         // additional ContextSwitch without declaring creation of Tasks
@@ -551,7 +582,7 @@ namespace Nekara.Core
 
         public string WaitForMainTask()
         {
-            AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "enter", "*EndTask*", 0);
+            //AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "enter", "*EndTask*", 0);
             try
             {
                 this.EndTask(0);
@@ -560,7 +591,7 @@ namespace Nekara.Core
             {
                 this.Finish(false, ex.Message);
             }
-            AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "exit", "*EndTask*", 0);
+            //AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "exit", "*EndTask*", 0);
 
             var result = this.SessionFinished.Task.Result;
 

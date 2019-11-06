@@ -1,63 +1,13 @@
 ﻿using Microsoft.PSharp;
-using Nekara.Client;
 
-namespace Nekara.Tests.PSharp
+namespace Nekara.Tests.PSharp.PingPong
 {
-    class PingPong
-    {
-        [TestMethod]
-        public static void Run()
-        {
-            var configuration = Configuration.Create().WithVerbosityEnabled();
-            var runtime = PSharpTestRuntime.Create(configuration);
-
-            runtime.CreateMachine(typeof(NetworkEnvironment));
-        }
-    }
-
-    /// <summary>
-    /// This machine acts as a test harness. It models a network environment,
-    /// by creating a 'Server' and a 'Client' machine.
-    /// </summary>
-    internal class NetworkEnvironment : Machine
-    {
-        /// <summary>
-        /// Each P# machine declares one or more machine states (or simply states).
-        ///
-        /// One of the states must be declared as the initial state using the 'Start'
-        /// attribute. When the machine gets constructed, it will transition the
-        /// declared initial state.
-        [Start]
-        ///
-        /// A P# machine state can declare one or more action. This state declares an
-        /// 'OnEntry' action, which executes the 'InitOnEntry' method when the machine
-        /// transitions to the 'Init' state. Only one 'OnEntry' action can be declared
-        /// per machine state.
-        [OnEntry(nameof(InitOnEntry))]
-        /// </summary>
-        class Init : MachineState { }
-
-        /// <summary>
-        /// An action that executes (asynchronously) when the 'NetworkEnvironment' machine
-        /// transitions to the 'Init' state.
-        /// </summary>
-        void InitOnEntry()
-        {
-            // Creates (asynchronously) a server machine.
-            var server = this.CreateMachine(typeof(PingPongServer));
-            // Creates (asynchronously) a client machine, and passes the
-            // 'Config' event as payload. 'Config' contains a reference
-            // to the server machine.
-            this.CreateMachine(typeof(PingPongClient), new PingPongClient.Config(server));
-        }
-    }
-
     /// <summary>
     /// A P# machine that models a simple client.
     ///
     /// It sends 'Ping' events to a server, and handles received 'Pong' event.
     /// </summary>
-    internal class PingPongClient : Machine
+    internal class Client : Machine
     {
         /// <summary>
         /// Event declaration of a 'Config' event that contains payload.
@@ -128,7 +78,7 @@ namespace Nekara.Tests.PSharp
         /// The 'OnEventDoAction' action declaration will execute (asynchrously)
         /// the 'SendPing' method, whenever a 'Pong' event is dequeued while the
         /// client machine is in the 'Active' state.
-        [OnEventDoAction(typeof(PingPongServer.Pong), nameof(SendPing))]
+        [OnEventDoAction(typeof(Server.Pong), nameof(SendPing))]
         /// </summary>
         class Active : MachineState { }
 
@@ -161,37 +111,6 @@ namespace Nekara.Tests.PSharp
                 // declare an event handler in the state declaration.
                 this.Raise(new Halt());
             }
-        }
-    }
-
-    /// <summary>
-    /// A P# machine that models a simple server.
-    ///
-    /// It receives 'Ping' events from a client, and responds with a 'Pong' event.
-    /// </summary>
-    internal class PingPongServer : Machine
-    {
-        /// <summary>
-        /// Event declaration of a 'Pong' event that does not contain any payload.
-        /// </summary>
-        internal class Pong : Event { }
-
-        [Start]
-        /// <summary>
-        /// The 'OnEventDoAction' action declaration will execute (asynchrously)
-        /// the 'SendPong' method, whenever a 'Ping' event is dequeued while the
-        /// server machine is in the 'Active' state.
-        [OnEventDoAction(typeof(PingPongClient.Ping), nameof(SendPong))]
-        /// </summary>
-        class Active : MachineState { }
-
-        void SendPong()
-        {
-            // Receives a reference to a client machine (as a payload of
-            // the 'Ping' event).
-            var client = (this.ReceivedEvent as PingPongClient.Ping).Client;
-            // Sends (asynchronously) a 'Pong' event to the client.
-            this.Send(client, new Pong());
         }
     }
 }

@@ -30,7 +30,8 @@ namespace Nekara.Client
         public IClient socket;
         private TestRuntimeApi testingApi;
         private Helpers.UniqueIdGenerator idGen;
-        private Dictionary<string, TestResult> results;
+        // private Dictionary<string, TestResult> results;
+        private Dictionary<string, SessionRecord> records;
 
         // This object will "plug-in" the communication mechanism.
         // The separation between the transport architecture and the logical, abstract model is intentional.
@@ -40,7 +41,8 @@ namespace Nekara.Client
             this.testingApi = new TestRuntimeApi(socket);
             this.idGen = new Helpers.UniqueIdGenerator();
 
-            this.results = new Dictionary<string, TestResult>();
+            //this.results = new Dictionary<string, TestResult>();
+            this.records = new Dictionary<string, SessionRecord>();
         }
 
         public ITestingService Api { get { return this.testingApi; } }
@@ -48,15 +50,16 @@ namespace Nekara.Client
 
         public void PrintTestResults()
         {
-            lock (this.results)
+            //lock (this.results)
+            lock (this.records)
             {
                 Console.WriteLine("\n\n=====[ Test Result ]===============\n");
                 int passed = 0;
                 var passedTime = new List<double>();
                 var failedTime = new List<double>();
-                foreach (var item in this.results)
+                foreach (var item in this.records)
                 {
-                    Console.WriteLine("Session {0} (seed = {1}):\t{2} ms\t{3}{4}", item.Key, item.Value.seed, item.Value.elapsedMs, item.Value.passed ? "Pass" : "Fail", item.Value.passed ? "" : "\t(" + item.Value.reason + ")");
+                    Console.WriteLine(" {0} (seed = {1}):\t{2} decisions\t{3} ms\t{4}{5}", item.Key, item.Value.schedulingSeed, item.Value.numDecisions, Math.Round((decimal)item.Value.elapsedMs, 0), item.Value.passed ? "Pass" : "Fail", item.Value.passed ? "" : "\n\t\t  (" + item.Value.reason + ")");
                     if (item.Value.passed)
                     {
                         passed++;
@@ -67,10 +70,10 @@ namespace Nekara.Client
                         failedTime.Add(item.Value.elapsedMs);
                     }
                 }
-                Console.WriteLine("\n----------[ {0}/{1} Passed ]----------\n", passed, this.results.Count);
+                Console.WriteLine("\n----------[ {0}/{1} Passed ]----------\n", passed, this.records.Count);
                 if (passedTime.Count > 0) Console.WriteLine("    Average Time for Bug-free Sessions:\t{0} ms", passedTime.Average());
                 if (failedTime.Count > 0) Console.WriteLine("    Average Time for Buggy Sessions:\t{0} ms", failedTime.Average());
-                Console.WriteLine("\n==========[ {0}/{1} Passed ]==========\n", passed, this.results.Count);
+                Console.WriteLine("\n==========[ {0}/{1} Passed ]==========\n", passed, this.records.Count);
             }
         }
         
@@ -146,7 +149,7 @@ namespace Nekara.Client
             return new TestDefinition(Setup, testMethod, Teardown);
         }
 
-        public Promise RunTest(TestDefinition definition, int numIteration)
+        public Promise RunTest(TestDefinition definition, int numIteration, int timeoutMs = Constants.SessionTimeoutMs, int maxDecisions = Constants.SessionMaxDecisions)
         {
             return new Promise((resolve, reject) =>
             {
@@ -232,11 +235,12 @@ namespace Nekara.Client
 
             }).Then(data =>
             {
-                TestResult result = TestResult.Deserialize((string)data);
+                // TestResult result = TestResult.Deserialize((string)data);
+                SessionRecord record = SessionRecord.Deserialize((string)data);
 
                 // if result exists, this is a replayed session
-                if (!this.results.ContainsKey(sessionId)) this.results.Add(sessionId, result);
-                else this.results[sessionId] = result;
+                if (!this.records.ContainsKey(sessionId)) this.records.Add(sessionId, record);
+                else this.records[sessionId] = record;
 
                 // clean up
                 // this.testingApi.Finish();
@@ -244,11 +248,14 @@ namespace Nekara.Client
                 Console.WriteLine("\n    ... resetting task ID generator");
                 this.idGen.Reset();
 
-                Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sessionId, result.reason == "" ? "PASSED" : "FAILED");
-                if (result.reason != "")
+                Console.WriteLine("\n--------------------------------------------\n");
+                Console.WriteLine("    Total Requests:\t{0}", this.testingApi.numRequests);
+                Console.WriteLine("    Average RTT:\t{0} ms", this.testingApi.avgRtt);
+                Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sessionId, record.reason == "" ? "PASSED" : "FAILED");
+                if (record.reason != "")
                 {
-                    Console.WriteLine("  " + result.reason);
-                    Console.WriteLine("\n==================================== END ===[ {0} ms ]===", result.elapsedMs);
+                    Console.WriteLine("  " + record.reason);
+                    Console.WriteLine("\n==================================== END ===[ {0} ms ]===", record.elapsedMs);
                 }
 
                 return null;
@@ -264,6 +271,7 @@ namespace Nekara.Client
         public Promise RunNewTestSession(MethodInfo testMethod, int schedulingSeed = 0)
         {
             var assembly = testMethod.DeclaringType.Assembly;
+            var testMeta = (TestMethodAttribute)testMethod.GetCustomAttribute(typeof(TestMethodAttribute));
 
             // Communicate to the server here to notify the start of a test
             // and initialize the test session (receive a session ID)
@@ -271,7 +279,15 @@ namespace Nekara.Client
             {
                 Console.WriteLine("\n\n============================================");
                 Console.WriteLine(">>    Starting new session with seed = {0}", schedulingSeed);
-                var (request, canceller) = this.socket.SendRequest("InitializeTestSession", new JToken[] { assembly.FullName, assembly.Location, testMethod.DeclaringType.FullName, testMethod.Name, schedulingSeed });
+                var (request, canceller) = this.socket.SendRequest("InitializeTestSession", new SessionInfo("",
+                    assembly.FullName,
+                    assembly.Location,
+                    testMethod.DeclaringType.FullName,
+                    testMethod.Name,
+                    schedulingSeed,
+                    testMeta.TimeoutMs,
+                    testMeta.MaxDecisions
+                ).Jsonify());
                 request.ContinueWith(prev => resolve(prev.Result), TaskContinuationOptions.OnlyOnRanToCompletion);
                 request.ContinueWith(prev => reject(prev.Exception), TaskContinuationOptions.OnlyOnFaulted);
             }).Then(sessionId =>

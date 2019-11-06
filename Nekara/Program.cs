@@ -15,7 +15,7 @@ namespace Nekara
 
             // Initialize a tester server
             OmniServer socket = new OmniServer(new OmniServerConfiguration(Transport.HTTP));
-            NekaraServer service = new NekaraServer(socket);
+            NekaraServer service = new NekaraServer();
 
             socket.RegisterService(service);
 
