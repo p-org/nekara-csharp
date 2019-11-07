@@ -162,6 +162,9 @@ namespace Nekara.Client
                         .Then(result => this.ReplayTestSession((string)result)).Task,
                     numIteration);
                 run.Wait();
+
+                Console.WriteLine(TestRuntimeApi.Profiler.ToString());
+
                 return null;
             }).Then(prev =>
             {

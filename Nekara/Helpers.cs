@@ -99,6 +99,41 @@ namespace Nekara
             }
         }
 
+        public class MicroProfiler
+        {
+            private Dictionary<(string, string), (int, double)> Data = new Dictionary<(string, string), (int, double)>();
+            // private string LastPoint = null;
+            // private DateTime LastStamp;
+
+            public MicroProfiler() { }
+
+            public (string, DateTime) Update(string point)
+            {
+                return (point, DateTime.Now);
+            }
+            
+            public (string, DateTime) Update(string point, (string, DateTime) lastDatum)
+            {
+                var Now = DateTime.Now;
+                if (!Data.ContainsKey((lastDatum.Item1, point)))
+                {
+                    Data[(lastDatum.Item1, point)] = (0, 0.0);
+                }
+
+                lock (Data)
+                {
+                    var (count, average) = Data[(lastDatum.Item1, point)];
+                    Data[(lastDatum.Item1, point)] = (count + 1, ((Now - lastDatum.Item2).Ticks + count * average) / (count + 1));
+                }
+                return (point, Now);
+            }
+
+            public override string ToString()
+            {
+                return string.Join("\n", Data.Select(item => "[ " + item.Key.Item1 + " ~ " + item.Key.Item2 + " ] " + item.Value.Item2 + " ticks (" + item.Value.Item1 + " times)"));
+            }
+        }
+
         public static int PromptInt(string prompt, int min = 0, int max = 100)
         {
             Console.Write(prompt);

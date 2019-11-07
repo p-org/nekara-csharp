@@ -223,7 +223,7 @@ namespace Nekara.Networking
         private void SetupTransportHTTP()
         {
             // Create an HttpServer and bind to network socket
-            HttpServer server = new HttpServer("localhost", 8080);
+            HttpServer server = new HttpServer(this.config.host, this.config.port);
 
             // Top-level middleware function - just print some things for debugging
             server.Use((Request request, Response response, Action next) => {
@@ -254,7 +254,7 @@ namespace Nekara.Networking
             server.Listen();
 
             // Wait for calls
-            Console.WriteLine("... Tester Server Listening on HTTP Port: 8080");
+            Console.WriteLine("... Tester Server Listening on HTTP Host: {0}, Port: {1}", this.config.host, this.config.port);
         }
 
         private void SetupTransportGRPC()

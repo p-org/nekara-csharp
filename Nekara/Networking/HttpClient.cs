@@ -17,6 +17,7 @@ namespace Nekara.Networking
         public HttpClient(string serverUri)
         {
             this.serverUri = serverUri;
+            Console.WriteLine("Creating HTTP Client connection to " + serverUri);
 
             // Create the client
             this.client = new System.Net.Http.HttpClient();

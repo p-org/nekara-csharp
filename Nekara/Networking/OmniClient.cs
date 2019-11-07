@@ -85,7 +85,7 @@ namespace Nekara.Networking
 
         private void SetupTransportHTTP()
         {
-            HttpClient client = new HttpClient("http://localhost:8080/");
+            HttpClient client = new HttpClient("http://" + this.config.serviceHost + ":" + this.config.servicePort.ToString() + "/");
 
             // Assign the appropriate SendRequest method
             this._sendRequest = (func, args) =>

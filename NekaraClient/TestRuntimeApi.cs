@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Nekara.Networking;
 using Nekara.Core;
+using System.ComponentModel;
 
 namespace Nekara.Client
 {
     public class TestRuntimeApi : ITestingService
     {
         private static int gCount = 0;
+        public static Helpers.MicroProfiler Profiler = new Helpers.MicroProfiler();
 
         private object stateLock;
         public IClient socket;
@@ -84,6 +86,7 @@ namespace Nekara.Client
         {
             string callName = $"{func}({String.Join(",", args.Select(arg => arg.ToString()))})";
             DateTime sentAt;
+            (string, DateTime) stamp;
 
             Task<JToken> task = null;
             CancellationTokenSource canceller = null;
@@ -92,6 +95,7 @@ namespace Nekara.Client
                 if (!this.finished)
                 {
                     sentAt = DateTime.Now;
+                    stamp = Profiler.Update(func + "Called");
 
                     var extargs = new JToken[args.Length + 1];
                     extargs[0] = JToken.FromObject(this.sessionId);
@@ -112,6 +116,8 @@ namespace Nekara.Client
                 {
                     Interlocked.Exchange(ref this.avgRtt, ((DateTime.Now - sentAt).TotalMilliseconds + numRequests * avgRtt) / (numRequests + 1));
                     Interlocked.Increment(ref this.numRequests);
+                    
+                    stamp = Profiler.Update(func + "Returned", stamp);
 
                     this.pendingRequests.Remove((task, canceller, callName));
                     //Console.WriteLine($"{count++}\t{Thread.CurrentThread.ManagedThreadId}/{Process.GetCurrentProcess().Threads.Count}\t<<---\t{func}({String.Join(", ", args.Select(arg => arg.ToString()).ToArray())})");

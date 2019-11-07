@@ -17,6 +17,8 @@ namespace Nekara.Core
         private static Process currentProcess = Process.GetCurrentProcess();
         private static int PrintVerbosity = 1;
 
+        public static Helpers.MicroProfiler profiler = new Helpers.MicroProfiler();
+
         // metadata
         public SessionInfo Meta;
 
@@ -83,12 +85,12 @@ namespace Nekara.Core
             this._onComplete = action;
         }
 
-        private void PushTrace(int currentTask, int chosenTask, ProgramState state)
+        private void PushTrace(DecisionType decisionType, int decisionValue, int currentTask, ProgramState state)
         {
             lock (this.testTrace)
             {
                 (int, int)[] tasks = state.taskToTcs.Keys.Select(taskId => state.blockedTasks.ContainsKey(taskId) ? (taskId, state.blockedTasks[taskId]) : (taskId, -1)).ToArray();
-                var decision = new DecisionTrace(currentTask, chosenTask, tasks);
+                var decision = new DecisionTrace(decisionType, decisionValue, currentTask, tasks);
                 // Console.WriteLine(decision.ToReadableString());
                 this.testTrace.Add(decision);
             }
@@ -135,6 +137,8 @@ namespace Nekara.Core
             // create a continuation callback that will notify the client once the test is finished
             this.SessionFinished.Task.ContinueWith(prev => {
                 Console.WriteLine("\n[TestingSession.SessionFinished] was settled");
+
+                Console.WriteLine(profiler.ToString());
 
                 // emit onComplete event
                 this._onComplete(prev.Result);
@@ -362,14 +366,17 @@ namespace Nekara.Core
          */
         public void CreateTask()
         {
+            var (point, timestamp) = profiler.Update("CreateTaskBegin");
             lock (programState)
             {
                 this.numPendingTaskCreations++;
             }
+            (point, timestamp) = profiler.Update("CreateTaskEnd", (point, timestamp));
         }
 
         public void StartTask(int taskId)
         {
+            var (point, timestamp) = profiler.Update("StartTaskBegin");
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
 
             lock (programState)
@@ -381,12 +388,19 @@ namespace Nekara.Core
                 // Console.WriteLine("{0}\tTask {1}\tcreated", counter, taskId);
             }
 
+            (point, timestamp) = profiler.Update("StartTaskUpdate", (point, timestamp));
+
             tcs.Task.Wait();
+
+            (point, timestamp) = profiler.Update("StartTaskEnd", (point, timestamp));
         }
 
         public void EndTask(int taskId)
         {
+            var (point, timestamp) = profiler.Update("EndTaskBegin");
             WaitForPendingTaskCreations();
+
+            (point, timestamp) = profiler.Update("EndTaskWaited", (point, timestamp));
 
             lock (programState)
             {
@@ -401,29 +415,39 @@ namespace Nekara.Core
                 programState.taskToTcs.Remove(taskId);
             }
 
+            (point, timestamp) = profiler.Update("EndTaskUpdate", (point, timestamp));
+
             ContextSwitch();
+
+            (point, timestamp) = profiler.Update("EndTaskEnd", (point, timestamp));
         }
 
         public void CreateResource(int resourceId)
         {
+            var (point, timestamp) = profiler.Update("CreateResourceBegin");
             lock (programState)
             {
                 Assert(!programState.resourceSet.Contains(resourceId), $"Duplicate declaration of resource: {resourceId}");
                 programState.resourceSet.Add(resourceId);
             }
+
+            (point, timestamp) = profiler.Update("CreateResourceEnd", (point, timestamp));
         }
 
         public void DeleteResource(int resourceId)
         {
+            var (point, timestamp) = profiler.Update("DeleteResourceBegin");
             lock (programState)
             {
                 Assert(programState.resourceSet.Contains(resourceId), $"DeleteResource called on unknown resource: {resourceId}");
                 programState.resourceSet.Remove(resourceId);
             }
+            (point, timestamp) = profiler.Update("DeleteResourceEnd", (point, timestamp));
         }
 
         public void BlockedOnResource(int resourceId)
         {
+            var (point, timestamp) = profiler.Update("BlockedOnResourceBegin");
             lock (programState)
             {
                 Assert(programState.resourceSet.Contains(resourceId),
@@ -432,12 +456,15 @@ namespace Nekara.Core
                     $"Illegal operation, task {programState.currentTask} already blocked on a resource");
                 programState.blockedTasks[programState.currentTask] = resourceId;
             }
+            (point, timestamp) = profiler.Update("BlockedOnResourceUpdate", (point, timestamp));
 
             ContextSwitch();
+            (point, timestamp) = profiler.Update("BlockedOnResourceEnd", (point, timestamp));
         }
 
         public void SignalUpdatedResource(int resourceId)
         {
+            var (point, timestamp) = profiler.Update("SignalUpdatedResourceBegin");
             lock (programState)
             {
                 var enabledTasks = programState.blockedTasks.Where(tup => tup.Value == resourceId).Select(tup => tup.Key).ToList();
@@ -446,16 +473,32 @@ namespace Nekara.Core
                     programState.blockedTasks.Remove(k);
                 }
             }
+
+            (point, timestamp) = profiler.Update("SignalUpdatedResourceEnd", (point, timestamp));
         }
 
         public bool CreateNondetBool()
         {
-            return this.randomizer.NextBool();
+            var (point, timestamp) = profiler.Update("CreateNondetBoolBegin");
+            lock (programState)
+            {
+                bool value = this.randomizer.NextBool();
+                this.PushTrace(DecisionType.CreateNondetBool, value ? 1 : 0, programState.currentTask, programState);
+                (point, timestamp) = profiler.Update("CreateNondetBoolEnd", (point, timestamp));
+                return value;
+            }
         }
 
         public int CreateNondetInteger(int maxValue)
         {
-            return this.randomizer.NextInt(maxValue);
+            var (point, timestamp) = profiler.Update("CreateNondetIntegerBegin");
+            lock (programState)
+            {
+                int value = this.randomizer.NextInt(maxValue);
+                this.PushTrace(DecisionType.CreateNondetInteger, value, programState.currentTask, programState);
+                (point, timestamp) = profiler.Update("CreateNondetIntegerEnd", (point, timestamp));
+                return value;
+            }
         }
 
         public void Assert(bool value, string message)
@@ -477,7 +520,11 @@ namespace Nekara.Core
 
         public void ContextSwitch()
         {
+            var (point, timestamp) = profiler.Update("ContextSwitchBegin");
+
             WaitForPendingTaskCreations();
+
+            (point, timestamp) = profiler.Update("ContextSwitchWaited", (point, timestamp));
 
             var tcs = new TaskCompletionSource<bool>();
             int[] enabledTasks;
@@ -492,7 +539,9 @@ namespace Nekara.Core
 
                 // pick next one to execute
                 enabledTasks = programState.taskToTcs.Keys
-                    .Where(k => !programState.blockedTasks.ContainsKey(k)).ToArray();
+                    .Where(k => !programState.blockedTasks.ContainsKey(k))
+                    .OrderBy(k => k)
+                    .ToArray();
 
                 if (enabledTasks.Length == 0)
                 {
@@ -513,8 +562,10 @@ namespace Nekara.Core
                 Assert(this.testTrace.Count < Meta.maxDecisions, "Maximum steps reached; the program may be in a live-lock state!");
                 // AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "-", "*ContextSwitch*", $"{currentTask} --> {enabledTasks[next]}");
 
-                this.PushTrace(currentTask, enabledTasks[next], programState);
+                this.PushTrace(DecisionType.ContextSwitch, enabledTasks[next], currentTask, programState);
                 this.timeout.Change(Meta.timeoutMs, Timeout.Infinite);
+
+                (point, timestamp) = profiler.Update("ContextSwitchDecisionMade", (point, timestamp));
             }
 
             // if current task is not blocked and is selected, just continue
@@ -553,6 +604,8 @@ namespace Nekara.Core
                     programState.currentTask = enabledTasks[next];
                 }
 
+                (point, timestamp) = profiler.Update("ContextSwitchUpdate", (point, timestamp));
+
                 // complete the tcs to let the task continue
                 nextTcs.SetResult(true);
 
@@ -560,6 +613,8 @@ namespace Nekara.Core
                 {
                     // block the current task until it is resumed by a future ContextSwitch call
                     tcs.Task.Wait();
+
+                    (point, timestamp) = profiler.Update("ContextSwitchEnd", (point, timestamp));
                 }
             }
         }

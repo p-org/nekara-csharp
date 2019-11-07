@@ -14,15 +14,20 @@ namespace Nekara.Networking
     public class OmniServerConfiguration
     {
         public readonly string logDirectory;
-        private string host;    // used if Transport == HTTP
-        private int port;       // used if Transport == HTTP or TCP
+        public string host;    // used if Transport == HTTP
+        public int port;       // used if Transport == HTTP or TCP
 
-        public OmniServerConfiguration(Transport tMode = Transport.WS, string logDirectory = "logs")
+        public OmniServerConfiguration(Transport tMode = Transport.HTTP, string logDirectory = "logs") : this(tMode, "localhost", 8080, logDirectory) { }
+
+        public OmniServerConfiguration(Transport tMode, string host, int port, string logDirectory = "logs")
         {
             this.Transport = tMode;
+            this.host = host;
+            this.port = port;
             this.logDirectory = logDirectory;
 
-            if (!Directory.Exists(logDirectory)) {
+            if (!Directory.Exists(logDirectory))
+            {
                 Directory.CreateDirectory(logDirectory);
             };
         }

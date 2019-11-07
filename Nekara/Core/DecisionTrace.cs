@@ -3,35 +3,59 @@ using System.Linq;
 
 namespace Nekara.Core
 {
+    public enum DecisionType { ContextSwitch, CreateNondetBool, CreateNondetInteger }
+
     public class DecisionTrace
     {
+        public DecisionType decisionType;
+        public int decisionValue;           // chosen task ID or generated random value
         public int currentTask;
-        public int chosenTask;
         public (int, int)[] tasks;
-        public DecisionTrace(int currentTask, int chosenTask, (int, int)[] tasks)
+
+        public DecisionTrace(DecisionType decisionType, int decisionValue, int currentTask, (int, int)[] tasks)
         {
+            this.decisionType = decisionType;
+            this.decisionValue = decisionValue;
             this.currentTask = currentTask;
-            this.chosenTask = chosenTask;
             this.tasks = tasks;
         }
 
+        public DecisionTrace(DecisionType decisionType, bool decisionValue, int currentTask, (int, int)[] tasks) : this(decisionType, decisionValue ? 1 : 0, currentTask, tasks) { }
+
+        public string Type { get
+            {
+                switch (this.decisionType)
+                {
+                    case DecisionType.ContextSwitch: return "ContextSwitch";
+                    case DecisionType.CreateNondetBool: return "CreateNondetBool";
+                    case DecisionType.CreateNondetInteger: return "CreateNondetInteger";
+                    default: throw new Exception("Unknown Decision Type");
+                }
+            } }
+
+        public string Value { get
+            {
+                return this.decisionType == DecisionType.CreateNondetBool ? (this.decisionValue == 0 ? "False" : "True") : this.decisionValue.ToString();
+            } }
+
         public override string ToString()
         {
-            return currentTask.ToString() + "," + chosenTask.ToString() + "," + String.Join(";", tasks.Select(tup => tup.Item1.ToString() + ":" + tup.Item2.ToString()));
+            return decisionType + "," + decisionValue.ToString() + "," +  currentTask.ToString() + "," + String.Join(";", tasks.Select(tup => tup.Item1.ToString() + ":" + tup.Item2.ToString()));
         }
 
         public string ToReadableString()
         {
-            return "Picked Task " + chosenTask.ToString() + " from [ " + String.Join(", ", tasks.Select(tup => tup.Item1.ToString() + (tup.Item2 > -1 ? " |" + tup.Item2.ToString() : ""))) + " ]";
+            return this.Type + " -> " + this.Value + ", Current Task: " + currentTask.ToString() + ", All Tasks: [" + String.Join(", ", tasks.Select(tup => tup.Item1.ToString() + (tup.Item2 > -1 ? " |" + tup.Item2.ToString() : ""))) + "]";
         }
 
         public static DecisionTrace FromString(string line)
         {
             var cols = line.Split(',');
-            int currentTask = Int32.Parse(cols[0]);
-            int chosenTask = Int32.Parse(cols[1]);
-            (int, int)[] tasks = cols[2].Split(';').Select(t => t.Split(':')).Select(t => (Int32.Parse(t[0]), Int32.Parse(t[1]))).ToArray();
-            return new DecisionTrace(currentTask, chosenTask, tasks);
+            DecisionType decisionType = (DecisionType)Enum.Parse(typeof(DecisionType), cols[0]);
+            int decisionValue = Int32.Parse(cols[1]);
+            int currentTask = Int32.Parse(cols[2]);
+            (int, int)[] tasks = cols[3].Split(';').Select(t => t.Split(':')).Select(t => (Int32.Parse(t[0]), Int32.Parse(t[1]))).ToArray();
+            return new DecisionTrace(decisionType, decisionValue, currentTask, tasks);
         }
 
         public override bool Equals(object obj)
@@ -43,8 +67,9 @@ namespace Nekara.Core
                 var otherTasks = other.tasks.OrderBy(tup => tup.Item1).ToArray();
 
                 bool match = (myTasks.Count() == otherTasks.Count())
+                    && decisionType == other.decisionType
+                    && decisionValue == other.decisionValue
                     && currentTask == other.currentTask
-                    && chosenTask == other.chosenTask
                     && myTasks.Select((tup, i) => otherTasks[i].Item1 == tup.Item1 && otherTasks[i].Item2 == tup.Item2).Aggregate(true, (acc, b) => acc && b);
 
                 return match;
