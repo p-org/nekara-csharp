@@ -10,9 +10,9 @@ namespace Nekara.Core
         public DecisionType decisionType;
         public int decisionValue;           // chosen task ID or generated random value
         public int currentTask;
-        public (int, int)[] tasks;
+        public (int, int[])[] tasks;
 
-        public DecisionTrace(DecisionType decisionType, int decisionValue, int currentTask, (int, int)[] tasks)
+        public DecisionTrace(DecisionType decisionType, int decisionValue, int currentTask, (int, int[])[] tasks)
         {
             this.decisionType = decisionType;
             this.decisionValue = decisionValue;
@@ -20,7 +20,7 @@ namespace Nekara.Core
             this.tasks = tasks;
         }
 
-        public DecisionTrace(DecisionType decisionType, bool decisionValue, int currentTask, (int, int)[] tasks) : this(decisionType, decisionValue ? 1 : 0, currentTask, tasks) { }
+        public DecisionTrace(DecisionType decisionType, bool decisionValue, int currentTask, (int, int[])[] tasks) : this(decisionType, decisionValue ? 1 : 0, currentTask, tasks) { }
 
         public string Type { get
             {
@@ -40,12 +40,12 @@ namespace Nekara.Core
 
         public override string ToString()
         {
-            return decisionType + "," + decisionValue.ToString() + "," +  currentTask.ToString() + "," + String.Join(";", tasks.Select(tup => tup.Item1.ToString() + ":" + tup.Item2.ToString()));
+            return decisionType + "," + decisionValue.ToString() + "," +  currentTask.ToString() + "," + String.Join(";", tasks.Select(tup => tup.Item1.ToString() + ":" + string.Join(".", tup.Item2)));
         }
 
         public string ToReadableString()
         {
-            return this.Type + " -> " + this.Value + ", Current Task: " + currentTask.ToString() + ", All Tasks: [" + String.Join(", ", tasks.Select(tup => tup.Item1.ToString() + (tup.Item2 > -1 ? " |" + tup.Item2.ToString() : ""))) + "]";
+            return "[" + String.Join(", ", tasks.Select(tup => (tup.Item1 == currentTask ? "*" : "") + tup.Item1.ToString() + (tup.Item2.Length > 0 ? " |" + string.Join(",", tup.Item2) +"|" : ""))) + "]\t" + this.Type + " -> " + this.Value;
         }
 
         public static DecisionTrace FromString(string line)
@@ -54,7 +54,10 @@ namespace Nekara.Core
             DecisionType decisionType = (DecisionType)Enum.Parse(typeof(DecisionType), cols[0]);
             int decisionValue = Int32.Parse(cols[1]);
             int currentTask = Int32.Parse(cols[2]);
-            (int, int)[] tasks = cols[3].Split(';').Select(t => t.Split(':')).Select(t => (Int32.Parse(t[0]), Int32.Parse(t[1]))).ToArray();
+            (int, int[])[] tasks = cols[3].Split(';')
+                .Select(t => t.Split(':'))
+                .Select(t => (Int32.Parse(t[0]), t[1].Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries).Select(r => Int32.Parse(r)).ToArray()))
+                .ToArray();
             return new DecisionTrace(decisionType, decisionValue, currentTask, tasks);
         }
 
@@ -63,14 +66,17 @@ namespace Nekara.Core
             if (obj is DecisionTrace)
             {
                 var other = (DecisionTrace)obj;
-                var myTasks = tasks.OrderBy(tup => tup.Item1).ToArray();
-                var otherTasks = other.tasks.OrderBy(tup => tup.Item1).ToArray();
+                var myTasks = tasks.Select(tup => (tup.Item1, tup.Item2.OrderBy(val => val).ToArray())).OrderBy(tup => tup.Item1).ToArray();
+                var otherTasks = other.tasks.Select(tup => (tup.Item1, tup.Item2.OrderBy(val => val).ToArray())).OrderBy(tup => tup.Item1).ToArray();
 
                 bool match = (myTasks.Count() == otherTasks.Count())
                     && decisionType == other.decisionType
                     && decisionValue == other.decisionValue
                     && currentTask == other.currentTask
-                    && myTasks.Select((tup, i) => otherTasks[i].Item1 == tup.Item1 && otherTasks[i].Item2 == tup.Item2).Aggregate(true, (acc, b) => acc && b);
+                    && myTasks.Select((tup, i) => otherTasks[i].Item1 == tup.Item1 
+                        && tup.Item2.Length == otherTasks[i].Item2.Length
+                        && tup.Item2.Select((val, j) => otherTasks[i].Item2[j] == val).Aggregate(true, (acc, b) => acc && b)
+                        ).Aggregate(true, (acc, b) => acc && b);
 
                 return match;
             }

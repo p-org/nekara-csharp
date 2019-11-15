@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Nekara.Networking;
 using Nekara.Core;
+using System.Threading;
 
 namespace Nekara.Client
 {
@@ -29,9 +30,9 @@ namespace Nekara.Client
     {
         public IClient socket;
         private TestRuntimeApi testingApi;
-        private Helpers.UniqueIdGenerator idGen;
         // private Dictionary<string, TestResult> results;
         private Dictionary<string, SessionRecord> records;
+        private Helpers.UniqueIdGenerator SchedulingSeedGenerator;
 
         // This object will "plug-in" the communication mechanism.
         // The separation between the transport architecture and the logical, abstract model is intentional.
@@ -39,14 +40,17 @@ namespace Nekara.Client
         {
             this.socket = socket;
             this.testingApi = new TestRuntimeApi(socket);
-            this.idGen = new Helpers.UniqueIdGenerator();
+            this.SchedulingSeedGenerator = new Helpers.UniqueIdGenerator(false, 0);
+            this.TaskIdGenerator = new Helpers.UniqueIdGenerator(true, 1000);
+            this.ResourceIdGenerator = new Helpers.UniqueIdGenerator(true, 1000000);
 
             //this.results = new Dictionary<string, TestResult>();
             this.records = new Dictionary<string, SessionRecord>();
         }
 
         public ITestingService Api { get { return this.testingApi; } }
-        public Helpers.UniqueIdGenerator IdGen { get { return this.idGen; } }
+        public Helpers.UniqueIdGenerator TaskIdGenerator { get; private set; }
+        public Helpers.UniqueIdGenerator ResourceIdGenerator { get; private set; }
 
         public void PrintTestResults()
         {
@@ -59,7 +63,16 @@ namespace Nekara.Client
                 var failedTime = new List<double>();
                 foreach (var item in this.records)
                 {
-                    Console.WriteLine(" {0} (seed = {1}):\t{2} decisions\t{3} ms\t{4}{5}", item.Key, item.Value.schedulingSeed, item.Value.numDecisions, Math.Round((decimal)item.Value.elapsedMs, 0), item.Value.passed ? "Pass" : "Fail", item.Value.passed ? "" : "\n\t\t  (" + item.Value.reason + ")");
+                    Console.WriteLine("  {0} (seed = {1}):\t{2} reqs ({3} ms/req)\t{4} decisions\t{5} ms\t{6}{7}", 
+                        item.Key, 
+                        item.Value.schedulingSeed,
+                        item.Value.numRequests,
+                        Math.Round((decimal)item.Value.avgInvokeTime, 2),
+                        item.Value.numDecisions,
+                        Math.Round((decimal)item.Value.elapsedMs, 2),
+                        item.Value.passed ? "Pass" : "Fail", 
+                        item.Value.passed ? "" : "\n\t\t  (" + item.Value.reason + ")");
+
                     if (item.Value.passed)
                     {
                         passed++;
@@ -71,8 +84,8 @@ namespace Nekara.Client
                     }
                 }
                 Console.WriteLine("\n----------[ {0}/{1} Passed ]----------\n", passed, this.records.Count);
-                if (passedTime.Count > 0) Console.WriteLine("    Average Time for Bug-free Sessions:\t{0} ms", passedTime.Average());
-                if (failedTime.Count > 0) Console.WriteLine("    Average Time for Buggy Sessions:\t{0} ms", failedTime.Average());
+                if (passedTime.Count > 0) Console.WriteLine("    Average Time for Bug-free Sessions:\t{0} ms", Math.Round((decimal)passedTime.Average(), 2));
+                if (failedTime.Count > 0) Console.WriteLine("    Average Time for Buggy Sessions:\t{0} ms", Math.Round((decimal)failedTime.Average(), 2));
                 Console.WriteLine("\n==========[ {0}/{1} Passed ]==========\n", passed, this.records.Count);
             }
         }
@@ -149,7 +162,10 @@ namespace Nekara.Client
             return new TestDefinition(Setup, testMethod, Teardown);
         }
 
-        public Promise RunTest(TestDefinition definition, int numIteration, int timeoutMs = Constants.SessionTimeoutMs, int maxDecisions = Constants.SessionMaxDecisions)
+        public Promise RunTest(TestDefinition definition, int numIteration,
+            int timeoutMs = Constants.SessionTimeoutMs,
+            int maxDecisions = Constants.SessionMaxDecisions,
+            bool terminateOnFirstFail = false)
         {
             return new Promise((resolve, reject) =>
             {
@@ -157,12 +173,32 @@ namespace Nekara.Client
                 resolve(null);
             }).Then(prev =>
             {
+                var cts = new CancellationTokenSource();
                 var run = Helpers.RepeatTask(() => 
-                        this.RunNewTestSession(definition.Run, Helpers.RandomInt())
-                        .Then(result => this.ReplayTestSession((string)result)).Task,
-                    numIteration);
-                run.Wait();
+                        this.RunNewTestSession(definition.Run, SchedulingSeedGenerator.Generate())
+                        .Then(result => this.ReplayTestSession(((SessionRecord)result).sessionId, false))
+                        .Then(result => {
+                            if (terminateOnFirstFail && !((SessionRecord)result).passed) cts.Cancel();
+                            return null;
+                        }).Task,
+                    numIteration, cts.Token);
 
+                try
+                {
+                    run.Wait();
+                }
+                catch (AggregateException ex)
+                {
+                    if (ex.InnerExceptions[0] is TaskCanceledException && terminateOnFirstFail)
+                    {
+                        Console.WriteLine("Bug found! Suspending further tests because 'terminateOnFirstFail=true'");
+                    }
+                    else
+                    {
+                        Console.WriteLine("!!! Unexpected Exception !!!");
+                        throw ex;
+                    }
+                }
                 Console.WriteLine(TestRuntimeApi.Profiler.ToString());
 
                 return null;
@@ -173,13 +209,15 @@ namespace Nekara.Client
             });
         }
 
-        public Task StartSession(string sessionId, MethodInfo testMethod, int schedulingSeed)
+        public Task<object> StartSession(string sessionId, MethodInfo testMethod, int schedulingSeed)
         {
-            //var tcs = new TaskCompletionSource<bool>();
-            //this.sessions.Add(sessionId, tcs);
-
             Console.WriteLine(">>    Session Id : {0}", sessionId);
             Console.WriteLine("============================================\n");
+            
+            // reset task ID generators
+            this.TaskIdGenerator.Reset();
+            this.ResourceIdGenerator.Reset();
+
             this.testingApi.SetSessionId(sessionId);
 
             // Create a main task so that we have control over
@@ -192,13 +230,11 @@ namespace Nekara.Client
             // See also: https://devblogs.microsoft.com/premier-developer/dissecting-the-async-methods-in-c/
             var mainTask = new Promise((resolve, reject) =>
             {
-                Task task;
-
                 if (testMethod.ReturnType == typeof(Task))
                 {
                     // invoke user method asynchronously
-                    task = (Task)testMethod.Invoke(null, null);
-                    var reason = this.testingApi.WaitForMainTask();
+                    Task task = (Task)testMethod.Invoke(null, null);
+                    var record = this.testingApi.WaitForMainTask();
                     try
                     {
                         task.Wait();
@@ -209,12 +245,35 @@ namespace Nekara.Client
                     }
                     finally
                     {
-                        resolve(reason);
+                        resolve(record);
                     }
                 }
                 else
                 {
-                    task = Task.Factory.StartNew(() =>
+                    // invoke user method asynchronously
+                    Task task = Task.Factory.StartNew(() =>
+                    {
+                        testMethod.Invoke(null, null);
+
+                    }, TaskCreationOptions.AttachedToParent);
+
+                    task.ContinueWith(prev =>
+                    {
+                        Console.WriteLine("  [NekaraClient.StartSession] Main Task threw an Exception!\n{0}", prev.Exception.Message);
+                        var record = this.testingApi.WaitForMainTask();
+                        resolve(record);
+                    }, TaskContinuationOptions.OnlyOnFaulted);
+
+                    task.ContinueWith(prev =>
+                    {
+                        var record = this.testingApi.WaitForMainTask();
+                        resolve(record);
+                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
+
+                    /*var record = this.testingApi.WaitForMainTask();
+                    resolve(record);*/
+
+                    /*Task task = Task.Factory.StartNew(() =>
                     {
                         testMethod.Invoke(null, null);
 
@@ -223,17 +282,17 @@ namespace Nekara.Client
                     task.ContinueWith(prev =>
                     {
                         //this.testingApi.EndTask(0);
-                        var reason = this.testingApi.WaitForMainTask();
-                        resolve(reason);
+                        var record = this.testingApi.WaitForMainTask();
+                        resolve(record);
                     }, TaskContinuationOptions.OnlyOnRanToCompletion);
 
                     task.ContinueWith(prev =>
                     {
                         Console.WriteLine("  [NekaraClient.StartSession] Main Task threw an Exception!\n{0}", prev.Exception.Message);
-                        var reason = this.testingApi.WaitForMainTask();
+                        var record = this.testingApi.WaitForMainTask();
                         // do nothing
-                        resolve(reason);
-                    }, TaskContinuationOptions.OnlyOnFaulted);
+                        resolve(record);
+                    }, TaskContinuationOptions.OnlyOnFaulted);*/
                 }
 
             }).Then(data =>
@@ -248,8 +307,6 @@ namespace Nekara.Client
                 // clean up
                 // this.testingApi.Finish();
                 // Task.Delay(200).Wait();
-                Console.WriteLine("\n    ... resetting task ID generator");
-                this.idGen.Reset();
 
                 Console.WriteLine("\n--------------------------------------------\n");
                 Console.WriteLine("    Total Requests:\t{0}", this.testingApi.numRequests);
@@ -261,7 +318,7 @@ namespace Nekara.Client
                     Console.WriteLine("\n==================================== END ===[ {0} ms ]===", record.elapsedMs);
                 }
 
-                return null;
+                return record;
             }).Catch(ex =>
             {
                 Console.WriteLine(ex);
@@ -301,11 +358,11 @@ namespace Nekara.Client
 
                 session.Wait();
 
-                return sid;
+                return session.Result;
             });
         }
 
-        public Promise ReplayTestSession(string sessionId)
+        public Promise ReplayTestSession(string sessionId, bool setupAndTeardown = true)
         {
             return new Promise((resolve, reject) =>
             {
@@ -329,12 +386,12 @@ namespace Nekara.Client
                 var testMethod = GetMethodToBeTested(assembly, info.methodDeclaringClass, info.methodName);
                 var testDefinition = GetTestDefinition(testMethod);
 
-                if (testDefinition.Setup != null) testDefinition.Setup.Invoke(null, null);
+                if (testDefinition.Setup != null && setupAndTeardown) testDefinition.Setup.Invoke(null, null);
                 var session = this.StartSession(info.id, testMethod, info.schedulingSeed);
                 session.Wait();
-                if (testDefinition.Teardown != null) testDefinition.Teardown.Invoke(null, null);
+                if (testDefinition.Teardown != null && setupAndTeardown) testDefinition.Teardown.Invoke(null, null);
 
-                return null;
+                return session.Result;
             });
         }
 

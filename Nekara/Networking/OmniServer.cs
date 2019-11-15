@@ -79,9 +79,8 @@ namespace Nekara.Networking
                 {
                     try
                     {
-                        // Console.WriteLine("    Invoking Remote Method: void {0} ({1})", name, String.Join(",", args.Select(t => t.ToString())) );
+                        //Console.WriteLine("    Invoking Remote Method: void {0} ({1})", name, String.Join(",", args.Select(t => t.ToString())) );
                         method.Invoke(instance, args);
-                        // method.Invoke(instance, new object[] { args[0].ToObject<int>() });
                         return Task<JToken>.FromResult(JToken.FromObject(0));
                     }
                     catch (TargetInvocationException ex)
@@ -160,7 +159,7 @@ namespace Nekara.Networking
         // this method is called internally by the main message listener loop
         private Task<ResponseMessage> HandleRequest(RequestMessage message)
         {
-            // Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
+            //Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
             if (this.remoteMethods.ContainsKey(message.func))
             {
                 // If any Exception thrown during remoteMethod invocation,
@@ -225,30 +224,18 @@ namespace Nekara.Networking
             // Create an HttpServer and bind to network socket
             HttpServer server = new HttpServer(this.config.host, this.config.port);
 
-            // Top-level middleware function - just print some things for debugging
-            server.Use((Request request, Response response, Action next) => {
-                Console.WriteLine("Received {0} {1}", request.method, request.path);
-                Console.WriteLine(request.body);
-                next();
-            });
-
-            // test endpoint
-            server.Post("echo/", (Request request, Response response, Action next) =>
-            {
-                response.Send(200, request.body);
-            });
-
             /* Expose the service */
             server.Post("rpc/", (Request request, Response response, Action next) =>
             {
                 RequestMessage message = JsonConvert.DeserializeObject<RequestMessage>(request.body);
                 HandleRequest(message)
-                .ContinueWith(prev =>
+                .ContinueWith(prev => response.Send(200, prev.Result));
+                /*.ContinueWith(prev =>
                 {
-                    //Console.WriteLine("<-- Returning {3}Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id, prev.Result.error ? "Error " : "");
+                    //Console.WriteLine("<-- Returning {3} Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id, prev.Result.error ? "Error " : "");
                     ResponseMessage reply = prev.Result;
                     response.Send(200, reply);
-                });
+                });*/
             });
 
             server.Listen();

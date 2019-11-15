@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Orleans;
 using Orleans.Configuration;
 using Orleans.Hosting;
-using Nekara.Orleans;
+// using Nekara.Orleans;
 
 namespace Nekara.Tests.Orleans
 {
@@ -19,11 +19,14 @@ namespace Nekara.Tests.Orleans
                 {
                     options.ClusterId = "dev";
                     options.ServiceId = "NekaraOrleansBenchmarks";
-                })
-                .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(LockGrain).Assembly).WithReferences());
-                //.ConfigureLogging(logging => logging.AddConsole());
+                });
+            //.ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(LockGrain).Assembly).WithReferences());
+            //.ConfigureLogging(logging => logging.AddConsole());
 
-            types.ToList().ForEach(t => builder.ConfigureApplicationParts(parts => parts.AddApplicationPart(t.Assembly).WithReferences()));
+            types.ToList().ForEach(t => {
+                Console.WriteLine("Adding Type " + t.FullName + "'s Assembly " + t.Assembly.FullName);
+                builder.ConfigureApplicationParts(parts => parts.AddApplicationPart(t.Assembly).WithReferences()); 
+            });
 
             var host = builder.Build();
             await host.StartAsync();

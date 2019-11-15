@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -72,6 +73,7 @@ namespace Nekara
 
             public UniqueIdGenerator(bool sequential = true, int idOffset = 1000001)
             {
+                if (idOffset < 0) throw new ArgumentException("idOffset argument must be an int greater than -1", "idOffset");
                 sequentialMode = sequential;
                 this.idOffset = idOffset;
             }
@@ -84,7 +86,7 @@ namespace Nekara
                     do
                     {
                         x = sequentialMode ? idOffset + issued.Count : randomizer.NextInt(Int32.MaxValue);
-                    } while (issued.Contains(x) || x < 1);
+                    } while (issued.Contains(x) || x < 0);
                     issued.Add(x);
                     return x;
                 }
@@ -101,36 +103,36 @@ namespace Nekara
 
         public class MicroProfiler
         {
-            private Dictionary<(string, string), (int, double)> Data = new Dictionary<(string, string), (int, double)>();
-            // private string LastPoint = null;
-            // private DateTime LastStamp;
+            private Dictionary<(string, string), (int, double, double, double)> Data = new Dictionary<(string, string), (int, double, double, double)>();
 
             public MicroProfiler() { }
 
-            public (string, DateTime) Update(string point)
+            public (string, long) Update(string point)
             {
-                return (point, DateTime.Now);
+                return (point, Stopwatch.GetTimestamp());
             }
             
-            public (string, DateTime) Update(string point, (string, DateTime) lastDatum)
+            public (string, long) Update(string point, (string, long) lastDatum)
             {
-                var Now = DateTime.Now;
-                if (!Data.ContainsKey((lastDatum.Item1, point)))
-                {
-                    Data[(lastDatum.Item1, point)] = (0, 0.0);
-                }
-
+                var Now = Stopwatch.GetTimestamp();
                 lock (Data)
                 {
-                    var (count, average) = Data[(lastDatum.Item1, point)];
-                    Data[(lastDatum.Item1, point)] = (count + 1, ((Now - lastDatum.Item2).Ticks + count * average) / (count + 1));
+                    if (!Data.ContainsKey((lastDatum.Item1, point)))
+                    {
+                        Data[(lastDatum.Item1, point)] = (0, 0.0, double.PositiveInfinity, double.NegativeInfinity);
+                    }
+
+                    var (count, average, min, max) = Data[(lastDatum.Item1, point)];
+                    var val = (Now - lastDatum.Item2)/10000;
+                    Data[(lastDatum.Item1, point)] = (count + 1, (val + count * average) / (count + 1), val < min ? val : min, val > max ? val : max);
                 }
                 return (point, Now);
             }
 
             public override string ToString()
             {
-                return string.Join("\n", Data.Select(item => "[ " + item.Key.Item1 + " ~ " + item.Key.Item2 + " ] " + item.Value.Item2 + " ticks (" + item.Value.Item1 + " times)"));
+                return string.Join("\n", Data.Select(item =>
+                    $"[{item.Key.Item1} ~ {item.Key.Item2}]\n\t{item.Value.Item1} times\tAvg {Math.Round((decimal)item.Value.Item2, 4)}\tMin {Math.Round((decimal)item.Value.Item3, 4)}\tMax {Math.Round((decimal)item.Value.Item4, 4)} ms"));
             }
         }
 
@@ -193,6 +195,13 @@ namespace Nekara
         public static Task RepeatTask(Func<Task> action, int count)
         {
             if (count > 1) return action().ContinueWith(prev => RepeatTask(action, count - 1)).Unwrap();
+            return action();
+        }
+
+        public static Task RepeatTask(Func<Task> action, int count, CancellationToken token)
+        {
+            if (token.IsCancellationRequested) return Task.FromException(new TaskCanceledException());
+            if (count > 1) return action().ContinueWith(prev => RepeatTask(action, count - 1, token)).Unwrap();
             return action();
         }
 

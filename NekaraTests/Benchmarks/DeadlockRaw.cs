@@ -13,9 +13,10 @@ namespace Nekara.Tests.Benchmarks
         static bool lck = false;
 
         [TestMethod]
-        public static void Run()
+        public static void RunBasic()
         {
             // initialize all relevant state
+            nekara.CreateResource(0);
             lck = false;
             x = 0;
 
@@ -24,6 +25,81 @@ namespace Nekara.Tests.Benchmarks
 
             nekara.CreateTask();
             Task.Run(() => Bar());
+        }
+
+        [TestMethod]
+        public static void RunBlocking()
+        {
+            // initialize all relevant state
+            nekara.CreateResource(0);
+            lck = false;
+            x = 0;
+
+            nekara.CreateTask();
+            var t1 = Task.Run(() => Foo());
+
+            nekara.CreateTask();
+            var t2 = Task.Run(() => Bar());
+
+            nekara.CreateTask();
+            var all = Task.Run(() => {
+                nekara.StartTask(4);
+                Task.WhenAll(t1, t2).Wait();
+                nekara.EndTask(4);
+            });
+        }
+
+        [TestMethod]
+        public static Task RunBasicTask()
+        {
+            // initialize all relevant state
+            nekara.CreateResource(0);
+            lck = false;
+            x = 0;
+
+            nekara.CreateTask();
+            var t1 = Task.Run(() => Foo());
+
+            nekara.CreateTask();
+            var t2 = Task.Run(() => Bar());
+
+            return Task.WhenAll(t1, t2);
+        }
+
+        [TestMethod]
+        public static Task RunBlockingTask()
+        {
+            // initialize all relevant state
+            lck = false;
+            x = 0;
+
+            nekara.CreateTask();
+            var t1 = Task.Run(() => Foo());
+
+            nekara.CreateTask();
+            var t2 = Task.Run(() => Bar());
+
+            Task.WhenAll(t1, t2).Wait();
+
+            return Task.CompletedTask;
+        }
+
+        [TestMethod]
+        public async static Task RunBlockingAsync()
+        {
+            // initialize all relevant state
+            lck = false;
+            x = 0;
+
+            nekara.CreateTask();
+            var t1 = Task.Run(() => Foo());
+
+            nekara.CreateTask();
+            var t2 = Task.Run(() => Bar());
+
+            await Task.WhenAll(t1, t2);
+
+            return;
         }
 
         [TestMethod]
@@ -104,12 +180,12 @@ namespace Nekara.Tests.Benchmarks
         static void Bar()
         {
             nekara.StartTask(2);
-            //Acquire();
+            Acquire();
 
             nekara.ContextSwitch();
             x = 1;
 
-            // Release();
+            Release();
 
             Console.WriteLine("Bar EndTask");
             nekara.EndTask(2);

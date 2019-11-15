@@ -14,6 +14,8 @@
 
         void BlockedOnResource(int resourceId);
 
+        void BlockedOnAnyResource(params int[] resourceIds);
+
         void SignalUpdatedResource(int resourceId);
 
         bool CreateNondetBool();

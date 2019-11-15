@@ -90,14 +90,30 @@ namespace Nekara.Networking
             // Assign the appropriate SendRequest method
             this._sendRequest = (func, args) =>
             {
+                // Console.WriteLine("\n<-- Requesting {0} ({1})", func, String.Join(", ", args.Select(arg => arg.ToString())));
                 var tcs = new TaskCompletionSource<JToken>();
                 var cts = new CancellationTokenSource();
-                client.Post("rpc/", new RequestMessage("Tester-Client", "Tester-Server", func, args).Serialize())
+
+                // It is important that we use the default Task scheduler to make this request work correctly with arbitrary frameworks.
+                // For instance, without specifying the default task scheduler, this request will not be able to receive a response in orleans,
+                // as described in: http://dotnet.github.io/orleans/Documentation/grains/external_tasks_and_grains.html
+                // The orleans task scheduler will enforce a single-threaded execution model and the receiver IO will be blocked
+                // see also: https://devblogs.microsoft.com/pfxteam/task-run-vs-task-factory-startnew/
+                Task.Factory.StartNew(() =>
+                {
+                    var message = new RequestMessage("Tester-Client", "Tester-Server", func, args);
+                    var payload = message.Serialize();
+                    client.Post("rpc/", payload, cts.Token)
                     .ContinueWith(prev => {
                         var resp = ResponseMessage.Deserialize(prev.Result);
+                        // Console.WriteLine("\n--> Got Response to {0} {1}\t[{2}({3})]", func, String.Join(", ", args.Select(arg => arg.ToString())), resp.responseTo, resp.error);
+
                         if (resp.error) tcs.SetException(Exceptions.DeserializeServerSideException(resp.data));
                         else tcs.SetResult(resp.data);
                     });
+
+                }, cts.Token, TaskCreationOptions.None, TaskScheduler.Default);
+
                 return (tcs.Task, cts);
             };
 

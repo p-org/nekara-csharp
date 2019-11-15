@@ -8,7 +8,7 @@ using Orleans.Hosting;
 
 namespace Nekara.Tests.Orleans
 {
-    class Deadlock
+    class DeadlockRaw
     {
         public static ITestingService nekara = RuntimeEnvironment.Client.Api;
         public static ISiloHost silo;
@@ -17,7 +17,7 @@ namespace Nekara.Tests.Orleans
         [TestSetupMethod]
         public static void Setup()
         {
-            (silo, client) = TestPlatform.Setup(typeof(FooGrain), typeof(BarGrain));
+            (silo, client) = TestPlatform.Setup(typeof(RawFooGrain), typeof(RawBarGrain));
             Console.WriteLine("Setup");
         }
 
@@ -32,77 +32,79 @@ namespace Nekara.Tests.Orleans
         public static NekaraModels.Lock lck;
 
         [TestMethod(30000, 1000)]
-        public static Task Run()
+        public async static Task Run()
         {
-            var foo = client.GetGrain<IFooGrain>(0);
-            var bar = client.GetGrain<IBarGrain>(1);
+            // Setup();
+
+            var foo = client.GetGrain<IRawFooGrain>(0);
+            var bar = client.GetGrain<IRawBarGrain>(1);
 
             lck = new NekaraModels.Lock(3);
             x = 0;
 
-            //nekara.CreateTask();
-            var t1 = foo.Foo();
+            var t1 = NekaraModels.Task.Run(() => foo.Foo().Wait());
 
-            //nekara.CreateTask();
-            var t2 = bar.Bar();
+            var t2 = NekaraModels.Task.Run(() => bar.Bar().Wait());
 
-            return Task.WhenAll(t1, t2);
+            await NekaraModels.Task.WhenAll(t1, t2);
+
+            // Teardown();
         }
     }
 
-    public interface IFooGrain : IGrainWithIntegerKey
+    public interface IRawFooGrain : IGrainWithIntegerKey
     {
         Task Foo();
     }
 
-    public interface IBarGrain : IGrainWithIntegerKey
+    public interface IRawBarGrain : IGrainWithIntegerKey
     {
         Task Bar();
     }
 
-    public class FooGrain : Grain, IFooGrain
+    public class RawFooGrain : Grain, IRawFooGrain
     {
         public Task Foo()
         {
             Console.WriteLine("Foo()\tstarted");
-            Deadlock.lck.Acquire();
+            DeadlockRaw.lck.Acquire();
 
             Console.WriteLine("Foo()\tacquired lock");
 
-            Deadlock.nekara.ContextSwitch();
+            DeadlockRaw.nekara.ContextSwitch();
             Console.WriteLine("Foo()\tgot control");
-            int lx1 = Deadlock.x;
+            int lx1 = DeadlockRaw.x;
 
             Console.WriteLine("Foo()\tcopied x");
 
-            Deadlock.nekara.ContextSwitch();
+            DeadlockRaw.nekara.ContextSwitch();
             Console.WriteLine("Foo()\tgot control");
-            int lx2 = Deadlock.x;
+            int lx2 = DeadlockRaw.x;
 
             Console.WriteLine("Foo()\tcopied x");
 
-            Deadlock.lck.Release();
+            DeadlockRaw.lck.Release();
             Console.WriteLine("Foo()\treleased lock");
 
-            Deadlock.nekara.Assert(lx1 == lx2, "Race!");
+            DeadlockRaw.nekara.Assert(lx1 == lx2, "Race!");
 
             Console.WriteLine("Foo()\tending");
             return Task.CompletedTask;
         }
     }
 
-    public class BarGrain : Grain, IBarGrain
+    public class RawBarGrain : Grain, IRawBarGrain
     {
         public Task Bar()
         {
-            //Deadlock.lck.Acquire();
+            //DeadlockRaw.lck.Acquire();
             Console.WriteLine("Bar()\tstarted");
 
-            Deadlock.nekara.ContextSwitch();
+            DeadlockRaw.nekara.ContextSwitch();
             Console.WriteLine("Bar()\tgot control");
-            Deadlock.x = 1;
+            DeadlockRaw.x = 1;
 
-            // Deadlock.lck.Release();
+            // DeadlockRaw.lck.Release();
             Console.WriteLine("Bar()\tending");
             return Task.CompletedTask;
         }

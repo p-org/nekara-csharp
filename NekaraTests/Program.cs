@@ -61,8 +61,13 @@ namespace NekaraTests
                     run.Wait();
                 }*/
 
-                var run = client.RunTest(testDefinition, repeat).Task;
+                var beginAt = DateTime.Now;
+
+                var run = client.RunTest(testDefinition, repeat, terminateOnFirstFail: true).Task;
                 run.Wait();
+
+                var elapsed = DateTime.Now - beginAt;
+                Console.WriteLine("... Elapsed {0} sec", elapsed.TotalSeconds);
             }
 
             client.PrintTestResults();

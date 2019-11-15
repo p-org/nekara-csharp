@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 
 namespace Nekara.Networking
 {
@@ -51,53 +51,24 @@ namespace Nekara.Networking
             return tcs.Task;
         }
 
-        /*public async Task<Object> Post(string path, string payload)
-        {
-            var tcs = new TaskCompletionSource<Object>();
-            // Call asynchronous network methods in a try/catch block to handle exceptions.
-            try
-            {
-                Console.WriteLine("    ... POST {0}", this.serverUri + path);
-                System.Net.Http.HttpResponseMessage response = await this.client.PostAsync(this.serverUri + path, new System.Net.Http.StringContent(payload));
-                response.EnsureSuccessStatusCode();
-                string responseBody = await response.Content.ReadAsStringAsync();
-
-                Console.WriteLine(responseBody);
-
-                tcs.SetResult(responseBody);
-            }
-            catch (System.Net.Http.HttpRequestException e)
-            {
-                Console.WriteLine("\nException Caught!");
-                Console.WriteLine("Message :{0} ", e.Message);
-            }
-
-            return tcs.Task;
-        }*/
-
         public async Task<string> Post(string path, string payload)
         {
-            // try serializing object into JSON
-            // this will throw an exception if the payload is not a serializable object - i.e., has DataContractAttribute
-            
-            // string serialized = JsonConvert.SerializeObject(payload);
-            
-            string responseBody;
+            return await this.Post(path, payload, CancellationToken.None);
+        }
 
-            // var tcs = new TaskCompletionSource<string>();
+        public async Task<string> Post(string path, string payload, CancellationToken token)
+        {
+            string responseBody;
 
             // Call asynchronous network methods in a try/catch block to handle exceptions.
             try
             {
                 // Console.WriteLine("    ... POST {0}", this.serverUri + path);
                 var httpContent = new System.Net.Http.StringContent(payload, Encoding.UTF8, "application/json");
-                System.Net.Http.HttpResponseMessage response = await this.client.PostAsync(this.serverUri + path, httpContent);
+                System.Net.Http.HttpResponseMessage response = await this.client.PostAsync(this.serverUri + path, httpContent, token);
                 response.EnsureSuccessStatusCode();
                 responseBody = await response.Content.ReadAsStringAsync();
-
                 //Console.WriteLine(responseBody);
-
-                // tcs.SetResult(responseBody);
             }
             catch (System.Net.Http.HttpRequestException e)
             {
@@ -106,7 +77,6 @@ namespace Nekara.Networking
                 responseBody = "";
             }
             return responseBody;
-            // return tcs.Task;
         }
     }
 }

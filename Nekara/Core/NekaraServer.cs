@@ -4,6 +4,7 @@ using System.Linq;
 using System.IO;
 using Newtonsoft.Json.Linq;
 using Nekara.Networking;
+using System.Diagnostics;
 
 namespace Nekara.Core
 {
@@ -15,6 +16,7 @@ namespace Nekara.Core
     // The testing service API should be exposed by this object.
     public class NekaraServer : MarshalByRefObject
     {
+        public static decimal StartedAt = Math.Round((decimal)Stopwatch.GetTimestamp()/10000, 0);
         public static int gCount = 0;
         private Dictionary<string, TestingSession> testSessions;
         private StreamWriter summaryFile;
@@ -57,8 +59,8 @@ namespace Nekara.Core
 
                 Console.WriteLine("\n--------------------------------------------\n");
                 Console.WriteLine("    Total Requests:\t{0}", record.numRequests);
-                Console.WriteLine("    Avg Invoke Time:\t{0} ms", record.avgInvokeTime);
-                Console.WriteLine("    Total Time Taken:\t{0} ms", record.elapsedMs);
+                Console.WriteLine("    Avg Invoke Time:\t{0} ms", Math.Round((decimal)record.avgInvokeTime, 2));
+                Console.WriteLine("    Total Time Taken:\t{0} ms", Math.Round((decimal)record.elapsedMs, 2));
                 Console.WriteLine("\n===== END of {0} =====[ Results: {1}/{2} ]=====\n\n", session.Id, this.testSessions.Where(item => item.Value.LastRecord.passed == true).Count(), this.testSessions.Count);
 
             });
@@ -71,7 +73,9 @@ namespace Nekara.Core
             Console.WriteLine("\n\n===== BEGIN {0} ================================\n", session.Id);
             Console.WriteLine("  [{1}]\n  in {0}", sessionInfo.assemblyName, sessionInfo.methodDeclaringClass + "." + sessionInfo.methodName);
             Console.WriteLine("  Seed:\t\t{0}\n  Timeout:\t{1}\n  MaxDecisions:\t{2}\n", sessionInfo.schedulingSeed, sessionInfo.timeoutMs, sessionInfo.maxDecisions);
-            //Console.WriteLine("\nIndex\tThrd\t#Thrds\tCurTask\t#Tasks\t#Blckd\tPending\tStage\tMethod\tArgs");
+#if DEBUG
+            Console.WriteLine("\nIndex\tThrd\t#Thrds\tCurTask\t#Tasks\t#Blckd\tPending\tStage\tMethod\tArgs");
+#endif
 
             return session.Id;
         }
@@ -149,6 +153,12 @@ namespace Nekara.Core
         public void BlockedOnResource(JToken sessionId, JToken resourceId)
         {
             RouteRemoteCall(sessionId.ToObject<string>(), "BlockedOnResource", resourceId.ToObject<int>());
+        }
+
+        [RemoteMethod(name = "BlockedOnAnyResource", description = "")]
+        public void BlockedOnAnyResource(JToken sessionId, JArray resourceIds)
+        {
+            RouteRemoteCall(sessionId.ToObject<string>(), "BlockedOnAnyResource", resourceIds.Select(id => id.ToObject<int>()).ToArray());
         }
 
         [RemoteMethod(name = "SignalUpdatedResource", description = "")]

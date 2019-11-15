@@ -5,7 +5,6 @@ using System.Linq;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Reflection;
 
 namespace Nekara.Core
 {
@@ -15,9 +14,13 @@ namespace Nekara.Core
         // (makes the whole app 10 ~ 15x slower when called in AppendLog), so we save the reference here.
         // However, this object is used only for debugging and can be omitted entirely.
         private static Process currentProcess = Process.GetCurrentProcess();
-        private static int PrintVerbosity = 1;
+        private static int PrintVerbosity = 0;
 
-        public static Helpers.MicroProfiler profiler = new Helpers.MicroProfiler();
+#if DEBUG
+        public static Helpers.MicroProfiler Profiler = new Helpers.MicroProfiler();
+#endif
+
+        private static Helpers.UniqueIdGenerator IdGen = new Helpers.UniqueIdGenerator(true, 1);
 
         // metadata
         public SessionInfo Meta;
@@ -33,7 +36,6 @@ namespace Nekara.Core
         private Helpers.SeededRandomizer randomizer;
         private int counter;
         ProgramState programState;
-        int numPendingTaskCreations;
         TaskCompletionSource<SessionRecord> SessionFinished;
         HashSet<RemoteMethodInvocation> pendingRequests;    // to keep track of unresolved requests. This can actually be done with a simple counter, but we want to present useful information to the client.
         List<DecisionTrace> testTrace;
@@ -45,8 +47,7 @@ namespace Nekara.Core
 
         public TestingSession(string assemblyName, string assemblyPath, string methodDeclaringClass, string methodName, int schedulingSeed, int timeoutMs = Constants.SessionTimeoutMs, int maxDecisions = Constants.SessionMaxDecisions)
         {
-
-            this.Meta = new SessionInfo(Helpers.RandomString(8), assemblyName, assemblyPath, methodDeclaringClass, methodName, schedulingSeed, timeoutMs, maxDecisions);
+            this.Meta = new SessionInfo(IdGen.Generate().ToString(), assemblyName, assemblyPath, methodDeclaringClass, methodName, schedulingSeed, timeoutMs, maxDecisions);
 
             this.records = new List<SessionRecord>();
 
@@ -70,9 +71,9 @@ namespace Nekara.Core
 
         public string Id { get { return this.Meta.id; } }
 
-        public string traceFilePath { get { return "logs/run-" + this.Id + "-trace.csv"; } }
+        public string traceFilePath { get { return "logs/run-" + NekaraServer.StartedAt.ToString() + "-" + this.Id + "-trace.csv"; } }
 
-        public string logFilePath { get { return "logs/run-" + this.Id + "-log.csv"; } }
+        public string logFilePath { get { return "logs/run-" + NekaraServer.StartedAt.ToString() + "-" + this.Id + "-log.csv"; } }
 
         public bool IsFinished { get; set; }
 
@@ -89,8 +90,8 @@ namespace Nekara.Core
         {
             lock (this.testTrace)
             {
-                (int, int)[] tasks = state.taskToTcs.Keys.Select(taskId => state.blockedTasks.ContainsKey(taskId) ? (taskId, state.blockedTasks[taskId]) : (taskId, -1)).ToArray();
-                var decision = new DecisionTrace(decisionType, decisionValue, currentTask, tasks);
+                // (int, int)[] tasks = state.taskToTcs.Keys.Select(taskId => state.blockedTasks.ContainsKey(taskId) ? (taskId, state.blockedTasks[taskId]) : (taskId, -1)).ToArray();
+                var decision = new DecisionTrace(decisionType, decisionValue, currentTask, state.GetAllTasksTuple());
                 // Console.WriteLine(decision.ToReadableString());
                 this.testTrace.Add(decision);
             }
@@ -100,6 +101,7 @@ namespace Nekara.Core
         {
             lock (this.runtimeLog)
             {
+                if (PrintVerbosity > 1) Console.WriteLine(String.Join("\t", cols.Select(obj => obj.ToString())));
                 this.runtimeLog.Add(String.Join("\t", cols.Select(obj => obj.ToString())));
             }
         }
@@ -117,7 +119,6 @@ namespace Nekara.Core
                 this.randomizer = new Helpers.SeededRandomizer(this.Meta.schedulingSeed);
                 this.counter = 0;
                 this.programState = new ProgramState();
-                this.numPendingTaskCreations = 0;
                 this.SessionFinished = new TaskCompletionSource<SessionRecord>();
                 this.pendingRequests = new HashSet<RemoteMethodInvocation>();
                 this.testTrace = new List<DecisionTrace>();
@@ -126,7 +127,7 @@ namespace Nekara.Core
                 this.timeout = new Timer(_ =>
                 {
                     string currentTask = this.programState.currentTask.ToString();
-                    var errorInfo = $"No activity for {(Meta.timeoutMs / 1000).ToString()} seconds! Currently on task {currentTask}.\nPossible reasons:\n\t- Not calling EndTask({currentTask})\n\t- Calling ContextSwitch from an undeclared Task\n\t- Some Tasks not being modelled";
+                    var errorInfo = $"No activity for {(Meta.timeoutMs / 1000).ToString()} seconds!\n  Program State: [ {this.programState.GetCurrentStateString()} ]\n  Possible reasons:\n\t- Not calling EndTask({currentTask})\n\t- Calling ContextSwitch from an undeclared Task\n\t- Some Tasks not being modelled";
                     this.Finish(false, errorInfo);
                 }, null, Meta.timeoutMs, Timeout.Infinite);
 
@@ -136,10 +137,10 @@ namespace Nekara.Core
 
             // create a continuation callback that will notify the client once the test is finished
             this.SessionFinished.Task.ContinueWith(prev => {
-                Console.WriteLine("\n[TestingSession.SessionFinished] was settled");
-
-                Console.WriteLine(profiler.ToString());
-
+                //Console.WriteLine("\n[TestingSession.SessionFinished] was settled");
+#if DEBUG
+                Console.WriteLine(Profiler.ToString());
+#endif
                 // emit onComplete event
                 this._onComplete(prev.Result);
             });
@@ -147,8 +148,8 @@ namespace Nekara.Core
 
         public void Finish(bool passed, string reason = "")
         {
-            Console.WriteLine("\n[TestingSession.Finish] was called while on Task {2}, thread: {0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, this.programState.currentTask);
-            Console.WriteLine("[TestingSession.Finish] Result: {0}, Reason: {1}, Already Finished: {2}", passed.ToString(), reason, this.IsFinished);
+            /*Console.WriteLine("\n[TestingSession.Finish] was called while on Task {2}, thread: {0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, this.programState.currentTask);
+            Console.WriteLine("[TestingSession.Finish] Result: {0}, Reason: {1}, Already Finished: {2}", passed.ToString(), reason, this.IsFinished);*/
 
             Monitor.Enter(this.stateLock);
 
@@ -187,18 +188,21 @@ namespace Nekara.Core
                     // if there is some thread that is not returning, then there is something wrong with the user program.
                     // One last pending request is the current request: WaitForMainTask 
                     bool userProgramFaulty = false;
+                    string userProgramFaultyReason = "";
                     int wait = 2000;
                     while (this.pendingRequests.Count > 0)
                     {
-                        lock (this.pendingRequests)
+                        /*lock (this.pendingRequests)
                         {
                             Console.WriteLine("Waiting for {0} requests to complete...\t({2} Tasks still in queue){1}", this.pendingRequests.Count, String.Join("", this.pendingRequests.Select(item => "\n\t... " + item.ToString())), programState.taskToTcs.Count);
-                        }
+                        }*/
                         Thread.Sleep(50);
                         wait -= 50;
                         if (wait <= 0)
                         {
                             userProgramFaulty = true;
+                            var pendingList = String.Join("", this.pendingRequests.Select(req => "\n\t  - " + req.ToString()));
+                            userProgramFaultyReason = $"Could not resolve {this.pendingRequests.Count} pending requests!\n\t  waiting on:{pendingList}.\n\nPossible reasons:\n\t- Some Tasks not being modelled\n\t- Calling ContextSwitch in a Task that is not declared";
                             break;
                         }
                     }
@@ -207,21 +211,30 @@ namespace Nekara.Core
                     this.timeout.Change(Timeout.Infinite, Timeout.Infinite);
                     this.timeout.Dispose();
 
-                    Console.WriteLine("\n\nOnly {0} last request to complete...", this.pendingRequests.Count);
+                    //Console.WriteLine("\n\nOnly {0} last request to complete...", this.pendingRequests.Count);
 
                     record.RecordEnd();
                     record.numDecisions = testTrace.Count;
 
-                    Console.WriteLine("\n===[ Decision Trace ({0} decision points) ]=====\n", testTrace.Count);
-                    if (PrintVerbosity > 1) PrintTrace(testTrace);
+                    if (PrintVerbosity > 1)
+                    {
+                        Console.WriteLine("\n===[ Decision Trace ({0} decision points) ]=====\n", testTrace.Count);
+                        PrintTrace(testTrace);
+                    }
+
+                    if (testTrace.Count == 0)
+                    {
+                        userProgramFaulty = true;
+                        userProgramFaultyReason = "There seems to be no concurrency modeled in the user program - 0 scheduling decisions were made";
+                    }
 
                     // if result is set, then there was something wrong with the user program so we do not record the trace
                     if (userProgramFaulty)
                     {
-                        var pendingList = String.Join("", this.pendingRequests.Select(req => "\n\t  - " + req.ToString()));
-                        var errorInfo = $"Could not resolve {this.pendingRequests.Count} pending requests!\n\t  waiting on:{pendingList}.\n\nPossible reasons:\n\t- Some Tasks not being modelled\n\t- Calling ContextSwitch in a Task that is not declared";
+                        // var pendingList = String.Join("", this.pendingRequests.Select(req => "\n\t  - " + req.ToString()));
+                        // var errorInfo = $"Could not resolve {this.pendingRequests.Count} pending requests!\n\t  waiting on:{pendingList}.\n\nPossible reasons:\n\t- Some Tasks not being modelled\n\t- Calling ContextSwitch in a Task that is not declared";
                         
-                        record.RecordResult(false, errorInfo);
+                        record.RecordResult(false, userProgramFaultyReason);
                     }
                     else
                     {
@@ -252,6 +265,8 @@ namespace Nekara.Core
                             {
                                 var traceText = File.ReadAllText(this.traceFilePath);
                                 List<DecisionTrace> previousTrace = traceText.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(line => DecisionTrace.FromString(line)).ToList();
+                                
+                                //PrintTrace(previousTrace);
 
                                 // if the traces are different, then something is wrong with the user program
                                 if (this.testTrace.Count != previousTrace.Count)
@@ -278,7 +293,7 @@ namespace Nekara.Core
                                     }
                                     else
                                     {
-                                        Console.WriteLine("\n\t... Decision trace was reproduced successfully");
+                                        // Console.WriteLine("\n\t... Decision trace was reproduced successfully");
                                         record.RecordResult(passed, reason);
                                         reproducible = true;
                                     }
@@ -304,6 +319,7 @@ namespace Nekara.Core
             if (this.IsFinished) throw new SessionAlreadyFinishedException("Session " + this.Id + " has already finished");
 
             DateTime calledAt = DateTime.Now;
+            var stamp = Profiler.Update(func + "Call");
 
             var method = typeof(TestingSession).GetMethod(func, args.Select(arg => arg.GetType()).ToArray());
             var invocation = new RemoteMethodInvocation(this, method, args);
@@ -335,6 +351,7 @@ namespace Nekara.Core
                 AppendLog(counter++, Thread.CurrentThread.ManagedThreadId, currentProcess.Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "exit", func, String.Join(";", args.Select(arg => arg.ToString())));
 
                 this.currentRecord.RecordMethodCall((DateTime.Now - calledAt).TotalMilliseconds);
+                stamp = Profiler.Update(func + "Return", stamp);
 
                 if (func != "WaitForMainTask")
                 {
@@ -366,45 +383,57 @@ namespace Nekara.Core
          */
         public void CreateTask()
         {
-            var (point, timestamp) = profiler.Update("CreateTaskBegin");
+#if DEBUG
+            var stamp = Profiler.Update("CreateTaskBegin");
+#endif
             lock (programState)
             {
-                this.numPendingTaskCreations++;
+                programState.InitTaskCreation();
             }
-            (point, timestamp) = profiler.Update("CreateTaskEnd", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("CreateTaskEnd", stamp);
+#endif
         }
 
         public void StartTask(int taskId)
         {
-            var (point, timestamp) = profiler.Update("StartTaskBegin");
-            TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
+#if DEBUG
+            var stamp = Profiler.Update("StartTaskBegin");
+#endif
+            TaskCompletionSource<bool> tcs;
 
             lock (programState)
             {
-                Assert(numPendingTaskCreations > 0, $"Unexpected StartTask! StartTask({taskId}) called without calling CreateTask");
-                Assert(!programState.taskToTcs.ContainsKey(taskId), $"Duplicate declaration of task: {taskId}");
-                programState.taskToTcs.Add(taskId, tcs);
-                numPendingTaskCreations--;
-                // Console.WriteLine("{0}\tTask {1}\tcreated", counter, taskId);
+                Assert(programState.numPendingTaskCreations > 0, $"Unexpected StartTask! StartTask({taskId}) called without calling CreateTask");
+                Assert(!programState.HasTask(taskId), $"Duplicate declaration of task: {taskId}");
+                tcs = programState.AddTask(taskId);
             }
 
-            (point, timestamp) = profiler.Update("StartTaskUpdate", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("StartTaskUpdate", stamp);
+#endif
 
             tcs.Task.Wait();
 
-            (point, timestamp) = profiler.Update("StartTaskEnd", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("StartTaskEnd", stamp);
+#endif
         }
 
         public void EndTask(int taskId)
         {
-            var (point, timestamp) = profiler.Update("EndTaskBegin");
+#if DEBUG
+            var stamp = Profiler.Update("EndTaskBegin");
+#endif
             WaitForPendingTaskCreations();
 
-            (point, timestamp) = profiler.Update("EndTaskWaited", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("EndTaskWaited", stamp);
+#endif
 
             lock (programState)
             {
-                Assert(programState.taskToTcs.ContainsKey(taskId), $"EndTask called on unknown task: {taskId}");
+                Assert(programState.HasTask(taskId), $"EndTask called on unknown task: {taskId}");
                 //Console.WriteLine($"EndTask({taskId}) Status: {programState.taskToTcs[taskId].Task.Status}");
 
                 // The following assert will fail if the user is calling
@@ -412,91 +441,149 @@ namespace Nekara.Core
                 Assert(programState.taskToTcs[taskId].Task.IsCompleted,
                     $"EndTask called but Task ({taskId}) did not receive control before (Task.Status == WaitingForActivation). Something is wrong with the test program - maybe ContextSwitch is called from an unmodelled Task?",
                     ()=> programState.taskToTcs[taskId].TrySetException(new TestFailedException($"EndTask called but Task ({taskId}) did not receive control before (Task.Status == WaitingForActivation)")));
-                programState.taskToTcs.Remove(taskId);
+                programState.RemoveTask(taskId);
             }
 
-            (point, timestamp) = profiler.Update("EndTaskUpdate", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("EndTaskUpdate", stamp);
+#endif
 
             ContextSwitch();
 
-            (point, timestamp) = profiler.Update("EndTaskEnd", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("EndTaskEnd", stamp);
+#endif
         }
 
         public void CreateResource(int resourceId)
         {
-            var (point, timestamp) = profiler.Update("CreateResourceBegin");
+#if DEBUG
+            var stamp = Profiler.Update("CreateResourceBegin");
+#endif
+
             lock (programState)
             {
-                Assert(!programState.resourceSet.Contains(resourceId), $"Duplicate declaration of resource: {resourceId}");
-                programState.resourceSet.Add(resourceId);
+                Assert(!programState.HasResource(resourceId), $"Duplicate declaration of resource: {resourceId}");
+                programState.AddResource(resourceId);
             }
 
-            (point, timestamp) = profiler.Update("CreateResourceEnd", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("CreateResourceEnd", stamp);
+#endif
         }
 
         public void DeleteResource(int resourceId)
         {
-            var (point, timestamp) = profiler.Update("DeleteResourceBegin");
+#if DEBUG
+            var stamp = Profiler.Update("DeleteResourceBegin");
+#endif
+
             lock (programState)
             {
-                Assert(programState.resourceSet.Contains(resourceId), $"DeleteResource called on unknown resource: {resourceId}");
+                Assert(programState.HasResource(resourceId), $"DeleteResource called on unknown resource: {resourceId}");
+                Assert(programState.SafeToDeleteResource(resourceId), $"DeleteResource called on resource {resourceId} but some tasks are blocked on it");
                 programState.resourceSet.Remove(resourceId);
             }
-            (point, timestamp) = profiler.Update("DeleteResourceEnd", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("DeleteResourceEnd", stamp);
+#endif
         }
 
         public void BlockedOnResource(int resourceId)
         {
-            var (point, timestamp) = profiler.Update("BlockedOnResourceBegin");
+#if DEBUG
+            var stamp = Profiler.Update("BlockedOnResourceBegin");
+#endif
             lock (programState)
             {
-                Assert(programState.resourceSet.Contains(resourceId),
-                    $"Illegal operation, resource {resourceId} has not been declared");
-                Assert(!programState.blockedTasks.ContainsKey(programState.currentTask),
+                Assert(programState.HasResource(resourceId), $"Illegal operation, resource {resourceId} has not been declared");
+                Assert(!programState.IsBlockedOnTask(programState.currentTask),
                     $"Illegal operation, task {programState.currentTask} already blocked on a resource");
-                programState.blockedTasks[programState.currentTask] = resourceId;
+                programState.BlockTaskOnAnyResource(programState.currentTask, resourceId);
             }
-            (point, timestamp) = profiler.Update("BlockedOnResourceUpdate", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("BlockedOnResourceUpdate", stamp);
+#endif
 
             ContextSwitch();
-            (point, timestamp) = profiler.Update("BlockedOnResourceEnd", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("BlockedOnResourceEnd", stamp);
+#endif
+        }
+
+        public void BlockedOnAnyResource(params int[] resourceIds)
+        {
+#if DEBUG
+            var stamp = Profiler.Update("BlockedOnAnyResourceBegin");
+#endif
+            lock (programState)
+            {
+                foreach (int resourceId in resourceIds)
+                {
+                    Assert(programState.HasResource(resourceId), $"Illegal operation, resource {resourceId} has not been declared");
+                }
+                Assert(!programState.IsBlockedOnTask(programState.currentTask),
+                    $"Illegal operation, task {programState.currentTask} already blocked on a resource");
+                programState.BlockTaskOnAnyResource(programState.currentTask, resourceIds);
+            }
+#if DEBUG
+            stamp = Profiler.Update("BlockedOnResourceUpdate", stamp);
+#endif
+
+            ContextSwitch();
+#if DEBUG
+            stamp = Profiler.Update("BlockedOnResourceEnd", stamp);
+#endif
         }
 
         public void SignalUpdatedResource(int resourceId)
         {
-            var (point, timestamp) = profiler.Update("SignalUpdatedResourceBegin");
+#if DEBUG
+            var stamp = Profiler.Update("SignalUpdatedResourceBegin");
+#endif
+
             lock (programState)
             {
-                var enabledTasks = programState.blockedTasks.Where(tup => tup.Value == resourceId).Select(tup => tup.Key).ToList();
-                foreach (var k in enabledTasks)
+                var blockedTasks = programState.blockedTasks.Where(tup => tup.Value.Contains(resourceId)).Select(tup => tup.Key).ToList();
+                foreach (var taskId in blockedTasks)
                 {
-                    programState.blockedTasks.Remove(k);
+                    programState.UnblockTask(taskId);
                 }
             }
 
-            (point, timestamp) = profiler.Update("SignalUpdatedResourceEnd", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("SignalUpdatedResourceEnd", stamp);
+#endif
         }
 
         public bool CreateNondetBool()
         {
-            var (point, timestamp) = profiler.Update("CreateNondetBoolBegin");
+#if DEBUG
+            var stamp = Profiler.Update("CreateNondetBoolBegin");
+#endif
             lock (programState)
             {
                 bool value = this.randomizer.NextBool();
                 this.PushTrace(DecisionType.CreateNondetBool, value ? 1 : 0, programState.currentTask, programState);
-                (point, timestamp) = profiler.Update("CreateNondetBoolEnd", (point, timestamp));
+#if DEBUG
+                stamp = Profiler.Update("CreateNondetBoolEnd", stamp);
+#endif
                 return value;
             }
         }
 
         public int CreateNondetInteger(int maxValue)
         {
-            var (point, timestamp) = profiler.Update("CreateNondetIntegerBegin");
+#if DEBUG
+            var stamp = Profiler.Update("CreateNondetIntegerBegin");
+#endif
             lock (programState)
             {
                 int value = this.randomizer.NextInt(maxValue);
                 this.PushTrace(DecisionType.CreateNondetInteger, value, programState.currentTask, programState);
-                (point, timestamp) = profiler.Update("CreateNondetIntegerEnd", (point, timestamp));
+#if DEBUG
+                stamp = Profiler.Update("CreateNondetIntegerEnd", stamp);
+#endif
                 return value;
             }
         }
@@ -520,11 +607,15 @@ namespace Nekara.Core
 
         public void ContextSwitch()
         {
-            var (point, timestamp) = profiler.Update("ContextSwitchBegin");
+#if DEBUG
+            var stamp = Profiler.Update("ContextSwitchBegin");
+#endif
 
             WaitForPendingTaskCreations();
 
-            (point, timestamp) = profiler.Update("ContextSwitchWaited", (point, timestamp));
+#if DEBUG
+            stamp = Profiler.Update("ContextSwitchWaited", stamp);
+#endif
 
             var tcs = new TaskCompletionSource<bool>();
             int[] enabledTasks;
@@ -549,7 +640,6 @@ namespace Nekara.Core
                     Assert(programState.taskToTcs.Count == 0, "Deadlock detected");
 
                     // if there are no blocked tasks and the task set is empty, we are all done
-                    // IterFinished.SetResult(new TestResult(true));
                     this.Finish(true);
                     return;
                 }
@@ -560,18 +650,21 @@ namespace Nekara.Core
             // record the decision at this point, before making changes to the programState
             lock (programState) {
                 Assert(this.testTrace.Count < Meta.maxDecisions, "Maximum steps reached; the program may be in a live-lock state!");
-                // AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "-", "*ContextSwitch*", $"{currentTask} --> {enabledTasks[next]}");
+                AppendLog(counter, Thread.CurrentThread.ManagedThreadId, currentProcess.Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "-", "*ContextSwitch*", $"{currentTask} --> {enabledTasks[next]}");
 
                 this.PushTrace(DecisionType.ContextSwitch, enabledTasks[next], currentTask, programState);
                 this.timeout.Change(Meta.timeoutMs, Timeout.Infinite);
 
-                (point, timestamp) = profiler.Update("ContextSwitchDecisionMade", (point, timestamp));
+#if DEBUG
+                stamp = Profiler.Update("ContextSwitchDecisionMade", stamp);
+#endif
             }
 
             // if current task is not blocked and is selected, just continue
             if (enabledTasks[next] == currentTask)
             {
                 // no-op
+                if (PrintVerbosity > 1) Console.WriteLine($"[{programState.GetCurrentStateString()}]");
             }
             else
             {
@@ -581,6 +674,9 @@ namespace Nekara.Core
 
                 lock (programState)
                 {
+                    if (PrintVerbosity > 1) Console.WriteLine($"[{programState.GetCurrentStateString()}]\t{currentTask} ---> {enabledTasks[next]}");
+                    else Console.Write(".");
+
                     // get the tcs of the selected task
                     nextTcs = programState.taskToTcs[enabledTasks[next]];
 
@@ -588,9 +684,6 @@ namespace Nekara.Core
                     // so that we can retrieve the control back
                     if (currentTaskStillRunning)
                     {
-                        //Console.WriteLine($"ContextSwitch {currentTask} -> {enabledTasks[next]}\tCurrent Task: {programState.taskToTcs[currentTask].Task.Status}");
-                        Console.Write(".");
-
                         // The following assert will fail if the user is calling
                         // additional ContextSwitch without declaring creation of Tasks
                         Assert(programState.taskToTcs[currentTask].Task.IsCompleted,
@@ -604,7 +697,9 @@ namespace Nekara.Core
                     programState.currentTask = enabledTasks[next];
                 }
 
-                (point, timestamp) = profiler.Update("ContextSwitchUpdate", (point, timestamp));
+#if DEBUG
+                stamp = Profiler.Update("ContextSwitchUpdate", stamp);
+#endif
 
                 // complete the tcs to let the task continue
                 nextTcs.SetResult(true);
@@ -613,8 +708,9 @@ namespace Nekara.Core
                 {
                     // block the current task until it is resumed by a future ContextSwitch call
                     tcs.Task.Wait();
-
-                    (point, timestamp) = profiler.Update("ContextSwitchEnd", (point, timestamp));
+#if DEBUG
+                    stamp = Profiler.Update("ContextSwitchEnd", stamp);
+#endif
                 }
             }
         }
@@ -625,13 +721,13 @@ namespace Nekara.Core
             {
                 lock (programState)
                 {
-                    if (numPendingTaskCreations == 0)
+                    if (programState.numPendingTaskCreations == 0)
                     {
                         return;
                     }
                 }
 
-                Thread.Sleep(10);
+                Thread.Sleep(1);
             }
         }
 

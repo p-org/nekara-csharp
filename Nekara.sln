@@ -11,8 +11,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NekaraModels", "NekaraModel
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NekaraTests", "NekaraTests\NekaraTests.csproj", "{F105AA9E-3073-44D6-9B5B-7B8A8AA4311F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NekaraOrleans", "NekaraOrleans\NekaraOrleans.csproj", "{0C4F371C-2C98-4FBB-8A9B-750068DAB45C}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -44,12 +42,6 @@ Global
 		{F105AA9E-3073-44D6-9B5B-7B8A8AA4311F}.NekaraCompiler|Any CPU.Build.0 = NekaraCompiler|Any CPU
 		{F105AA9E-3073-44D6-9B5B-7B8A8AA4311F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F105AA9E-3073-44D6-9B5B-7B8A8AA4311F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0C4F371C-2C98-4FBB-8A9B-750068DAB45C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0C4F371C-2C98-4FBB-8A9B-750068DAB45C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0C4F371C-2C98-4FBB-8A9B-750068DAB45C}.NekaraCompiler|Any CPU.ActiveCfg = NekaraCompiler|Any CPU
-		{0C4F371C-2C98-4FBB-8A9B-750068DAB45C}.NekaraCompiler|Any CPU.Build.0 = NekaraCompiler|Any CPU
-		{0C4F371C-2C98-4FBB-8A9B-750068DAB45C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0C4F371C-2C98-4FBB-8A9B-750068DAB45C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -10,6 +10,8 @@ namespace Nekara.Client
         public static bool DebugMode = false;
         public static NekaraClient Client { get; set; }
 
+        public static DateTime StartedAt = DateTime.Now;
+
         static RuntimeEnvironment()
         {
             // Debug

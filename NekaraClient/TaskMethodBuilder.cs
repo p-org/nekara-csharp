@@ -18,10 +18,12 @@ namespace Nekara.Models
         private readonly Task _Task;
 
         public TaskMethodBuilder() {
-            int taskId = nekara.IdGen.Generate();
-            this._Task = new Task(taskId);
+            int taskId = nekara.TaskIdGenerator.Generate();
+            int resourceId = nekara.ResourceIdGenerator.Generate();
+
+            this._Task = new Task(taskId, resourceId);
             nekara.Api.CreateTask();
-            nekara.Api.CreateResource(taskId);
+            nekara.Api.CreateResource(resourceId);
         }
 
         public static TaskMethodBuilder Create() => new TaskMethodBuilder();
@@ -55,7 +57,8 @@ namespace Nekara.Models
         public void SetResult()
         {
             this._Task.Completed = true;
-            nekara.Api.SignalUpdatedResource(this._Task.Id);
+            nekara.Api.SignalUpdatedResource(this._Task.ResourceId);
+            nekara.Api.DeleteResource(this._Task.ResourceId);
             nekara.Api.EndTask(this._Task.Id);
         }
         public void SetException(Exception exception)
@@ -74,10 +77,12 @@ namespace Nekara.Models
 
         public TaskMethodBuilder()
         {
-            int taskId = nekara.IdGen.Generate();
-            this._Task = new Task<TResult>(taskId);
+            int taskId = nekara.TaskIdGenerator.Generate();
+            int resourceId = nekara.ResourceIdGenerator.Generate();
+
+            this._Task = new Task<TResult>(taskId, resourceId);
             nekara.Api.CreateTask();
-            nekara.Api.CreateResource(taskId);
+            nekara.Api.CreateResource(resourceId);
         }
 
         public static TaskMethodBuilder<TResult> Create() => new TaskMethodBuilder<TResult>();
@@ -112,7 +117,8 @@ namespace Nekara.Models
         {
             this._Task.Result = result;
             this._Task.Completed = true;
-            nekara.Api.SignalUpdatedResource(this._Task.Id);
+            nekara.Api.SignalUpdatedResource(this._Task.ResourceId);
+            nekara.Api.DeleteResource(this._Task.ResourceId);
             nekara.Api.EndTask(this._Task.Id);
         }
         public void SetException(Exception exception)

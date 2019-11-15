@@ -10,6 +10,8 @@ namespace Nekara.Networking
     [DataContract]
     public class RequestMessage
     {
+        public static Helpers.UniqueIdGenerator IdGen = new Helpers.UniqueIdGenerator(true, 1);
+
         [DataMember]
         internal string id;
 
@@ -27,7 +29,7 @@ namespace Nekara.Networking
 
         public RequestMessage(string sender, string recipient, string func, JToken[] args)
         {
-            this.id = "req-" + Helpers.RandomString(16);
+            this.id = "req-" + IdGen.Generate();
             this.sender = sender;
             this.recipient = recipient;
             this.func = func;
