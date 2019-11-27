@@ -40,11 +40,13 @@ namespace Nekara.Tests.Orleans
             lck = new NekaraModels.Lock(3);
             x = 0;
 
-            //nekara.CreateTask();
+            nekara.CreateTask();
             var t1 = foo.Foo();
 
-            //nekara.CreateTask();
+            nekara.CreateTask();
             var t2 = bar.Bar();
+
+            //NekaraModels.Task.Run(() => Task.Delay(30000).Wait());
 
             return Task.WhenAll(t1, t2);
         }

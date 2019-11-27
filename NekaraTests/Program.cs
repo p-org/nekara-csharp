@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Nekara;
 using Nekara.Client;
 using Nekara.Models;
 
@@ -61,13 +63,31 @@ namespace NekaraTests
                     run.Wait();
                 }*/
 
-                var beginAt = DateTime.Now;
+                var summaryFile = File.AppendText("logs/benchmark-summary-" + DateTime.Now.Ticks.ToString() + ".csv");
+                summaryFile.WriteLine("Test,NumSchedules,MinSteps,AvgSteps,MaxSteps,OverSteps,ElapsedClient,ElapsedServer");
 
-                var run = client.RunTest(testDefinition, repeat, terminateOnFirstFail: true).Task;
-                run.Wait();
+                var multipleRuns = Helpers.RepeatTask(() => new Promise((resolve, reject) =>
+                {
+                    var beginAt = Stopwatch.GetTimestamp();
 
-                var elapsed = DateTime.Now - beginAt;
-                Console.WriteLine("... Elapsed {0} sec", elapsed.TotalSeconds);
+                    var run = client.RunTest(testDefinition, repeat, terminateOnFirstFail: true).Task;
+                    run.Wait();
+
+                    var elapsed = (Stopwatch.GetTimestamp() - beginAt) / 10000;
+
+                    var summary = (TestSummary)run.Result;
+                    summary.elapsedClient = elapsed;
+
+                    Console.WriteLine("... Elapsed {0} sec", elapsed / 1000);
+                    Console.WriteLine(summary.ToString());
+
+                    summaryFile.WriteLine($"{typeName},{summary.iterations},{summary.minDecisions},{summary.avgDecisions},{summary.maxDecisions},{summary.maxDecisionsReached},{summary.elapsedClient},{summary.elapsedServer}");
+                    summaryFile.Flush();
+
+                    resolve(null);
+                }).Task, 101);
+
+                multipleRuns.Wait();
             }
 
             client.PrintTestResults();

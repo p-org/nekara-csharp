@@ -22,6 +22,7 @@ namespace Nekara.Models
             int resourceId = nekara.ResourceIdGenerator.Generate();
 
             this._Task = new Task(taskId, resourceId);
+            Task.AllPending.Add(this._Task);
             nekara.Api.CreateTask();
             nekara.Api.CreateResource(resourceId);
         }
@@ -57,14 +58,17 @@ namespace Nekara.Models
         public void SetResult()
         {
             this._Task.Completed = true;
+            Task.AllPending.Remove(this._Task);
             nekara.Api.SignalUpdatedResource(this._Task.ResourceId);
             nekara.Api.DeleteResource(this._Task.ResourceId);
             nekara.Api.EndTask(this._Task.Id);
         }
         public void SetException(Exception exception)
         {
+            Console.WriteLine("<<< {0} in Custom Await >>>", exception.GetType().Name);
             this._Task.Completed = true;
             this._Task.Error = exception;
+            Task.AllPending.Remove(this._Task);
         }
     }
 

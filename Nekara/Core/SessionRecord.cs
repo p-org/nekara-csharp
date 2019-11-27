@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.Serialization;
 using System.Threading;
 using Newtonsoft.Json;
 
 namespace Nekara.Core
 {
+    public enum TestResult { Pass, Fail, InactivityTimeout, MaxDecisionsReached, FaultyProgram, Error }
+
     [DataContract]
     public class SessionRecord
     {
@@ -15,17 +18,17 @@ namespace Nekara.Core
         public int schedulingSeed;
 
         [DataMember]
-        public bool passed = false;
+        public TestResult result;
 
         [DataMember]
         public string reason;
 
         // performance data
         [DataMember]
-        public DateTime startedAt;
+        public long startedAt;
 
         [DataMember]
-        public DateTime finishedAt;
+        public long finishedAt;
 
         [DataMember]
         public int numDecisions;
@@ -36,7 +39,9 @@ namespace Nekara.Core
         [DataMember]
         public double avgInvokeTime;
 
-        public double elapsedMs { get { return (finishedAt - startedAt).TotalMilliseconds; } }
+        public double elapsedMs { get { return (finishedAt - startedAt)/10000; } }
+
+        public bool passed { get { return result == TestResult.Pass; } }
 
         public SessionRecord()
         {
@@ -55,14 +60,14 @@ namespace Nekara.Core
 
         public void RecordBegin()
         {
-            this.startedAt = DateTime.Now;
+            this.startedAt = Stopwatch.GetTimestamp();
             this.numRequests = 0;
             this.avgInvokeTime = 0.0;
         }
 
         public void RecordEnd()
         {
-            this.finishedAt = DateTime.Now;
+            this.finishedAt = Stopwatch.GetTimestamp();
         }
 
         public void RecordMethodCall(double elapsed)
@@ -71,9 +76,9 @@ namespace Nekara.Core
             Interlocked.Increment(ref numRequests);
         }
 
-        public void RecordResult(bool passed, string reason)
+        public void RecordResult(TestResult result, string reason)
         {
-            this.passed = passed;
+            this.result = result;
             this.reason = reason;
         }
 

@@ -2,7 +2,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License (MIT). See License.txt in the repo root for license information.
 // ------------------------------------------------------------------------------------------------
-
 using Nekara.Client;
 using Nekara.Models;
 
@@ -11,12 +10,12 @@ namespace Nekara.Tests.Benchmarks
     public class TwoStage
     {
         [TestMethod]
-        public static async void Run()
+        public static void Run()
         {
             var nekara = RuntimeEnvironment.Client.Api;
 
-            int numTTasks = 3;
-            int numRTasks = 3;
+            int numTTasks = 1;
+            int numRTasks = 1;
             int data1Value = 0;
             int data2Value = 0;
 
@@ -79,8 +78,8 @@ namespace Nekara.Tests.Benchmarks
                 });
             }
 
-            await Task.WhenAll(tPool);
-            await Task.WhenAll(rPool);
+            Task.WaitAll(tPool);
+            Task.WaitAll(rPool);
         }
     }
 }

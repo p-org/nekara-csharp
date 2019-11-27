@@ -5,7 +5,7 @@ namespace Nekara.Tests.PSharp.MultiPaxos
 {
     class Test
     {
-        [TestMethod(5000, 500)]
+        [TestMethod(10000, 2500)]
         public static void Run()
         {
             var runtime = PSharpTestRuntime.Create();

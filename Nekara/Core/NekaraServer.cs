@@ -36,13 +36,16 @@ namespace Nekara.Core
             var sessionInfo = SessionInfo.FromJson(arg);
             var session = new TestingSession(sessionInfo);
 
-            session.OnComplete(record =>
+            session.OnComplete += (sender, record) =>
             {
+#if DEBUG
                 Console.WriteLine("\n==========[ Test {0} {1} ]==========\n", record.sessionId, record.passed ? "PASSED" : "FAILED");
+
                 if (record.reason != "")
                 {
                     Console.WriteLine("  " + record.reason);
                 }
+#endif
 
                 // Append Summary
                 string summary = String.Join(",", new string[] { 
@@ -57,24 +60,26 @@ namespace Nekara.Core
                 this.summaryFile.WriteLine(summary);
                 this.summaryFile.Flush();
 
+#if DEBUG
                 Console.WriteLine("\n--------------------------------------------\n");
                 Console.WriteLine("    Total Requests:\t{0}", record.numRequests);
                 Console.WriteLine("    Avg Invoke Time:\t{0} ms", Math.Round((decimal)record.avgInvokeTime, 2));
                 Console.WriteLine("    Total Time Taken:\t{0} ms", Math.Round((decimal)record.elapsedMs, 2));
                 Console.WriteLine("\n===== END of {0} =====[ Results: {1}/{2} ]=====\n\n", session.Id, this.testSessions.Where(item => item.Value.LastRecord.passed == true).Count(), this.testSessions.Count);
-
-            });
+#endif
+            };
 
             lock (this.testSessions)
             {
                 this.testSessions.Add(session.Id, session);
             }
-
+#if DEBUG
             Console.WriteLine("\n\n===== BEGIN {0} ================================\n", session.Id);
             Console.WriteLine("  [{1}]\n  in {0}", sessionInfo.assemblyName, sessionInfo.methodDeclaringClass + "." + sessionInfo.methodName);
             Console.WriteLine("  Seed:\t\t{0}\n  Timeout:\t{1}\n  MaxDecisions:\t{2}\n", sessionInfo.schedulingSeed, sessionInfo.timeoutMs, sessionInfo.maxDecisions);
-#if DEBUG
             Console.WriteLine("\nIndex\tThrd\t#Thrds\tCurTask\t#Tasks\t#Blckd\tPending\tStage\tMethod\tArgs");
+#else
+            Console.WriteLine("\nRun new session '{0}'\tseed = {1}", session.Id, sessionInfo.schedulingSeed);
 #endif
 
             return session.Id;
@@ -91,9 +96,13 @@ namespace Nekara.Core
                 TestingSession session = this.testSessions[sessionId];
                 session.Reset();
 
+#if DEBUG
                 Console.WriteLine("\n\n===== BEGIN REPLAY {0} =========================\n", sessionId);
                 Console.WriteLine("  [{1}]\n  in {0}\n", info.assemblyName, info.methodDeclaringClass + "." + info.methodName);
                 Console.WriteLine("  Seed:\t\t{0}\n  Timeout:\t{1}\n  MaxDecisions:\t{2}\n", info.schedulingSeed, info.timeoutMs, info.maxDecisions);
+#else
+                Console.WriteLine("\n Replay session '{0}'\tseed = {1}", session.Id, session.Meta.schedulingSeed);
+#endif
             }
 
             return info;

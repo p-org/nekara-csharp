@@ -2,8 +2,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License (MIT). See License.txt in the repo root for license information.
 // ------------------------------------------------------------------------------------------------
-
-using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Models;
 using Nekara.Core;
@@ -12,19 +10,18 @@ namespace Nekara.Tests.Benchmarks
 {
     public class BluetoothDriver
     {
-        public static ITestingService nekara;
+        public static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
         [TestMethod]
-        public static async void RunTest()
+        public static void RunTest()
         {
             //System.Diagnostics.Debugger.Launch();
-
-            BluetoothDriver.nekara = RuntimeEnvironment.Client.Api;
+            //BluetoothDriver.nekara = RuntimeEnvironment.Client.Api;
 
             // create an instance of stack
             var driver = new BluetoothDriver();
 
-            await driver.Run();
+            driver.Run().Wait();
         }
 
         private class DeviceExtension
@@ -85,7 +82,7 @@ namespace Nekara.Tests.Benchmarks
             BCSP_IoDecrement(e);
         }
 
-        public async NativeTasks.Task Run()
+        public Task Run()
         {
             DeviceExtension e = new DeviceExtension
             {
@@ -115,7 +112,7 @@ namespace Nekara.Tests.Benchmarks
 
             BCSP_PnpAdd(e);
 
-            await mt;
+            return mt;
         }
     }
 }

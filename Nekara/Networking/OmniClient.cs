@@ -12,7 +12,7 @@ namespace Nekara.Networking
 {
     public class OmniClient : IClient, IDisposable
     {
-        private OmniClientConfiguration config;
+        public OmniClientConfiguration config;
         private Func<string, JToken[], (Task<JToken>, CancellationTokenSource)> _sendRequest;    // delegate method to be implemented by differnet transport mechanisms
         private Action<string, RemoteMethodAsync> _addRemoteMethod;    // delegate method to be implemented by differnet transport mechanisms
         private Action _dispose;
@@ -90,7 +90,7 @@ namespace Nekara.Networking
             // Assign the appropriate SendRequest method
             this._sendRequest = (func, args) =>
             {
-                // Console.WriteLine("\n<-- Requesting {0} ({1})", func, String.Join(", ", args.Select(arg => arg.ToString())));
+                if (this.config.PrintVerbosity > 1) Console.WriteLine("\n<-- Requesting {0} ({1})", func, String.Join(", ", args.Select(arg => arg.ToString())));
                 var tcs = new TaskCompletionSource<JToken>();
                 var cts = new CancellationTokenSource();
 
@@ -99,18 +99,35 @@ namespace Nekara.Networking
                 // as described in: http://dotnet.github.io/orleans/Documentation/grains/external_tasks_and_grains.html
                 // The orleans task scheduler will enforce a single-threaded execution model and the receiver IO will be blocked
                 // see also: https://devblogs.microsoft.com/pfxteam/task-run-vs-task-factory-startnew/
-                Task.Factory.StartNew(() =>
+                Task.Factory.StartNew(async () =>
                 {
-                    var message = new RequestMessage("Tester-Client", "Tester-Server", func, args);
-                    var payload = message.Serialize();
-                    client.Post("rpc/", payload, cts.Token)
-                    .ContinueWith(prev => {
-                        var resp = ResponseMessage.Deserialize(prev.Result);
-                        // Console.WriteLine("\n--> Got Response to {0} {1}\t[{2}({3})]", func, String.Join(", ", args.Select(arg => arg.ToString())), resp.responseTo, resp.error);
+                    try
+                    {
+                        var message = new RequestMessage("Tester-Client", "Tester-Server", func, args);
+                        var payload = message.Serialize();
 
-                        if (resp.error) tcs.SetException(Exceptions.DeserializeServerSideException(resp.data));
-                        else tcs.SetResult(resp.data);
-                    });
+                        var result = await client.Post("rpc/", payload, cts.Token);
+                        var resp = ResponseMessage.Deserialize(result);
+                        if (this.config.PrintVerbosity > 1) Console.WriteLine("\n--> Got Response to {0} {1}\t[{2}({3})]", func, String.Join(", ", args.Select(arg => arg.ToString())), resp.responseTo, resp.error);
+
+                        if (cts.Token.IsCancellationRequested) tcs.SetCanceled();
+                        else
+                        {
+                            if (resp.error) tcs.SetException(Exceptions.DeserializeServerSideException(resp.data));
+                            else tcs.SetResult(resp.data);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex is TaskCanceledException)
+                        {
+                            Console.WriteLine("\n!!! [OmniClient._sendRequest] Canceled {0} !!!", Helpers.MethodInvocationString(func, args));
+                            tcs.SetCanceled();
+                            return;
+                        }
+                        Console.WriteLine("\n!!! [OmniClient._sendRequest] UNEXPECTED EXCEPTION {0} !!!", ex.GetType().Name);
+                        tcs.SetException(ex);
+                    }
 
                 }, cts.Token, TaskCreationOptions.None, TaskScheduler.Default);
 

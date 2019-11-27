@@ -2,8 +2,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License (MIT). See License.txt in the repo root for license information.
 // ------------------------------------------------------------------------------------------------
-
-using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Core;
 using Nekara.Models;
@@ -12,17 +10,15 @@ namespace Nekara.Tests.Benchmarks
 {
     public class Queue
     {
-        public static ITestingService nekara;
+        public static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
         [TestMethod]
-        public static async void RunTest()
+        public static void RunTest()
         {
-            Queue.nekara = RuntimeEnvironment.Client.Api;
-
             // create an instance of stack
             var queue = new Queue();
 
-            await queue.Run();
+            queue.Run().Wait();
         }
 
         class QType
@@ -81,7 +77,7 @@ namespace Nekara.Tests.Benchmarks
             return x;
         }
 
-        public async NativeTasks.Task Run()
+        public Task Run()
         {
             this.Size = 20;
             int[] storedElements = new int[this.Size];
@@ -99,7 +95,7 @@ namespace Nekara.Tests.Benchmarks
 
             var l = new Lock(1);
 
-            Task t1 = Task.Run(async () =>
+            Task t1 = Task.Run(() =>
             {
                 int value;
 
@@ -140,7 +136,7 @@ namespace Nekara.Tests.Benchmarks
                 }
             });
 
-            Task t2 = Task.Run(async () =>
+            Task t2 = Task.Run(() =>
             {
                 for (int i = 0; i < this.Size; i++)
                 {
@@ -161,7 +157,7 @@ namespace Nekara.Tests.Benchmarks
                 }
             });
 
-            await Task.WhenAll(t1, t2);
+            return Task.WhenAll(t1, t2);
         }
     }
 }

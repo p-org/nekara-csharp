@@ -2,8 +2,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License (MIT). See License.txt in the repo root for license information.
 // ------------------------------------------------------------------------------------------------
-
-using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Models;
 
@@ -12,7 +10,7 @@ namespace Nekara.Tests.Benchmarks
     public class TokenRing
     {
         [TestMethod]
-        public static async void RunTest()
+        public static void RunTest()
         {
             var nekara = RuntimeEnvironment.Client.Api;
 
@@ -26,60 +24,49 @@ namespace Nekara.Tests.Benchmarks
 
             var l = new Lock(1);
 
-            Task t1 = Task.Run(async () =>
+            Task t1 = Task.Run(() =>
             {
                 nekara.ContextSwitch();
                 using (l.Acquire())
                 {
-                    nekara.ContextSwitch();
                     x1 = (x3 + 1) % 4;
-
-                    nekara.ContextSwitch();
                     flag1 = true;
                 }
             });
 
-            Task t2 = Task.Run(async () =>
+            Task t2 = Task.Run(() =>
             {
                 nekara.ContextSwitch();
                 using (l.Acquire())
                 {
-                    nekara.ContextSwitch();
                     x2 = x1;
-
-                    nekara.ContextSwitch();
                     flag2 = true;
                 }
             });
 
-            Task t3 = Task.Run(async () =>
+            Task t3 = Task.Run(() =>
             {
                 nekara.ContextSwitch();
                 using (l.Acquire())
                 {
-                    nekara.ContextSwitch();
                     x3 = x2;
-
-                    nekara.ContextSwitch();
                     flag3 = true;
                 }
             });
 
-            Task t4 = Task.Run(async () =>
+            Task t4 = Task.Run(() =>
             {
                 nekara.ContextSwitch();
                 using (l.Acquire())
                 {
-                    nekara.ContextSwitch();
                     if (flag1 && flag2 && flag3)
                     {
-                        nekara.ContextSwitch();
                         nekara.Assert(x1 == x2 && x2 == x3, "Bug found!");
                     }
                 }
             });
 
-            await Task.WhenAll(t1, t2, t3, t4);
+            Task.WaitAll(t1, t2, t3, t4);
         }
     }
 }

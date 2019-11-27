@@ -12,7 +12,6 @@ namespace Nekara.Tests.Benchmarks
 {
     public class Safestack
     {
-        // private static IMachineRuntime Runtime;
         public static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
         [TestMethod]

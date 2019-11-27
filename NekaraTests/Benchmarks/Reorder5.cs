@@ -11,7 +11,7 @@ namespace Nekara.Tests.Benchmarks
     public class Reorder5
     {
         [TestMethod]
-        public static async void Run()
+        public static void Run()
         {
             var nekara = RuntimeEnvironment.Client.Api;
 
@@ -50,8 +50,8 @@ namespace Nekara.Tests.Benchmarks
                 });
             }
 
-            await Task.WhenAll(setPool);
-            await Task.WhenAll(checkPool);
+            Task.WaitAll(setPool);
+            Task.WaitAll(checkPool);
         }
     }
 }

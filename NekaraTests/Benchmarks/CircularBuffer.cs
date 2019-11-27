@@ -2,8 +2,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License (MIT). See License.txt in the repo root for license information.
 // ------------------------------------------------------------------------------------------------
-
-using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Models;
 using Nekara.Core;
@@ -12,17 +10,15 @@ namespace Nekara.Tests.Benchmarks
 {
     public class CircularBuffer
     {
-        public static ITestingService nekara;
+        public static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
         [TestMethod]
-        public static async void RunTest()
+        public static void RunTest()
         {
-            CircularBuffer.nekara = RuntimeEnvironment.Client.Api;
-
             // create an instance of stack
             var buffer = new CircularBuffer();
 
-            await buffer.Run();
+            buffer.Run().Wait();
         }
 
         char[] Buffer;
@@ -64,7 +60,7 @@ namespace Nekara.Tests.Benchmarks
             return b;
         }
 
-        public async NativeTasks.Task Run()
+        public Task Run()
         {
             this.Buffer = new char[10];
             this.BufferSize = 10;
@@ -76,19 +72,16 @@ namespace Nekara.Tests.Benchmarks
 
             var l = new Lock(1);
 
-            Task t1 = Task.Run(async () =>
+            Task t1 = Task.Run(() =>
             {
                 for (int i = 0; i < n; i++)
                 {
                     nekara.ContextSwitch();
                     using (l.Acquire())
                     {
-                        nekara.ContextSwitch();
                         if (this.Send)
                         {
-                            nekara.ContextSwitch();
                             InsertLogElement(i);
-                            nekara.ContextSwitch();
                             this.Send = false;
                             this.Receive = true;
                         }
@@ -96,17 +89,15 @@ namespace Nekara.Tests.Benchmarks
                 }
             });
 
-            Task t2 = Task.Run(async () =>
+            Task t2 = Task.Run(() =>
             {
                 for (int i = 0; i < n; i++)
                 {
                     nekara.ContextSwitch();
                     using (l.Acquire())
                     {
-                        nekara.ContextSwitch();
                         if (this.Receive)
                         {
-                            nekara.ContextSwitch();
                             nekara.Assert(RemoveLogElement() == i, "Bug found!");
                             this.Receive = false;
                             this.Send = true;
@@ -115,7 +106,7 @@ namespace Nekara.Tests.Benchmarks
                 }
             });
 
-            await Task.WhenAll(t1, t2);
+            return Task.WhenAll(t1, t2);
         }
     }
 }

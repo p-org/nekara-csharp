@@ -5,6 +5,7 @@ using System.Threading;
 using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 using System.Reflection;
+using System.Collections.Generic;
 
 /* Useful references:
  *   https://github.com/dotnet/roslyn/blob/master/docs/features/task-types.md
@@ -14,10 +15,34 @@ using System.Reflection;
 
 namespace Nekara.Models
 {
+    /// <summary>
+    /// This is a "controlled" Task meant to replace the native System.Threading.Tasks.Task class
+    /// in a user application during a test. The attribute <see cref="AsyncMethodBuilderAttribute"/> indicates that
+    /// this is the Task object to be created when the <see cref="TaskMethodBuilder"/> implicitly creates
+    /// an awaitable object in a async/await semantics.
+    /// </summary>
     [AsyncMethodBuilder(typeof(TaskMethodBuilder))]
     public class Task : IAsyncResult, IDisposable
     {
         private static NekaraClient Client = RuntimeEnvironment.Client;
+
+        public static HashSet<Task> AllPending = new HashSet<Task>();
+
+        /// <summary>
+        /// Wraps the native <see cref="System.Threading.Tasks.Task.CompletedTask"/> and returns a Task immediately.
+        /// </summary>
+        public static Task CompletedTask
+        {
+            get
+            {
+                int taskId = Client.TaskIdGenerator.Generate();
+                int resourceId = Client.ResourceIdGenerator.Generate();
+                var task = new Task(taskId, resourceId);
+                task.Completed = true;
+                task.InnerTask = NativeTasks.Task.CompletedTask;
+                return task;
+            }
+        }
 
         public NativeTasks.Task InnerTask;
         public bool Completed;
@@ -37,6 +62,14 @@ namespace Nekara.Models
             Error = null;
         }
 
+        /// <summary>
+        /// Synchronously wait for the Task to complete (same interface as <see cref="System.Threading.Tasks.Task.Wait()"/>).
+        /// When invoked, it will first call <see cref="TestRuntimeApi.ContextSwitch()"/> to yield control to the scheduler (server)
+        /// and give a chance for some Task(s) to execute. After receiving control back, it will first see if the Task has
+        /// completed, returning immediately if it has already completed. If not, it will call <see cref="TestRuntimeApi.BlockedOnResource(int)"/>
+        /// with the Task's <see cref="ResourceId"/> to block execution until the Task is completed
+        /// (i.e., until the corresponding <see cref="ResourceId"/> has been signalled as updated).
+        /// </summary>
         public void Wait()
         {
             try
@@ -54,9 +87,12 @@ namespace Nekara.Models
             }
             catch (Exception ex)
             {
+#if DEBUG
                 Console.WriteLine("\n[NekaraModels.Task.Run] Exception in Nekara.Models.Task.Wait, rethrowing Error");
                 Console.WriteLine("    {0}: {1}", ex.GetType().Name, ex.Message);
+#endif
                 this.Completed = true;
+                Task.AllPending.Remove(this);
                 throw ex;
             }
         }
@@ -91,12 +127,56 @@ namespace Nekara.Models
             }
             catch (Exception ex)
             {
-                Console.WriteLine("\n[NekaraModels.Task.Run] Exception in GetAwaiter, setting Error");
-                Console.WriteLine("    {0}: {1}", ex.GetType().Name, ex.Message);
+#if !DEBUG
+                Console.WriteLine("\n[NekaraModels.Task.GetAwaiter] {0}:\t{1}", ex.GetType().Name, ex.Message);
+#endif
                 this.Completed = true;
                 this.Error = ex;
+                Task.AllPending.Remove(this);
                 return new TaskAwaiter(this);
             }
+        }
+
+        public Task ContinueWith(Action<Task> continuation)
+        {
+            int taskId = Client.TaskIdGenerator.Generate();
+            int resourceId = Client.ResourceIdGenerator.Generate();
+
+            var mt = new Task(taskId, resourceId);
+            Task.AllPending.Add(mt);
+            Client.Api.CreateTask();
+            Client.Api.CreateResource(resourceId);
+            var t = NativeTasks.Task.Run(() =>
+            {
+                try
+                {
+                    Client.Api.StartTask(taskId);
+                    if (!this.IsCompleted) Client.Api.BlockedOnResource(this.ResourceId);
+                    continuation(this);
+                    mt.Completed = true;
+                    Task.AllPending.Remove(mt);
+                    Client.Api.SignalUpdatedResource(resourceId);
+                    Client.Api.DeleteResource(resourceId);
+                    Client.Api.EndTask(taskId);
+                }
+                catch (Exception ex)
+                {
+#if DEBUG
+                    Console.WriteLine("\n[NekaraModels.Task.Run] {0} in wrapped task, setting Error\n\t{1}", ex.GetType().Name, ex.Message);
+#endif
+                    /*if (ex.InnerException is TestingServiceException)
+                    {
+                        Console.WriteLine(ex.InnerException.StackTrace);
+                    }*/
+                    mt.Completed = true;
+                    mt.Error = ex;
+                    Task.AllPending.Remove(mt);
+                    return;
+                }
+            });
+
+            mt.InnerTask = t;
+            return mt;
         }
 
         public static Task Run(Action action)
@@ -105,6 +185,7 @@ namespace Nekara.Models
             int resourceId = Client.ResourceIdGenerator.Generate();
 
             var mt = new Task(taskId, resourceId);
+            Task.AllPending.Add(mt);
             Client.Api.CreateTask();
             Client.Api.CreateResource(resourceId);
             var t = NativeTasks.Task.Run(() =>
@@ -114,21 +195,23 @@ namespace Nekara.Models
                     Client.Api.StartTask(taskId);
                     action();
                     mt.Completed = true;
+                    Task.AllPending.Remove(mt);
                     Client.Api.SignalUpdatedResource(resourceId);
                     Client.Api.DeleteResource(resourceId);
                     Client.Api.EndTask(taskId);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("\n[NekaraModels.Task.Run] Exception in wrapped task, setting Error");
-                    Console.WriteLine("    {0}: {1}", ex.GetType().Name, ex.Message);
-                    if (ex is TargetInvocationException || ex is AggregateException)
+#if !DEBUG
+                    Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
+#endif
+                    /*if (ex.InnerException is TestingServiceException)
                     {
-                        Console.WriteLine(ex.InnerException);
-                    }
-                    //Console.WriteLine(ex);
+                        Console.WriteLine(ex.InnerException.StackTrace);
+                    }*/
                     mt.Completed = true;
                     mt.Error = ex;
+                    Task.AllPending.Remove(mt);
                     return;
                 }
             });
@@ -139,11 +222,39 @@ namespace Nekara.Models
 
         public static void WaitAll(params Task[] tasks)
         {
+            // we could call task.Wait on each task, but doing it this way to avoid
+            // calling ContextSwitch multiple times
             Client.Api.ContextSwitch();
+
+            int errors = 0;
+            int ignoredErrors = 0;
+            
             // we can simply sequentially wait for all the tasks
             foreach (Task task in tasks)
             {
-                if (!task.Completed) Client.Api.BlockedOnResource(task.ResourceId);
+                try
+                {
+                    if (!task.Completed) Client.Api.BlockedOnResource(task.ResourceId);
+                }
+                catch (Exception ex)
+                {
+                    task.Completed = true;
+                    task.Error = ex;
+                    Task.AllPending.Remove(task);
+                    errors++;
+                    if (ex is IntentionallyIgnoredException) ignoredErrors++;
+                }
+            }
+
+            if (errors > 0)
+            {
+                var inner = tasks.Where(task => task.Error != null).Select(task => task.Error).ToArray();
+                Console.WriteLine($"Throwing {ignoredErrors}/{errors} Errors from Task.WaitAll!!!");
+                if (ignoredErrors > 0)
+                {
+                    throw new IntentionallyIgnoredException("Multiple exceptions thrown from child Tasks", new AggregateException(inner));
+                }
+                throw new AggregateException(inner);
             }
         }
 
@@ -160,7 +271,24 @@ namespace Nekara.Models
         public static Task WhenAll(params Task[] tasks)
         {
             return Task.Run(() => WaitAll(tasks));
-            //return NativeTasks.Task.WhenAll(tasks.Select(t => t.InnerTask).ToArray());
+            /*return Task.Run(() => {
+                try
+                {
+                    WaitAll(tasks);
+                }
+                // we need to catch any internal exceptions here and silence it,
+                // otherwise this Task itself will also throw an error
+                // and the main thread will not be able to catch all the exceptions
+                catch (IntentionallyIgnoredException ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                // rethrow the error if it was not expected
+                catch (Exception ex)
+                {
+                    throw;
+                }
+            });*/
         }
 
         public static Task WhenAny(params Task[] tasks)

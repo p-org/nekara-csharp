@@ -58,6 +58,7 @@ namespace Nekara.Networking
 
         public async Task<string> Post(string path, string payload, CancellationToken token)
         {
+            if (token.IsCancellationRequested) throw new TaskCanceledException($"Post Request to {path} was cancelled");
             string responseBody;
 
             // Call asynchronous network methods in a try/catch block to handle exceptions.
@@ -75,6 +76,11 @@ namespace Nekara.Networking
                 Console.WriteLine("\nUnexpected Server Error!");
                 Console.WriteLine("Message :\n{0} ", e.Message);
                 responseBody = "";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("\n!!! [HttpClient.Post] UNEXPECTED EXCEPTION {0} !!!", ex.GetType().Name);
+                throw;
             }
             return responseBody;
         }

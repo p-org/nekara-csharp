@@ -18,19 +18,19 @@ namespace Nekara.Tests.Orleans
         public static void Setup()
         {
             (silo, client) = TestPlatform.Setup(typeof(LoggerGrain), typeof(ReporterGrain));
-            Console.WriteLine("Setup");
+            Console.WriteLine("\n... Orleans Silo and Client setup completed");
         }
 
         [TestTeardownMethod]
         public static void Teardown()
         {
             silo.StopAsync().Wait();
-            Console.WriteLine("Teardown");
+            Console.WriteLine("\n... Orleans Silo and Client teardown completed");
         }
 
         public static int N = 3;
 
-        [TestMethod(30000, 1000)]
+        [TestMethod(3000000, 1000)]
         public static Task Run()
         {
             var logger = client.GetGrain<ILoggerGrain>(2);
@@ -42,7 +42,7 @@ namespace Nekara.Tests.Orleans
             var t0 = reporter0.Report(N, "0");
             var t1 = reporter1.Report(N, "1");
 
-            return Nekara.Models.Task.Run(()=> Task.WhenAll(t0, t1).Wait()).InnerTask;
+            return Nekara.Models.Task.Run(()=> Task.WhenAll(t0, t1)).InnerTask;
         }
     }
 

@@ -16,6 +16,7 @@ namespace Nekara.Networking
         public readonly string logDirectory;
         public string host;    // used if Transport == HTTP
         public int port;       // used if Transport == HTTP or TCP
+        public int PrintVerbosty = 0;
 
         public OmniServerConfiguration(Transport tMode = Transport.HTTP, string logDirectory = "logs") : this(tMode, "localhost", 8080, logDirectory) { }
 

@@ -9,11 +9,11 @@ using System;
 
 namespace Nekara.Tests.Benchmarks
 {
-    public class DiningPhilosophers3
+    public class DiningPhilosophers10
     {
         public static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
-        public static int N = 3;
+        public static int N = 10;
         public static int phil;
 
         [TestMethod]

@@ -24,13 +24,13 @@ namespace Nekara.Tests.Orleans
             //.ConfigureLogging(logging => logging.AddConsole());
 
             types.ToList().ForEach(t => {
-                Console.WriteLine("Adding Type " + t.FullName + "'s Assembly " + t.Assembly.FullName);
+                Console.WriteLine("[Orleans TestPlatform] - Adding Type " + t.FullName + "'s Assembly " + t.Assembly.FullName);
                 builder.ConfigureApplicationParts(parts => parts.AddApplicationPart(t.Assembly).WithReferences()); 
             });
 
             var host = builder.Build();
             await host.StartAsync();
-            Console.WriteLine("Silo successfully started \n");
+            Console.WriteLine("... Silo successfully started \n");
             return host;
         }
 
@@ -49,7 +49,7 @@ namespace Nekara.Tests.Orleans
                 .Build();
 
             await client.Connect();
-            Console.WriteLine("Client successfully connected to silo host \n");
+            Console.WriteLine("... Client successfully connected to silo host \n");
             return client;
         }
 
@@ -57,8 +57,8 @@ namespace Nekara.Tests.Orleans
 
         public static (ISiloHost, IClusterClient) Setup(params Type[] types)
         {
-            var host = StartSilo(types).Result;
-            var client = ConnectClient().Result;
+            var host = StartSilo(types).GetAwaiter().GetResult();
+            var client = ConnectClient().GetAwaiter().GetResult();
             return (host, client);
         }
     }

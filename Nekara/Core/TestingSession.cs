@@ -5,9 +5,16 @@ using System.Linq;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Nekara.Abstractions;
 
 namespace Nekara.Core
 {
+    /// <summary>
+    /// This object represents a single run of a user program under test.
+    /// It maintains a <see cref="ProgramState"/> object and exposes the
+    /// testing service API defined in <see cref="ITestingService"/>.
+    /// The core testing logic is implemented by this object.
+    /// </summary>
     public class TestingSession : ITestingService
     {
         // It appears that Process.GetCurrentProcess is a very expensive call
@@ -28,9 +35,10 @@ namespace Nekara.Core
         // run-time objects
         private readonly StreamWriter traceFile;
         private readonly StreamWriter logFile;
-        private Action<SessionRecord> _onComplete;
+        public event EventHandler<SessionRecord> OnComplete;
         private readonly object stateLock;
         private Timer timeout;
+        private Concurrent<bool> IsFinished;
 
         // testing service objects
         private Helpers.SeededRandomizer randomizer;
@@ -52,10 +60,11 @@ namespace Nekara.Core
             this.records = new List<SessionRecord>();
 
             // initialize run-time objects
-            this._onComplete = record => { };     // empty onComplete handler
+            // this._onComplete = record => { };     // empty onComplete handler
             this.stateLock = new object();
             this.traceFile = File.AppendText(this.traceFilePath);
             this.logFile = File.AppendText(this.logFilePath);
+            this.IsFinished = new Concurrent<bool>();
 
             this.Reset();
         }
@@ -75,22 +84,25 @@ namespace Nekara.Core
 
         public string logFilePath { get { return "logs/run-" + NekaraServer.StartedAt.ToString() + "-" + this.Id + "-log.csv"; } }
 
-        public bool IsFinished { get; set; }
+        // public bool IsFinished { get; set; }
 
         public bool IsReplayMode { get { return this.records.Count > 0; } }
 
         public SessionRecord LastRecord { get { return this.records.Last(); } }
 
-        public void OnComplete(Action<SessionRecord> action)
-        {
-            this._onComplete = action;
-        }
-
+        /// <summary>
+        /// Used internally to add a record of the scheduling decision made.
+        /// The list of decisions are used to compare with any future runs using the same seed,
+        /// in order to check that the run is reproduced.
+        /// </summary>
+        /// <param name="decisionType">Either ContextSwitch, CreateNondetBool, or CreateNondetInteger</param>
+        /// <param name="decisionValue">Either the selected Task ID, the boolean value, or the integer value generated</param>
+        /// <param name="currentTask">The Task ID of the current Task when the decision was made</param>
+        /// <param name="state">The <see cref="ProgramState"/> when the decision was made</param>
         private void PushTrace(DecisionType decisionType, int decisionValue, int currentTask, ProgramState state)
         {
             lock (this.testTrace)
             {
-                // (int, int)[] tasks = state.taskToTcs.Keys.Select(taskId => state.blockedTasks.ContainsKey(taskId) ? (taskId, state.blockedTasks[taskId]) : (taskId, -1)).ToArray();
                 var decision = new DecisionTrace(decisionType, decisionValue, currentTask, state.GetAllTasksTuple());
                 // Console.WriteLine(decision.ToReadableString());
                 this.testTrace.Add(decision);
@@ -106,6 +118,9 @@ namespace Nekara.Core
             }
         }
 
+        /// <summary>
+        /// Prints the record of decisions made to the console. Used mainly for debugging purposes.
+        /// </summary>
         private void PrintTrace(List<DecisionTrace> list)
         {
             list.ForEach(trace => Console.WriteLine(trace.ToReadableString()));
@@ -123,12 +138,12 @@ namespace Nekara.Core
                 this.pendingRequests = new HashSet<RemoteMethodInvocation>();
                 this.testTrace = new List<DecisionTrace>();
                 this.runtimeLog = new List<string>();
-                this.IsFinished = false;
+                this.IsFinished.Value = false;
                 this.timeout = new Timer(_ =>
                 {
                     string currentTask = this.programState.currentTask.ToString();
                     var errorInfo = $"No activity for {(Meta.timeoutMs / 1000).ToString()} seconds!\n  Program State: [ {this.programState.GetCurrentStateString()} ]\n  Possible reasons:\n\t- Not calling EndTask({currentTask})\n\t- Calling ContextSwitch from an undeclared Task\n\t- Some Tasks not being modelled";
-                    this.Finish(false, errorInfo);
+                    this.Finish(TestResult.InactivityTimeout, errorInfo);
                 }, null, Meta.timeoutMs, Timeout.Infinite);
 
                 this.currentRecord = new SessionRecord(this.Id, this.Meta.schedulingSeed);
@@ -142,25 +157,25 @@ namespace Nekara.Core
                 Console.WriteLine(Profiler.ToString());
 #endif
                 // emit onComplete event
-                this._onComplete(prev.Result);
+                this.OnComplete(this, prev.Result);
             });
         }
 
-        public void Finish(bool passed, string reason = "")
+        public void Finish(TestResult result, string reason = "")
         {
             /*Console.WriteLine("\n[TestingSession.Finish] was called while on Task {2}, thread: {0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, this.programState.currentTask);
             Console.WriteLine("[TestingSession.Finish] Result: {0}, Reason: {1}, Already Finished: {2}", passed.ToString(), reason, this.IsFinished);*/
 
-            Monitor.Enter(this.stateLock);
+            // Monitor.Enter(this.stateLock);
 
             // Ensure the following is called at most once
-            if (!this.IsFinished)
+            if (!this.IsFinished.Value)
             {
-                this.IsFinished = true;
-                Monitor.Exit(this.stateLock);
+                this.IsFinished.Value = true;
+                // Monitor.Exit(this.stateLock);
 
                 // Drop all pending tasks if finished due to error
-                if (!passed)
+                if (result != TestResult.Pass)
                 {
                     // Console.WriteLine("  Dropping {0} tasks", this.programState.taskToTcs.Count);
                     lock (programState)
@@ -168,12 +183,16 @@ namespace Nekara.Core
                         foreach (var item in this.programState.taskToTcs)
                         {
                             // if (item.Key != programState.currentTask)
-                            if (item.Key != 0)
+                            /*if (item.Key != 0)
                             {
-                                Console.WriteLine("    ... dropping Task {0} ({1})", item.Key, item.Value.Task.Status.ToString());
+                                Console.WriteLine("    ... dropping Session {2} Task {0} ({1})", item.Key, item.Value.Task.Status.ToString(), this.Id);
                                 item.Value.TrySetException(new TestFailedException(reason));
                                 this.programState.taskToTcs.Remove(item.Key);
-                            }
+                            }*/
+
+                            Console.WriteLine("    ... dropping Session {2} Task {0} ({1})", item.Key, item.Value.Task.Status.ToString(), this.Id);
+                            item.Value.TrySetException(new TestFailedException(reason));
+                            this.programState.taskToTcs.Remove(item.Key);
                         }
                     }
                 }
@@ -192,10 +211,12 @@ namespace Nekara.Core
                     int wait = 2000;
                     while (this.pendingRequests.Count > 0)
                     {
-                        /*lock (this.pendingRequests)
+#if !DEBUG
+                        lock (this.pendingRequests)
                         {
                             Console.WriteLine("Waiting for {0} requests to complete...\t({2} Tasks still in queue){1}", this.pendingRequests.Count, String.Join("", this.pendingRequests.Select(item => "\n\t... " + item.ToString())), programState.taskToTcs.Count);
-                        }*/
+                        }
+#endif
                         Thread.Sleep(50);
                         wait -= 50;
                         if (wait <= 0)
@@ -211,8 +232,15 @@ namespace Nekara.Core
                     this.timeout.Change(Timeout.Infinite, Timeout.Infinite);
                     this.timeout.Dispose();
 
-                    //Console.WriteLine("\n\nOnly {0} last request to complete...", this.pendingRequests.Count);
+                    /*foreach (var req in this.pendingRequests)
+                    {
+                        req.Drop();
+                    }*/
+                    // this.pendingRequests.Clear();
 
+#if DEBUG
+                    Console.WriteLine("\n\nOnly {0} last request to complete...", this.pendingRequests.Count);
+#endif
                     record.RecordEnd();
                     record.numDecisions = testTrace.Count;
 
@@ -234,7 +262,7 @@ namespace Nekara.Core
                         // var pendingList = String.Join("", this.pendingRequests.Select(req => "\n\t  - " + req.ToString()));
                         // var errorInfo = $"Could not resolve {this.pendingRequests.Count} pending requests!\n\t  waiting on:{pendingList}.\n\nPossible reasons:\n\t- Some Tasks not being modelled\n\t- Calling ContextSwitch in a Task that is not declared";
                         
-                        record.RecordResult(false, userProgramFaultyReason);
+                        record.RecordResult(TestResult.FaultyProgram, userProgramFaultyReason);
                     }
                     else
                     {
@@ -243,7 +271,7 @@ namespace Nekara.Core
                         // Write trace only if this is the first time running this session
                         if (!this.IsReplayMode)
                         {
-                            record.RecordResult(passed, reason);
+                            record.RecordResult(result, reason);
 
                             this.traceFile.Write(String.Join("\n", this.testTrace.Select(step => step.ToString())));
                             this.traceFile.Close();
@@ -255,11 +283,11 @@ namespace Nekara.Core
                         else
                         {
                             // if the results are different, then something is wrong with the user program
-                            if (this.LastRecord.passed != passed || this.LastRecord.reason != reason)
+                            if (this.LastRecord.result != result || this.LastRecord.reason != reason)
                             {
                                 var errorInfo = $"Could not reproduce the trace for Session {this.Id}.\nPossible reasons:\n\t- Some Tasks not being modelled";
-                                record.RecordResult(false, errorInfo);
-                                Console.WriteLine("\n\n!!! Result Mismatch:\n  Last: {0} {1},\n   Now: {2} {3} \n", this.LastRecord.passed.ToString(), this.LastRecord.reason, passed.ToString(), reason);
+                                record.RecordResult(TestResult.FaultyProgram, errorInfo);
+                                Console.WriteLine("\n\n!!! Result Mismatch:\n  Last: {0} {1},\n   Now: {2} {3} \n", this.LastRecord.result.ToString(), this.LastRecord.reason, result.ToString(), reason);
                             }
                             else
                             {
@@ -272,9 +300,12 @@ namespace Nekara.Core
                                 if (this.testTrace.Count != previousTrace.Count)
                                 {
                                     var errorInfo = $"Could not reproduce the trace for Session {this.Id}.\nPossible reasons:\n\t- Some Tasks not being modelled";
-                                    record.RecordResult(false, errorInfo);
+                                    record.RecordResult(TestResult.FaultyProgram, errorInfo);
 
-                                    Console.WriteLine("\n\n!!! Trace Length Mismatch: Last = {0} vs Now = {1}\n", this.testTrace.Count.ToString(), previousTrace.Count.ToString());
+                                    Console.WriteLine("\n\n!!! Trace Length Mismatch: Last = {0} vs Now = {1}\n", previousTrace.Count.ToString(), this.testTrace.Count.ToString());
+                                    PrintTrace(previousTrace);
+                                    Console.WriteLine("----- versus -----");
+                                    PrintTrace(this.testTrace);
                                 }
                                 else
                                 {
@@ -284,7 +315,7 @@ namespace Nekara.Core
                                     if (!match)
                                     {
                                         var errorInfo = $"Could not reproduce the trace for Session {this.Id}.\nPossible reasons:\n\t- Some Tasks not being modelled";
-                                        record.RecordResult(false, errorInfo);
+                                        record.RecordResult(TestResult.FaultyProgram, errorInfo);
 
                                         Console.WriteLine("\n\n!!! Trace Mismatch \n");
                                         PrintTrace(previousTrace);
@@ -294,7 +325,7 @@ namespace Nekara.Core
                                     else
                                     {
                                         // Console.WriteLine("\n\t... Decision trace was reproduced successfully");
-                                        record.RecordResult(passed, reason);
+                                        record.RecordResult(result, reason);
                                         reproducible = true;
                                     }
                                 }
@@ -307,6 +338,10 @@ namespace Nekara.Core
                         }
                     }
 
+#if !DEBUG
+                    Console.WriteLine("<<<===== Ending Session {0} =====>>>", this.Id);
+#endif
+
                     // signal the end of the test, so that WaitForMainTask can return
                     this.SessionFinished.SetResult(record);
                 });
@@ -314,12 +349,33 @@ namespace Nekara.Core
             else Monitor.Exit(this.stateLock);
         }
 
+        /// <summary>
+        /// This method is called exclusively by <see cref="NekaraServer"/> to forward
+        /// the serialized method invocation request from the client-side to this (<see cref="TestingSession"/>) object.
+        /// Under the hood, it creates a <see cref="RemoteMethodInvocation"/> object that wraps the API method,
+        /// handling any exceptions thrown during the invocation such as <see cref="AssertionFailureException"/>
+        /// in the appropriate manner.
+        /// Upon any invocation throwing an error, the testing session terminates by calling <see cref="Finish(bool, string)"/>,
+        /// which in turn drops all other method invocations currently being executed (by throwing a <see cref="TestFailedException"/>).
+        /// </summary>
+        /// <param name="func">The name of the method - defined in <see cref="ITestingService"/></param>
+        /// <param name="args">Any arguments to be provided for the method</param>
+        /// <returns></returns>
         public object InvokeAndHandleException(string func, params object[] args)
         {
-            if (this.IsFinished) throw new SessionAlreadyFinishedException("Session " + this.Id + " has already finished");
+            if (this.IsFinished.Value)
+            {
+                // There is a possibility that the test has already finished (e.g., due to an assertion error being thrown before this method is called).
+                // In this case, the result should be already available and should be returned to the client.
+                if (func == "WaitForMainTask") return this.SessionFinished.Task.Result.Serialize();
+
+                throw new SessionAlreadyFinishedException($"Session {this.Id} has already finished. Rejecting request for {Helpers.MethodInvocationString(func, args)}");
+            }
 
             DateTime calledAt = DateTime.Now;
+#if DEBUG
             var stamp = Profiler.Update(func + "Call");
+#endif
 
             var method = typeof(TestingSession).GetMethod(func, args.Select(arg => arg.GetType()).ToArray());
             var invocation = new RemoteMethodInvocation(this, method, args);
@@ -334,10 +390,11 @@ namespace Nekara.Core
 
             invocation.OnError += (sender, ex) =>
             {
-                Console.WriteLine("[InvokeAndHandleException] {0}", ex.GetType().Name);
+                Console.WriteLine("[TestingSession[{0}].InvokeAndHandleException] {1}", this.Id, ex.GetType().Name);
+                Console.WriteLine(ex);
                 if (ex is AssertionFailureException)
                 {
-                    this.Finish(false, ex.Message);
+                    this.Finish(TestResult.Fail, ex.Message);
                 }
             };
 
@@ -351,7 +408,9 @@ namespace Nekara.Core
                 AppendLog(counter++, Thread.CurrentThread.ManagedThreadId, currentProcess.Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "exit", func, String.Join(";", args.Select(arg => arg.ToString())));
 
                 this.currentRecord.RecordMethodCall((DateTime.Now - calledAt).TotalMilliseconds);
+#if DEBUG
                 stamp = Profiler.Update(func + "Return", stamp);
+#endif
 
                 if (func != "WaitForMainTask")
                 {
@@ -381,6 +440,14 @@ namespace Nekara.Core
          * Some methods have to be wrapped by an overloaded method because RemoteMethods are
          * expected to have a specific signature - i.e., all arguments are given as JTokens
          */
+        
+        
+        /// <summary>
+        /// Initializes the creation of a Task. When this is called, the Task has not been actually started -
+        /// it simply signals that a Task is about to be created. We can only know that a Task has actually been
+        /// created when the Task calls <see cref="StartTask(int)"/>.
+        /// Under the hood, this call simply increments <see cref="ProgramState.numPendingTaskCreations"/>.
+        /// </summary>
         public void CreateTask()
         {
 #if DEBUG
@@ -395,6 +462,12 @@ namespace Nekara.Core
 #endif
         }
 
+        /// <summary>
+        /// Called when a Task has actually been created. This call is placed at the beginning of the asynchronous Action
+        /// to signal to the testing service that the Task has started. When this is called, it will immediately block
+        /// and prevent the Task from progressing further, until the scheduler (this <see cref="TestingSession"/> object)
+        /// gives control back to the Task.
+        /// </summary>
         public void StartTask(int taskId)
         {
 #if DEBUG
@@ -420,6 +493,12 @@ namespace Nekara.Core
 #endif
         }
 
+        /// <summary>
+        /// Called at the end of an asynchronous Action to signal to the testing service that
+        /// the Task should be removed from the program and some other Task should be given control.
+        /// If this method is not called by the user program, the scheduler will not know that
+        /// the Task has ended and will assume it is still executing.
+        /// </summary>
         public void EndTask(int taskId)
         {
 #if DEBUG
@@ -455,6 +534,11 @@ namespace Nekara.Core
 #endif
         }
 
+        /// <summary>
+        /// Used to register an arbitrary "resource" through which different Tasks can synchronize.
+        /// The "resource" can be the Task itself, a network socket, a shared object, or any arbitrary object that
+        /// the user program considers relevant for synchronization.
+        /// </summary>
         public void CreateResource(int resourceId)
         {
 #if DEBUG
@@ -472,6 +556,9 @@ namespace Nekara.Core
 #endif
         }
 
+        /// <summary>
+        /// Used to remove a declared resource from the program state.
+        /// </summary>
         public void DeleteResource(int resourceId)
         {
 #if DEBUG
@@ -489,6 +576,14 @@ namespace Nekara.Core
 #endif
         }
 
+        /// <summary>
+        /// This method is used to block a Task based on the status of a previously declared resource.
+        /// It is usually called conditionally, by first checking if the said resource is available or not,
+        /// then calling it only if the resource is unavailble.
+        /// At a high level, this method can be seen as a "synchronous event listener"
+        /// that returns (unblocks) when the resource-owning Task emits a "resource available" event.
+        /// </summary>
+        /// <param name="resourceId"></param>
         public void BlockedOnResource(int resourceId)
         {
 #if DEBUG
@@ -511,6 +606,10 @@ namespace Nekara.Core
 #endif
         }
 
+        /// <summary>
+        /// Similar to <see cref="BlockedOnResource(int)"/>, this method is used to block a Task based on a set of resources.
+        /// The call will return if any one of the give resources are updated.
+        /// </summary>
         public void BlockedOnAnyResource(params int[] resourceIds)
         {
 #if DEBUG
@@ -536,6 +635,11 @@ namespace Nekara.Core
 #endif
         }
 
+        /// <summary>
+        /// This method is the counterpart of <see cref="BlockedOnResource(int)"/>, and is called by the resource-owning Task.
+        /// This is used to signal any other Tasks blocked on the given resource that the resource is now available.
+        /// At a high level, this method can be seen as an event emitter.
+        /// </summary>
         public void SignalUpdatedResource(int resourceId)
         {
 #if DEBUG
@@ -544,6 +648,8 @@ namespace Nekara.Core
 
             lock (programState)
             {
+                Assert(programState.HasResource(resourceId), $"Illegal operation, resource {resourceId} has not been declared");
+
                 var blockedTasks = programState.blockedTasks.Where(tup => tup.Value.Contains(resourceId)).Select(tup => tup.Key).ToList();
                 foreach (var taskId in blockedTasks)
                 {
@@ -556,6 +662,9 @@ namespace Nekara.Core
 #endif
         }
 
+        /// <summary>
+        /// Generate a random boolean value. This is a non-deterministic scheduling decision, and is recorded in the decision trace.
+        /// </summary>
         public bool CreateNondetBool()
         {
 #if DEBUG
@@ -572,6 +681,9 @@ namespace Nekara.Core
             }
         }
 
+        /// <summary>
+        /// Generate a random integer value. This is a non-deterministic scheduling decision, and is recorded in the decision trace.
+        /// </summary>
         public int CreateNondetInteger(int maxValue)
         {
 #if DEBUG
@@ -588,6 +700,11 @@ namespace Nekara.Core
             }
         }
 
+        /// <summary>
+        /// Called by the user program and also internally to assert a certain expression.
+        /// If the assertion fails, this method throws an <see cref="AssertionFailureException"/>
+        /// and the test will terminate as a result.
+        /// </summary>
         public void Assert(bool value, string message)
         {
             if (!value)
@@ -596,6 +713,11 @@ namespace Nekara.Core
             }
         }
 
+        /// <summary>
+        /// Called only internally to assert a certain expression, then invoke a callback if the assert fails.
+        /// If the assertion fails, this method throws an <see cref="AssertionFailureException"/>
+        /// and the test will terminate as a result.
+        /// </summary>
         public void Assert(bool value, string message, Action onError)
         {
             if (!value)
@@ -605,6 +727,12 @@ namespace Nekara.Core
             }
         }
 
+        /// <summary>
+        /// Used to indicate a scheduling point in the program. It can be called directly from the user program,
+        /// and is also called internally by <see cref="EndTask(int)"/> and <see cref="BlockedOnResource(int)"/>.
+        /// When it is called, it yields control to the scheduler and blocks execution until the scheduler returns control to it.
+        /// The majority of scheduling logic resides in this method.
+        /// </summary>
         public void ContextSwitch()
         {
 #if DEBUG
@@ -640,7 +768,7 @@ namespace Nekara.Core
                     Assert(programState.taskToTcs.Count == 0, "Deadlock detected");
 
                     // if there are no blocked tasks and the task set is empty, we are all done
-                    this.Finish(true);
+                    this.Finish(TestResult.Pass);
                     return;
                 }
 
@@ -649,7 +777,13 @@ namespace Nekara.Core
 
             // record the decision at this point, before making changes to the programState
             lock (programState) {
-                Assert(this.testTrace.Count < Meta.maxDecisions, "Maximum steps reached; the program may be in a live-lock state!");
+                // Assert(this.testTrace.Count < Meta.maxDecisions, "Maximum steps reached; the program may be in a live-lock state!");
+                if (this.testTrace.Count >= Meta.maxDecisions)
+                {
+                    // throw new MaximumDecisionPointsReachedException("Maximum steps reached; the program might be in a live-lock state! (or the program might be a non-terminating program)");
+                    this.Finish(TestResult.MaxDecisionsReached, "Maximum steps reached; the program might be in a live-lock state! (or the program might be a non-terminating program)");
+                    return;
+                }
                 AppendLog(counter, Thread.CurrentThread.ManagedThreadId, currentProcess.Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "-", "*ContextSwitch*", $"{currentTask} --> {enabledTasks[next]}");
 
                 this.PushTrace(DecisionType.ContextSwitch, enabledTasks[next], currentTask, programState);
@@ -675,7 +809,7 @@ namespace Nekara.Core
                 lock (programState)
                 {
                     if (PrintVerbosity > 1) Console.WriteLine($"[{programState.GetCurrentStateString()}]\t{currentTask} ---> {enabledTasks[next]}");
-                    else Console.Write(".");
+                    else if (PrintVerbosity > 0) Console.Write(".");
 
                     // get the tcs of the selected task
                     nextTcs = programState.taskToTcs[enabledTasks[next]];
@@ -727,20 +861,21 @@ namespace Nekara.Core
                     }
                 }
 
-                Thread.Sleep(1);
+                Thread.Sleep(TimeSpan.Zero);
             }
         }
 
         public string WaitForMainTask()
         {
             //AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "enter", "*EndTask*", 0);
+
             try
             {
                 this.EndTask(0);
             }
             catch (TestingServiceException ex)
             {
-                this.Finish(false, ex.Message);
+                this.Finish(TestResult.Error, ex.Message);
             }
             //AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "exit", "*EndTask*", 0);
 

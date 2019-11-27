@@ -8,14 +8,14 @@ using Nekara.Models;
 
 namespace Nekara.Tests.Benchmarks
 {
-    public class Reorder3
+    public class Reorder7
     {
         [TestMethod]
         public static void Run()
         {
             var nekara = RuntimeEnvironment.Client.Api;
 
-            int numSetTasks = 2;
+            int numSetTasks = 6;
             int numCheckTasks = 1;
 
             int a = 0;

@@ -2,9 +2,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License (MIT). See License.txt in the repo root for license information.
 // ------------------------------------------------------------------------------------------------
-
-using System;
-using NativeTasks = System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Models;
 
@@ -13,7 +10,7 @@ namespace Nekara.Tests.Benchmarks
     public class WrongLock
     {
         [TestMethod]
-        public static async void RunTest()
+        public static void RunTest()
         {
             var nekara = RuntimeEnvironment.Client.Api;
 
@@ -29,7 +26,7 @@ namespace Nekara.Tests.Benchmarks
 
             for (int i = 0; i < iNum1; i++)
             {
-                num1Pool[i] = Task.Run(async () =>
+                num1Pool[i] = Task.Run(() =>
                 {
                     nekara.ContextSwitch();
                     using (dataLock.Acquire())
@@ -48,7 +45,7 @@ namespace Nekara.Tests.Benchmarks
 
             for (int i = 0; i < iNum2; i++)
             {
-                num2Pool[i] = Task.Run(async () =>
+                num2Pool[i] = Task.Run(() =>
                 {
                     nekara.ContextSwitch();
                     using (thisLock.Acquire())
@@ -59,8 +56,8 @@ namespace Nekara.Tests.Benchmarks
                 });
             }
 
-            await Task.WhenAll(num1Pool);
-            await Task.WhenAll(num2Pool);
+            Task.WaitAll(num1Pool);
+            Task.WaitAll(num2Pool);
         }
     }
 }

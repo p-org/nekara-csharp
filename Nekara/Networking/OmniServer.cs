@@ -19,7 +19,7 @@ namespace Nekara.Networking
     // high-level, protocol-agnostic interface.
     public class OmniServer
     {
-        private OmniServerConfiguration config;
+        public OmniServerConfiguration config;
         private Dictionary<string, RemoteMethodAsync> remoteMethods;
         private Func<WebSocketClientHandle> _getClient;    // delegate method for getting client handles - this is a workaround to handle the InitializeTestSession notifyClient callback.
 
@@ -159,7 +159,7 @@ namespace Nekara.Networking
         // this method is called internally by the main message listener loop
         private Task<ResponseMessage> HandleRequest(RequestMessage message)
         {
-            //Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
+            if (this.config.PrintVerbosty > 1) Console.WriteLine("--> Client Request {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString()) ), message.id);
             if (this.remoteMethods.ContainsKey(message.func))
             {
                 // If any Exception thrown during remoteMethod invocation,
@@ -229,13 +229,12 @@ namespace Nekara.Networking
             {
                 RequestMessage message = JsonConvert.DeserializeObject<RequestMessage>(request.body);
                 HandleRequest(message)
-                .ContinueWith(prev => response.Send(200, prev.Result));
-                /*.ContinueWith(prev =>
+                //.ContinueWith(prev => response.Send(200, prev.Result));
+                .ContinueWith(prev =>
                 {
-                    //Console.WriteLine("<-- Returning {3} Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id, prev.Result.error ? "Error " : "");
-                    ResponseMessage reply = prev.Result;
-                    response.Send(200, reply);
-                });*/
+                    if (this.config.PrintVerbosty > 1) Console.WriteLine("<-- Returning {3} Response to {2}:  {0} ({1})", message.func, String.Join(",", message.args.Select(x => x.ToString())), message.id, prev.Result.error ? "Error " : "");
+                    response.Send(200, prev.Result);
+                });
             });
 
             server.Listen();

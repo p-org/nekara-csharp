@@ -4,6 +4,7 @@
     {
         public string serviceHost;    // used if Transport == HTTP
         public int servicePort;       // used if Transport == HTTP or TCP
+        public int PrintVerbosity = 0;
 
         public OmniClientConfiguration(Transport tMode = Transport.HTTP) : this(tMode, "localhost", 8080) { }
 

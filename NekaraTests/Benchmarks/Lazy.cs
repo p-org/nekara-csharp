@@ -11,7 +11,7 @@ namespace Nekara.Tests.Benchmarks
     public class Lazy
     {
         [TestMethod]
-        public static async void RunTest()
+        public static void RunTest()
         {
             var nekara = RuntimeEnvironment.Client.Api;
 
@@ -19,7 +19,7 @@ namespace Nekara.Tests.Benchmarks
 
             var l = new Lock(1);
 
-            Task t1 = Task.Run(async () =>
+            Task t1 = Task.Run(() =>
             {
                 nekara.ContextSwitch();
                 using (l.Acquire())
@@ -28,7 +28,7 @@ namespace Nekara.Tests.Benchmarks
                 }
             });
 
-            Task t2 = Task.Run(async () =>
+            Task t2 = Task.Run(() =>
             {
                 nekara.ContextSwitch();
                 using (l.Acquire())
@@ -37,7 +37,7 @@ namespace Nekara.Tests.Benchmarks
                 }
             });
 
-            Task t3 = Task.Run(async () =>
+            Task t3 = Task.Run(() =>
             {
                 nekara.ContextSwitch();
                 using (l.Acquire())
@@ -46,7 +46,7 @@ namespace Nekara.Tests.Benchmarks
                 }
             });
 
-            await Task.WhenAll(t1, t2, t3);
+            Task.WaitAll(t1, t2, t3);
         }
     }
 }

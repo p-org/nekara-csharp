@@ -3,19 +3,140 @@
 // Licensed under the MIT License (MIT). See License.txt in the repo root for license information.
 // ------------------------------------------------------------------------------------------------
 using Nekara.Client;
+using Nekara.Core;
 using Nekara.Models;
+using System;
 
 namespace Nekara.Tests.Benchmarks
 {
     public class DiningPhilosophers2
     {
-        [TestMethod]
-        public static async void Run()
-        {
-            var nekara = RuntimeEnvironment.Client.Api;
+        public static ITestingService nekara = RuntimeEnvironment.Client.Api;
 
-            int n = 2;
-            int phil = 0;
+        public static int N = 2;
+        public static int phil;
+
+        [TestMethod]
+        public static void Run()
+        {
+            var tasks = Dine(N);
+            var all = Task.WhenAll(tasks);
+            all.ContinueWith(prev => {
+                nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            });
+            return;
+        }
+
+        [TestMethod]
+        public static void RunBlocking()
+        {
+            var tasks = Dine(N);
+            Task.WaitAll(tasks);
+            Console.WriteLine(phil);
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return;
+        }
+
+        [TestMethod]
+        public static System.Threading.Tasks.Task RunTask()
+        {
+            var tasks = Dine(N);
+            var all = Task.WhenAll(tasks);
+            all.ContinueWith(prev => {
+                nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            });
+            return all.InnerTask;
+        }
+
+        [TestMethod]
+        public static System.Threading.Tasks.Task RunBlockingTask()
+        {
+            var tasks = Dine(N);
+            Task.WaitAll(tasks);
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        [TestMethod]
+        public static Task RunNekaraTask()
+        {
+            var tasks = Dine(N);
+            var all = Task.WhenAll(tasks);
+            all.ContinueWith(prev => {
+                nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            });
+            return all;
+        }
+
+        [TestMethod]
+        public static Task RunBlockingNekaraTask()
+        {
+            var tasks = Dine(N);
+            Task.WaitAll(tasks);
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return Task.CompletedTask;
+        }
+
+        [TestMethod]
+        public async static void RunAsync()
+        {
+            var tasks = Dine(N);
+            await Task.WhenAll(tasks);
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return;
+        }
+
+        [TestMethod]
+        public async static void RunBlockingAsync()
+        {
+            var tasks = Dine(N);
+            Task.WaitAll(tasks);
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return;
+        }
+
+        [TestMethod]
+        public async static System.Threading.Tasks.Task RunTaskAsync()
+        {
+            var tasks = Dine(N);
+            var all = Task.WhenAll(tasks);
+            await all;
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return;
+        }
+
+        [TestMethod]
+        public async static System.Threading.Tasks.Task RunBlockingTaskAsync()
+        {
+            var tasks = Dine(N);
+            Task.WaitAll(tasks);
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return;
+        }
+
+        [TestMethod]
+        public async static Task RunNekaraTaskAsync()
+        {
+            var tasks = Dine(N);
+            var all = Task.WhenAll(tasks);
+            await all;
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return;
+        }
+
+        [TestMethod]
+        public async static Task RunBlockingNekaraTaskAsync()
+        {
+            var tasks = Dine(N);
+            Task.WaitAll(tasks);
+            nekara.Assert(phil == N, $"Bug found! Only {phil} philosophers ate");
+            return;
+        }
+
+
+        public static Task[] Dine(int n)
+        {
+            phil = 0;
 
             var countLock = new Lock(0);
 
@@ -41,21 +162,21 @@ namespace Nekara.Tests.Benchmarks
                     nekara.ContextSwitch();
                     var releaserL = locks[left].Acquire();
 
-                    nekara.ContextSwitch();
-                    releaserL.Dispose();
+                    using (countLock.Acquire())
+                    {
+                        phil++;
+                        // Console.WriteLine("Philosopher {0} eats. Incrementing phil: {1}", id, phil);
+                    }
 
                     nekara.ContextSwitch();
                     releaserR.Dispose();
 
-                    using (countLock.Acquire())
-                    {
-                        ++phil;
-                        nekara.Assert(phil != n, "Bug found!");
-                    }
+                    nekara.ContextSwitch();
+                    releaserL.Dispose();
                 });
             }
 
-            await Task.WhenAll(tasks);
+            return tasks;
         }
     }
 }

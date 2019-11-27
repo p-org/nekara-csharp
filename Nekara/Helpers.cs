@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,6 +32,16 @@ namespace Nekara
                 result = true;
             }
             return result;
+        }
+
+        public static string MethodInvocationString(string func, params object[] args)
+        {
+            return func + "(" + string.Join(",", args.Select(arg => arg.ToString())) + ")";
+        }
+
+        public static string MethodInvocationString(object instance, string func, params object[] args)
+        {
+            return instance.GetType().Name + "[" + instance.GetHashCode() + "]." + func + "(" + string.Join(",", args.Select(arg => arg.ToString())) + ")";
         }
 
         public class SeededRandomizer
@@ -194,8 +205,9 @@ namespace Nekara
 
         public static Task RepeatTask(Func<Task> action, int count)
         {
-            if (count > 1) return action().ContinueWith(prev => RepeatTask(action, count - 1)).Unwrap();
-            return action();
+            return RepeatTask(action, count, CancellationToken.None);
+            /*if (count > 1) return action().ContinueWith(prev => RepeatTask(action, count - 1)).Unwrap();
+            return action();*/
         }
 
         public static Task RepeatTask(Func<Task> action, int count, CancellationToken token)
@@ -203,6 +215,81 @@ namespace Nekara
             if (token.IsCancellationRequested) return Task.FromException(new TaskCanceledException());
             if (count > 1) return action().ContinueWith(prev => RepeatTask(action, count - 1, token)).Unwrap();
             return action();
+        }
+
+        public static Task RepeatTaskParallel(Func<Task> action, int count, int parallelCount)
+        {
+            return RepeatTaskParallel(action, count, parallelCount, CancellationToken.None);
+        }
+
+        public static Task RepeatTaskParallel(Func<Task> action, int count, int parallelCount, CancellationToken token)
+        {
+            if (token.IsCancellationRequested) return Task.FromException(new TaskCanceledException());
+            var tcs = new TaskCompletionSource<object>();
+            int called = 0;
+            int done = 0;
+            int current = 0;
+            Action helper = null;
+
+            helper = () =>
+            {
+                while (called < count && current < parallelCount)
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        tcs.TrySetCanceled();
+                        return;
+                    }
+
+                    Interlocked.Increment(ref called);
+                    Interlocked.Increment(ref current);
+
+                    Console.WriteLine("Calling {0}", called);
+                    action().ContinueWith(prev =>
+                    {
+                        Interlocked.Decrement(ref current);
+                        if (token.IsCancellationRequested)
+                        {
+                            tcs.TrySetCanceled();
+                            return;
+                        }
+
+                        if (Interlocked.Increment(ref done) == count)
+                        {
+                            tcs.SetResult(null);
+                        }
+                        else helper();
+                    });
+                }
+            };
+            helper();
+
+            return tcs.Task;
+        }
+
+        public static Task RepeatTaskBatchParallel(Func<Task> action, int count, int parallelCount)
+        {
+            return RepeatTaskBatchParallel(action, count, parallelCount, CancellationToken.None);
+        }
+
+        public static Task RepeatTaskBatchParallel(Func<Task> action, int count, int parallelCount, CancellationToken token)
+        {
+            if (token.IsCancellationRequested) return Task.FromException(new TaskCanceledException());
+            var tcs = new TaskCompletionSource<object>();
+            var done = 0;
+            var target = count > parallelCount ? parallelCount : count;
+
+            if (count > 0)
+            {
+                Parallel.For(0, target, i => {
+                    action().ContinueWith(prev => {
+                        if (Interlocked.Increment(ref done) == target) tcs.SetResult(null);
+                    });
+                });
+                return tcs.Task.ContinueWith(prev => RepeatTaskParallel(action, count - target, parallelCount, token)).Unwrap();
+            }
+
+            return Task.CompletedTask;
         }
 
         public class TaskLock

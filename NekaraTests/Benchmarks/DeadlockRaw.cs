@@ -70,6 +70,7 @@ namespace Nekara.Tests.Benchmarks
         public static Task RunBlockingTask()
         {
             // initialize all relevant state
+            nekara.CreateResource(0);
             lck = false;
             x = 0;
 
@@ -88,6 +89,7 @@ namespace Nekara.Tests.Benchmarks
         public async static Task RunBlockingAsync()
         {
             // initialize all relevant state
+            nekara.CreateResource(0);
             lck = false;
             x = 0;
 
@@ -106,6 +108,7 @@ namespace Nekara.Tests.Benchmarks
         public static void RunLiveLock()
         {
             // initialize all relevant state
+            nekara.CreateResource(0);
             lck = false;
             x = 0;
 
@@ -122,7 +125,10 @@ namespace Nekara.Tests.Benchmarks
         public static void RunLiveLockTrivial()
         {
             // initialize all relevant state
-            
+            nekara.CreateResource(0);
+            lck = false;
+            x = 0;
+
             nekara.CreateTask();
             Task.Run(() => {
                 nekara.StartTask(1);
@@ -142,6 +148,7 @@ namespace Nekara.Tests.Benchmarks
         public static void RunUserMistake()
         {
             // initialize all relevant state
+            nekara.CreateResource(0);
             lck = false;
             x = 0;
 

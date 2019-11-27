@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Nekara.Client;
 using Nekara.Core;
@@ -13,6 +14,7 @@ namespace Nekara.Tests.Benchmarks
         public static void RunOne()
         {
             nekara.CreateTask();
+            nekara.CreateResource(1000);
             var t1 = Task.Run(() => FooInstrumented());
         }
 
@@ -30,13 +32,18 @@ namespace Nekara.Tests.Benchmarks
         [TestMethod]
         public static void RunMultiple()
         {
+            Console.WriteLine("Running {0} in AppDomain {1}", RuntimeEnvironment.SessionKey.Value, AppDomain.CurrentDomain.FriendlyName);
+
             nekara.CreateTask();
+            nekara.CreateResource(1000);
             var t1 = Task.Run(() => FooInstrumented(1));
 
             nekara.CreateTask();
+            nekara.CreateResource(2000);
             var t2 = Task.Run(() => FooInstrumented(2));
 
             nekara.CreateTask();
+            nekara.CreateResource(3000);
             var t3 = Task.Run(() => FooInstrumented(3));
         }
 
@@ -127,6 +134,8 @@ namespace Nekara.Tests.Benchmarks
         [TestMethod]
         public static void RunMultipleControlledBlocking()
         {
+            Console.WriteLine("Running {0}", RuntimeEnvironment.SessionKey.Value);
+
             var t1 = Nekara.Models.Task.Run(() => Foo());
 
             var t2 = Nekara.Models.Task.Run(() => Foo());
@@ -148,7 +157,7 @@ namespace Nekara.Tests.Benchmarks
             Nekara.Models.Task.WaitAny(t1, t2, t3);
         }
 
-        [TestMethod]
+        [TestMethod(15000, 100)]
         public static void RunMultipleControlledBlockingTask()
         {
             var t1 = Nekara.Models.Task.Run(() => Foo());
@@ -179,11 +188,11 @@ namespace Nekara.Tests.Benchmarks
         public static void FooInstrumented(int taskId = 1)
         {
             nekara.StartTask(taskId);
-            Console.WriteLine("FooInstrumented ContextSwitch");
+            //Console.WriteLine("FooInstrumented ContextSwitch");
             nekara.ContextSwitch();
-            Console.WriteLine("FooInstrumented ContextSwitch");
+            //Console.WriteLine("FooInstrumented ContextSwitch");
             nekara.ContextSwitch();
-            Console.WriteLine("FooInstrumented ContextSwitch");
+            //Console.WriteLine("FooInstrumented ContextSwitch");
             nekara.ContextSwitch();
             nekara.SignalUpdatedResource(taskId * 1000);
             nekara.DeleteResource(taskId * 1000);

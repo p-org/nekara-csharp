@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json.Linq;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,6 +20,7 @@ namespace Nekara.Client
 
         public void Cancel()
         {
+            Console.WriteLine("  ... Cancelling {0}", Label);
             this.Cts.Cancel();
         }
     }

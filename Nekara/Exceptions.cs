@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Serialization;
 
@@ -12,10 +13,11 @@ namespace Nekara
             // we assume that the payload is the serialized Exception object, and cast it to JObject
             // WARNING: if the server sends anything other than JObject,
             // this will throw an exception silently and will be swallowed!
-            Console.WriteLine("\n  !!!----- Server Threw an Exception -----!!!");
             var serialized = payload.ToObject<JObject>();
+
+            /*Console.WriteLine("\n  !!!----- Server Threw an Exception -----!!!");
             Console.WriteLine("\n  |  ClassName: {0}\n  |  Message: {1}\n  |  StackTrace:\n  |  {2}", serialized["ClassName"], serialized["Message"], serialized["StackTraceString"]);
-            Console.WriteLine("  -------------------------------------------\n");
+            Console.WriteLine("  -------------------------------------------\n");*/
 
             var ExceptionType = Assembly.GetExecutingAssembly().GetType(serialized["ClassName"].ToObject<string>());
             var exception = (Exception)Activator.CreateInstance(ExceptionType, new[] { serialized["Message"].ToObject<string>() });
@@ -33,13 +35,25 @@ namespace Nekara
     /* Test related */
     public abstract class TestingServiceException : NekaraException, ISerializable
     {
+        public StackTrace trace = null;
         public TestingServiceException(string message) : base(message) { }
         public TestingServiceException(string message, Exception inner) : base(message, inner) { }
+
+        public TestingServiceException(string message, Exception inner, StackTrace trace) : base(message, inner) {
+            this.trace = trace;
+        }
 
         override public void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             info.AddValue("ClassName", this.GetType().FullName, typeof(string));
             info.AddValue("Message", this.Message, typeof(string));
+        }
+
+        public override string StackTrace {
+            get {
+                if (this.trace != null) return this.trace.ToString();
+                else return base.StackTrace;
+            }
         }
     }
 
@@ -49,6 +63,18 @@ namespace Nekara
         public AssertionFailureException(string message) : base(message)
         {
         }
+    }
+
+    [Serializable]
+    public class MaximumDecisionPointsReachedException : TestingServiceException
+    {
+        public MaximumDecisionPointsReachedException(string message) : base(message) { }
+    }
+
+    [Serializable]
+    public class TestClientInactivityTimeoutException : TestingServiceException
+    {
+        public TestClientInactivityTimeoutException(string message) : base(message) { }
     }
 
     [Serializable]
@@ -72,6 +98,10 @@ namespace Nekara
     public class IntentionallyIgnoredException : TestingServiceException
     {
         public IntentionallyIgnoredException(string message, Exception inner) : base(message, inner)
+        {
+        }
+
+        public IntentionallyIgnoredException(string message, Exception inner, StackTrace trace) : base(message, inner, trace)
         {
         }
     }
@@ -125,6 +155,12 @@ namespace Nekara
     public class RemoteMethodDoesNotExistException : LogisticalException
     {
         public RemoteMethodDoesNotExistException(string message) : base(message) { }
+    }
+
+    [Serializable]
+    public class SessionNotFoundException : LogisticalException
+    {
+        public SessionNotFoundException(string message) : base(message) { }
     }
 
     [Serializable]
