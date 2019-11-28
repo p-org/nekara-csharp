@@ -312,11 +312,10 @@ namespace Nekara.Client
                     if (!this.records.ContainsKey(sessionId)) this.records.Add(sessionId, record);
                     else this.records[sessionId] = record;
                 }
-
 #if DEBUG
                 Console.WriteLine("\n--------------------------------------------\n");
-                Console.WriteLine("    Total Requests:\t{0}", this.testingApi.numRequests);
-                Console.WriteLine("    Average RTT:\t{0} ms", this.testingApi.avgRtt);
+                Console.WriteLine("    Total Requests:\t{0}", this.testingApi.CurrentSession.numRequests);
+                Console.WriteLine("    Average RTT:\t{0} ms", this.testingApi.CurrentSession.avgRtt);
                 Console.WriteLine("\n\n==========[ Test {0} {1} ]==========\n", sessionId, record.reason == "" ? "PASSED" : "FAILED");
                 if (record.reason != "")
                 {
