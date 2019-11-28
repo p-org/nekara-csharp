@@ -85,6 +85,7 @@ namespace Nekara.Networking
                     }
                     catch (TargetInvocationException ex)
                     {
+#if DEBUG
                         Console.WriteLine("[OmniServer.RegisterRemoteMethod] Caught TargetInvocationException/{0}!", ex.InnerException.GetType().Name);
                         if (ex.InnerException is AmbiguousMatchException
                             || ex.InnerException is InvalidOperationException
@@ -93,6 +94,7 @@ namespace Nekara.Networking
                         {
                             Console.WriteLine(ex.InnerException);
                         }
+#endif
                         throw ex.InnerException;
                     }
                 };
@@ -110,6 +112,7 @@ namespace Nekara.Networking
                     }
                     catch (TargetInvocationException ex)
                     {
+#if DEBUG
                         Console.WriteLine("[OmniServer.RegisterRemoteMethod] Caught TargetInvocationException/{0}!", ex.InnerException.GetType().Name);
                         if (ex.InnerException is AmbiguousMatchException
                             || ex.InnerException is InvalidOperationException
@@ -118,6 +121,7 @@ namespace Nekara.Networking
                         {
                             Console.WriteLine(ex.InnerException);
                         }
+#endif
                         throw ex.InnerException;
                     }
                 };

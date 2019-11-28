@@ -62,7 +62,9 @@ namespace Nekara.Core
             catch (TargetInvocationException ex)
             {
                 // Console.WriteLine(ex);
+#if DEBUG
                 Console.WriteLine("\n[RemoteMethodInvocation]\n  {0}\tTargetInvocation/{1}", this.ToString(), ex.InnerException.GetType().Name);
+#endif
                 Exception inner;
                 if (ex.InnerException is AssertionFailureException)
                 {
@@ -70,12 +72,16 @@ namespace Nekara.Core
                 }
                 else if (ex.InnerException is AggregateException)
                 {
+#if DEBUG
                     Console.WriteLine("\t    {0}\tTargetInvocation/Aggregate/{1}", this.ToString(), ex.InnerException.InnerException.GetType().Name);
+#endif
                     inner = ex.InnerException.InnerException;
                 }
                 else if (ex.InnerException is TargetInvocationException)
                 {
+#if DEBUG
                     Console.WriteLine("\t    {0}\tTargetInvocation/TargetInvocation/{1}", this.ToString(), ex.InnerException.InnerException.GetType().Name);
+#endif
                     inner = ex.InnerException.InnerException;
                 }
                 else {

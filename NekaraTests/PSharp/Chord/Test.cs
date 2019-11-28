@@ -5,7 +5,7 @@ namespace Nekara.Tests.PSharp.Chord
 {
     class Test
     {
-        [TestMethod]
+        [TestMethod(10000, 2000)]
         public static void Run()
         {
             //var configuration = Configuration.Create().WithVerbosityEnabled();

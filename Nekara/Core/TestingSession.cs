@@ -23,9 +23,7 @@ namespace Nekara.Core
         private static Process currentProcess = Process.GetCurrentProcess();
         private static int PrintVerbosity = 0;
 
-#if DEBUG
         public static Helpers.MicroProfiler Profiler = new Helpers.MicroProfiler();
-#endif
 
         private static Helpers.UniqueIdGenerator IdGen = new Helpers.UniqueIdGenerator(true, 1);
 
@@ -189,8 +187,9 @@ namespace Nekara.Core
                                 item.Value.TrySetException(new TestFailedException(reason));
                                 this.programState.taskToTcs.Remove(item.Key);
                             }*/
-
+#if DEBUG
                             Console.WriteLine("    ... dropping Session {2} Task {0} ({1})", item.Key, item.Value.Task.Status.ToString(), this.Id);
+#endif
                             item.Value.TrySetException(new TestFailedException(reason));
                             this.programState.taskToTcs.Remove(item.Key);
                         }
@@ -211,7 +210,7 @@ namespace Nekara.Core
                     int wait = 2000;
                     while (this.pendingRequests.Count > 0)
                     {
-#if !DEBUG
+#if DEBUG
                         lock (this.pendingRequests)
                         {
                             Console.WriteLine("Waiting for {0} requests to complete...\t({2} Tasks still in queue){1}", this.pendingRequests.Count, String.Join("", this.pendingRequests.Select(item => "\n\t... " + item.ToString())), programState.taskToTcs.Count);
@@ -338,9 +337,10 @@ namespace Nekara.Core
                         }
                     }
 
-#if !DEBUG
-                    Console.WriteLine("<<<===== Ending Session {0} =====>>>", this.Id);
+#if DEBUG
+                    //Console.WriteLine(Profiler.ToString());
 #endif
+                    Console.WriteLine("<<< Ending Session {0} : {1} >>>", this.Id, result.ToString());
 
                     // signal the end of the test, so that WaitForMainTask can return
                     this.SessionFinished.SetResult(record);
@@ -390,12 +390,23 @@ namespace Nekara.Core
 
             invocation.OnError += (sender, ex) =>
             {
+#if DEBUG
                 Console.WriteLine("[TestingSession[{0}].InvokeAndHandleException] {1}", this.Id, ex.GetType().Name);
-                Console.WriteLine(ex);
+#endif
+                // If the error thrown is an AssertionFailure,
+                // end the test immediately. If not, ignore the error.
+                // WARN: All exceptions apart from AssertionFailure will be silenced here
                 if (ex is AssertionFailureException)
                 {
                     this.Finish(TestResult.Fail, ex.Message);
                 }
+#if DEBUG
+                else
+                {
+                    Console.WriteLine("[TestingSession.InvokeAndHandleException]");
+                    Console.WriteLine(ex);
+                }
+#endif
             };
 
             invocation.OnBeforeInvoke += (sender, ev) =>
@@ -427,9 +438,12 @@ namespace Nekara.Core
             }
             catch (Exception ex)
             {
+#if DEBUG
                 Console.WriteLine("\n[TestingSession.InvokeAndHandleException] rethrowing {0} !!!", ex.GetType().Name);
+#endif
                 if (!(ex is TestingServiceException))
                 {
+                    Console.WriteLine("[TestingSession.InvokeAndHandleException]");
                     Console.WriteLine(ex);
                 }
                 throw ex;

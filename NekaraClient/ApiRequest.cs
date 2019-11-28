@@ -20,7 +20,9 @@ namespace Nekara.Client
 
         public void Cancel()
         {
+#if DEBUG
             Console.WriteLine("  ... Cancelling {0}", Label);
+#endif
             this.Cts.Cancel();
         }
     }

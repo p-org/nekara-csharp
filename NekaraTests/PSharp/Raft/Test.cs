@@ -5,7 +5,7 @@ namespace Nekara.Tests.PSharp.Raft
 {
     class Test
     {
-        [TestMethod(10000, 2500)]
+        [TestMethod(10000, 2000)]
         public static void Run()
         {
             var runtime = PSharpTestRuntime.Create();

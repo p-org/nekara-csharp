@@ -85,7 +85,7 @@ namespace NekaraTests
                     summaryFile.Flush();
 
                     resolve(null);
-                }).Task, 101);
+                }).Task, 1);
 
                 multipleRuns.Wait();
             }

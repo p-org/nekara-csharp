@@ -127,7 +127,7 @@ namespace Nekara.Models
             }
             catch (Exception ex)
             {
-#if !DEBUG
+#if DEBUG
                 Console.WriteLine("\n[NekaraModels.Task.GetAwaiter] {0}:\t{1}", ex.GetType().Name, ex.Message);
 #endif
                 this.Completed = true;
@@ -163,11 +163,11 @@ namespace Nekara.Models
                 {
 #if DEBUG
                     Console.WriteLine("\n[NekaraModels.Task.Run] {0} in wrapped task, setting Error\n\t{1}", ex.GetType().Name, ex.Message);
-#endif
                     /*if (ex.InnerException is TestingServiceException)
                     {
                         Console.WriteLine(ex.InnerException.StackTrace);
                     }*/
+#endif              
                     mt.Completed = true;
                     mt.Error = ex;
                     Task.AllPending.Remove(mt);
@@ -202,13 +202,13 @@ namespace Nekara.Models
                 }
                 catch (Exception ex)
                 {
-#if !DEBUG
+#if DEBUG
                     Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
-#endif
                     /*if (ex.InnerException is TestingServiceException)
                     {
                         Console.WriteLine(ex.InnerException.StackTrace);
                     }*/
+#endif
                     mt.Completed = true;
                     mt.Error = ex;
                     Task.AllPending.Remove(mt);
@@ -249,7 +249,9 @@ namespace Nekara.Models
             if (errors > 0)
             {
                 var inner = tasks.Where(task => task.Error != null).Select(task => task.Error).ToArray();
+#if DEBUG
                 Console.WriteLine($"Throwing {ignoredErrors}/{errors} Errors from Task.WaitAll!!!");
+#endif
                 if (ignoredErrors > 0)
                 {
                     throw new IntentionallyIgnoredException("Multiple exceptions thrown from child Tasks", new AggregateException(inner));
@@ -271,24 +273,6 @@ namespace Nekara.Models
         public static Task WhenAll(params Task[] tasks)
         {
             return Task.Run(() => WaitAll(tasks));
-            /*return Task.Run(() => {
-                try
-                {
-                    WaitAll(tasks);
-                }
-                // we need to catch any internal exceptions here and silence it,
-                // otherwise this Task itself will also throw an error
-                // and the main thread will not be able to catch all the exceptions
-                catch (IntentionallyIgnoredException ex)
-                {
-                    Console.WriteLine(ex.Message);
-                }
-                // rethrow the error if it was not expected
-                catch (Exception ex)
-                {
-                    throw;
-                }
-            });*/
         }
 
         public static Task WhenAny(params Task[] tasks)
@@ -367,8 +351,10 @@ namespace Nekara.Models
             }
             catch (Exception ex)
             {
+#if DEBUG
                 Console.WriteLine("\n[NekaraModels.Task.Run] Exception in Nekara.Models.Task.Wait, rethrowing Error");
                 Console.WriteLine("    {0}: {1}", ex.GetType().Name, ex.Message);
+#endif
                 this.Completed = true;
                 throw ex;
             }
@@ -404,8 +390,10 @@ namespace Nekara.Models
             }
             catch (Exception ex)
             {
+#if DEBUG
                 Console.WriteLine("\n[NekaraModels.Task.Run] Exception in GetAwaiter, setting Error");
                 Console.WriteLine("    {0}: {1}", ex.GetType().Name, ex.Message);
+#endif
                 this.Completed = true;
                 this.Error = ex;
                 return new TaskAwaiter<T>(this);
@@ -434,8 +422,10 @@ namespace Nekara.Models
                 }
                 catch (Exception ex)
                 {
+#if DEBUG
                     Console.WriteLine("\n\n[NekaraModels.Task.Run] Exception in wrapped task, rethrowing!");
                     Console.WriteLine(ex);
+#endif
                     mt.Completed = true;
                     mt.Error = ex;
                     return mt.Result;

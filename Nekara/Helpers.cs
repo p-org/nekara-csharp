@@ -134,7 +134,7 @@ namespace Nekara
                     }
 
                     var (count, average, min, max) = Data[(lastDatum.Item1, point)];
-                    var val = (Now - lastDatum.Item2)/10000;
+                    var val = (Now - lastDatum.Item2);
                     Data[(lastDatum.Item1, point)] = (count + 1, (val + count * average) / (count + 1), val < min ? val : min, val > max ? val : max);
                 }
                 return (point, Now);
@@ -143,7 +143,7 @@ namespace Nekara
             public override string ToString()
             {
                 return string.Join("\n", Data.Select(item =>
-                    $"[{item.Key.Item1} ~ {item.Key.Item2}]\n\t{item.Value.Item1} times\tAvg {Math.Round((decimal)item.Value.Item2, 4)}\tMin {Math.Round((decimal)item.Value.Item3, 4)}\tMax {Math.Round((decimal)item.Value.Item4, 4)} ms"));
+                    $"[{item.Key.Item1} ~ {item.Key.Item2}]\n\t{item.Value.Item1} times\tAvg {Math.Round((decimal)item.Value.Item2/10, 4)}\tMin {Math.Round((decimal)item.Value.Item3 / 10, 4)}\tMax {Math.Round((decimal)item.Value.Item4 / 10, 4)} us"));
             }
         }
 
@@ -197,7 +197,9 @@ namespace Nekara
             //       Any exception thrown here will be swallowed silently!!!
             if (token.IsCancellationRequested)
             {
+#if DEBUG
                 Console.WriteLine("... Cancelled");
+#endif
                 return;
             }
             action().ContinueWith(prev => AsyncTaskLoop(action, token));   // Will this lead to memory leak?
@@ -244,7 +246,6 @@ namespace Nekara
                     Interlocked.Increment(ref called);
                     Interlocked.Increment(ref current);
 
-                    Console.WriteLine("Calling {0}", called);
                     action().ContinueWith(prev =>
                     {
                         Interlocked.Decrement(ref current);

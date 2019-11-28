@@ -69,8 +69,10 @@ namespace Nekara.Client
                 }
                 catch (Exception ex)
                 {
+#if DEBUG
                     Console.WriteLine("    ... Ignoring {0} thrown from {1} pending tasks", ex.GetType().Name, tasks.Length);
                     Console.WriteLine(String.Join("", this.pendingRequests.Select(req => $"\n\t  ... {req.Label}\t({req.Task.Status.ToString()})")));
+#endif
                     // Console.WriteLine(ex);
                     this.pendingRequests.Clear();
                 }
@@ -82,8 +84,11 @@ namespace Nekara.Client
                 }
                 catch (Exception ex)
                 {
+#if DEBUG
                     Console.WriteLine("    ... Ignoring {0} thrown from ALL {1} pending tasks", ex.GetType().Name, allPending.Length);
                     Console.WriteLine(String.Join("", allPending.Select(item => $"\n\t  ... {item.Id}\t({item.ResourceId})")));
+#endif
+                    Nekara.Models.Task.AllPending.Clear();
                 }
             }
         }
@@ -131,7 +136,9 @@ namespace Nekara.Client
             }
             catch (AggregateException aex)    // We have to catch the exception here because any exception thrown from the function is (possibly) swallowed by the user program
             {
+#if DEBUG
                 Console.WriteLine("\n[ClientSession[{2}-{3}].InvokeAndHandleException]\n  {0}\tAggregateException/{1} caught!", callName, aex.InnerException.GetType().Name, this.Id, this.RunNumber);
+#endif
                 if (aex.InnerException is TestingServiceException)
                 {
                     throw new IntentionallyIgnoredException(aex.InnerException.Message, aex.InnerException, new StackTrace(true));
