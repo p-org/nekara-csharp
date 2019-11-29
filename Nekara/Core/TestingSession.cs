@@ -166,21 +166,17 @@ namespace Nekara.Core
         /// Called internally to end the test. This method asynchronously resolves the <see cref="SessionFinished"/>
         /// TaskCompletionSource and returns immediately to the caller.
         /// If the test run has encountered a bug (i.e., AssertionFailure is thrown), it drops all pending requests.
+        /// This method is idempotent with respect to a single test run -- only the first call will move the object's
+        /// state to IsFinished, and any subsequent calls potentially made by concurrent requests will not do anything.
         /// </summary>
         /// <param name="result">The result of the test run</param>
         /// <param name="reason">Any description of the result</param>
         private void Finish(TestResult result, string reason = "")
         {
-            /*Console.WriteLine("\n[TestingSession.Finish] was called while on Task {2}, thread: {0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, this.programState.currentTask);
-            Console.WriteLine("[TestingSession.Finish] Result: {0}, Reason: {1}, Already Finished: {2}", passed.ToString(), reason, this.IsFinished);*/
-
-            // Monitor.Enter(this.stateLock);
-
             // Ensure the following is called at most once
             if (!this.IsFinished.Value)
             {
                 this.IsFinished.Value = true;
-                // Monitor.Exit(this.stateLock);
 
                 // Drop all pending tasks if finished due to error
                 if (result != TestResult.Pass)
@@ -190,13 +186,6 @@ namespace Nekara.Core
                     {
                         foreach (var item in this.programState.taskToTcs)
                         {
-                            // if (item.Key != programState.currentTask)
-                            /*if (item.Key != 0)
-                            {
-                                Console.WriteLine("    ... dropping Session {2} Task {0} ({1})", item.Key, item.Value.Task.Status.ToString(), this.Id);
-                                item.Value.TrySetException(new TestFailedException(reason));
-                                this.programState.taskToTcs.Remove(item.Key);
-                            }*/
 #if DEBUG
                             Console.WriteLine("    ... dropping Session {2} Task {0} ({1})", item.Key, item.Value.Task.Status.ToString(), this.Id);
 #endif
@@ -240,13 +229,6 @@ namespace Nekara.Core
                     // Clear timer
                     this.timeout.Change(Timeout.Infinite, Timeout.Infinite);
                     this.timeout.Dispose();
-
-                    /*foreach (var req in this.pendingRequests)
-                    {
-                        req.Drop();
-                    }*/
-                    // this.pendingRequests.Clear();
-
 #if DEBUG
                     Console.WriteLine("\n\nOnly {0} last request to complete...", this.pendingRequests.Count);
 #endif
