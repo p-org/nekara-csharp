@@ -23,7 +23,7 @@ The system is split into the server-side and client-side.
 
 **Nekara Server:** The server exposes an API (HTTP or WebSocket for network clients and IPC for local clients -- this is configurable) to its internal *Scheduler*. The *Scheduler* maintains an image of the program under test (running on the client-side) and controls the interleavings of different asynchronous tasks. Using the API provided, the client-side test program sends signals to the server -- e.g., "I just started a new asynchronous Task" -- but does not make progress on its own unless it receives a signal from the server.
 
-**Client Side:** The client side library is a thin proxy that makes remote procedure calls (RPC) to the actual testing service. It exposes the same set of APIs as the server as regular methods, but under the hood marshals the calls into a network request.
+**Nekara Client:** The client side library is a thin proxy stub that makes remote procedure calls (RPC) to the actual testing service. It exposes the same set of APIs as the server as regular methods, but under the hood marshals the calls into a network request.
 
 
 ## API
@@ -54,9 +54,10 @@ Using the API provided below, the user annotates different parts of the program 
 
 ### C\# API
 
-The methods described above are the low-level API, and gives the user complete control over the testing procedure. This also means that the user is entirely responsible for modelling everything correctly. For the common models in C\#, we provide a higher level API that implements the same interface as the native models.
+The methods described above are the low-level API, and gives the user complete control over the testing procedure. This also means that the user is entirely responsible for modelling everything correctly. For the common models in C\#, we provide a higher level API that implements the same interface as the native models (these higher level abstractions still call the Nekara API methods above).
 
 * `Nekara.Models.Task`: implements the same interface as the native `System.Threading.Tasks.Task` class. One can simply test a program by replacing the dependency on `System.Threading.Tasks` to `Nekara.Models`.
+* `Nekara.Models.Lock`: implements a similar interface as the native `System.Threading.Monitor` class. `Monitor.Enter` translates to `Lock.Acquire`, and `Monitor.Exit` to `Lock.Release`.
 
 
 ## How to use
