@@ -19,7 +19,7 @@ To address this problem, **Nekara** aims to generalize concurrency testing and p
 
 ## Architecture
 
-The system is split into the server-side and client-side.
+The system is split into the server-side and client-side. We decouple the testing and scheduling logic from the semantics of a particular language by providing the service over popular network protocols like HTTP. The server runs as a standalone program, and each language has a thin client-side stub that simply marshals API method calls as network requests to the server. We currently provide a C\# client and a [C++ client](https://github.com/p-org/ControlledFolly). Writing a Nekara Client for a new language should not take much effort; the client simply needs to forward the method call to the server and wait for the response synchronously.
 
 **Nekara Server:** The server exposes an API (HTTP or WebSocket for network clients and IPC for local clients -- this is configurable) to its internal *Scheduler*. The *Scheduler* maintains an image of the program under test (running on the client-side) and controls the interleavings of different asynchronous tasks. Using the API provided, the client-side test program sends signals to the server -- e.g., "I just started a new asynchronous Task" -- but does not make progress on its own unless it receives a signal from the server.
 
