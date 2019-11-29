@@ -6,14 +6,16 @@ using Newtonsoft.Json.Linq;
 using Nekara.Networking;
 using System.Diagnostics;
 
+/* The objects below are transport-agnostic and deals only with the user-facing testing API.
+* The only thing related to the transport mechanism is the RemoteMethodAttribute
+*/
+
 namespace Nekara.Core
 {
-    /* The objects below are transport-agnostic and deals only with the user-facing testing API.
-     * The only thing related to the transport mechanism is the RemoteMethodAttribute
-     */
-
-    // This is the service object exposed to the client, and hosted on the server-side
-    // The testing service API should be exposed by this object.
+    /// <summary>
+    /// This object maintains a set of <see cref="TestingSession"/>s, each representing a single run of a program under test.
+    /// The methods annotated with <see cref="RemoteMethodAttribute"/> are exposed to the client via the network.
+    /// </summary>
     public class NekaraServer : MarshalByRefObject
     {
         public static decimal StartedAt = Math.Round((decimal)Stopwatch.GetTimestamp()/10000, 0);
@@ -29,8 +31,17 @@ namespace Nekara.Core
             this.summaryFile.WriteLine("Assembly,Class,Method,SessionId,Seed,Result,Reason,Elapsed");
         }
 
+        /// <summary>
+        /// This remote method is called by the client before the test run to exchange some metadata about the test.
+        /// In particular, the client sends the scheduling seed to use for the run, along with some informational data
+        /// such as the name of the Assembly, DeclaringType, and Method.
+        /// This object creates a <see cref="TestingSession"/> object accordingly and returns the session ID to the client.
+        /// The client must include the session ID as the first argument for every Nekara API method call, 
+        /// so that the <see cref="NekaraServer"/> can route the request to the appropriate <see cref="TestingSession"/>.
+        /// </summary>
+        /// <param name="arg">Metadata and parameters for the test run, serialized as a JSON object. See <see cref="SessionInfo"/> for the format.</param>
+        /// <returns></returns>
         [RemoteMethod(name = "InitializeTestSession", description = "Initializes server-side proxy program that will represent the actual program on the client-side")]
-        // treating this method as a special case because it spawns another Task we have to resolve later
         public string InitializeTestSession(JObject arg)
         {
             var sessionInfo = SessionInfo.FromJson(arg);
@@ -85,6 +96,13 @@ namespace Nekara.Core
             return session.Id;
         }
 
+        /// <summary>
+        /// Similar to the <see cref="InitializeTestSession(JObject)"/> method, except this method
+        /// accepts a session Id as the only argument. The server will look up the Dictionary of sessions,
+        /// and return the metadata about the <see cref="TestingSession"/> if the session exists.
+        /// </summary>
+        /// <param name="arg">The session ID string</param>
+        /// <returns><see cref="SessionInfo"/> containing the test session metadata</returns>
         [RemoteMethod(name = "ReplayTestSession", description = "Replays the test session identified by the given session ID")]
         public SessionInfo ReplayTestSession(JToken arg)
         {
@@ -119,6 +137,14 @@ namespace Nekara.Core
             }
         }
 
+        /// <summary>
+        /// Routes the remote method call to the appropriate <see cref="TestingSession"/> object
+        /// based on the session ID given as the first argument.
+        /// </summary>
+        /// <param name="sessionId">Session ID string</param>
+        /// <param name="methodName">Name of the API method to call</param>
+        /// <param name="args">Variadic arguments to pass to the method call</param>
+        /// <returns>return value of the remote method</returns>
         private object RouteRemoteCall(string sessionId, string methodName, params object[] args)
         {
             return this.testSessions[sessionId].InvokeAndHandleException(methodName, args);

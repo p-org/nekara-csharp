@@ -124,6 +124,9 @@ namespace Nekara.Core
             list.ForEach(trace => Console.WriteLine(trace.ToReadableString()));
         }
 
+        /// <summary>
+        /// Called before starting a new test run to clear all the transient values to its initial values.
+        /// </summary>
         public void Reset()
         {
             lock (this.stateLock)
@@ -159,7 +162,14 @@ namespace Nekara.Core
             });
         }
 
-        public void Finish(TestResult result, string reason = "")
+        /// <summary>
+        /// Called internally to end the test. This method asynchronously resolves the <see cref="SessionFinished"/>
+        /// TaskCompletionSource and returns immediately to the caller.
+        /// If the test run has encountered a bug (i.e., AssertionFailure is thrown), it drops all pending requests.
+        /// </summary>
+        /// <param name="result">The result of the test run</param>
+        /// <param name="reason">Any description of the result</param>
+        private void Finish(TestResult result, string reason = "")
         {
             /*Console.WriteLine("\n[TestingSession.Finish] was called while on Task {2}, thread: {0} / {1}", Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, this.programState.currentTask);
             Console.WriteLine("[TestingSession.Finish] Result: {0}, Reason: {1}, Already Finished: {2}", passed.ToString(), reason, this.IsFinished);*/
@@ -346,7 +356,6 @@ namespace Nekara.Core
                     this.SessionFinished.SetResult(record);
                 });
             }
-            else Monitor.Exit(this.stateLock);
         }
 
         /// <summary>
@@ -454,7 +463,6 @@ namespace Nekara.Core
          * Some methods have to be wrapped by an overloaded method because RemoteMethods are
          * expected to have a specific signature - i.e., all arguments are given as JTokens
          */
-        
         
         /// <summary>
         /// Initializes the creation of a Task. When this is called, the Task has not been actually started -
@@ -863,6 +871,9 @@ namespace Nekara.Core
             }
         }
 
+        /// <summary>
+        /// Called internally to wait until all declared Tasks are created.
+        /// </summary>
         void WaitForPendingTaskCreations()
         {
             while (true)
@@ -879,6 +890,15 @@ namespace Nekara.Core
             }
         }
 
+        /// <summary>
+        /// Called by the testing client to signal the end of the main test method.
+        /// The server needs this information because it does not know when all Tasks
+        /// in the program have been declared. If this is not called by the client,
+        /// the server will wait indefinitely for further Task declarations.
+        /// The call will not return until the test has finished either by exhausting
+        /// all the Tasks or by finding a bug via AssertionFailure.
+        /// </summary>
+        /// <returns></returns>
         public string WaitForMainTask()
         {
             //AppendLog(counter, Thread.CurrentThread.ManagedThreadId, Process.GetCurrentProcess().Threads.Count, programState.currentTask, programState.taskToTcs.Count, programState.blockedTasks.Count, "enter", "*EndTask*", 0);
