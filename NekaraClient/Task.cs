@@ -58,7 +58,7 @@ namespace Nekara.Models
 
         public NativeTasks.TaskStatus Status { get { return this.InnerTask.Status; } }
 
-        private readonly static TaskFactory _factory = new TaskFactory();
+        private static readonly TaskFactory _factory = new TaskFactory();
 
         public static TaskFactory Factory { get { return _factory; } }
 
@@ -90,7 +90,7 @@ namespace Nekara.Models
             throw new NotImplementedException();
         }
 
-        internal Task()
+        public Task()
         {
             TaskId = Client.TaskIdGenerator.Generate();
             ResourceId = Client.ResourceIdGenerator.Generate();
@@ -422,9 +422,12 @@ namespace Nekara.Models
             throw new NotImplementedException();
         }
 
+
         public static Task<TResult> Run<TResult>(Func<Task<TResult>> function)
         {
-            throw new NotImplementedException();
+            // throw new NotImplementedException();
+
+            return function();
         }
 
         public static void WaitAll(params Task[] tasks)
@@ -533,8 +536,14 @@ namespace Nekara.Models
             Start(TaskScheduler.Current);
         }
 
-        // TODO: Replace TaskScheduler with ControlledTaskScheduler
+        // TODO: Call Start Method with Native Task Scheduler.
         public void Start(TaskScheduler _scheduler)
+        {
+            throw new NotImplementedException();
+        }
+
+        // TODO: Replace TaskScheduler with ControlledTaskScheduler
+        public void Start(NativeTasks.TaskScheduler _scheduler)
         {
             Task.AllPending.Add(this);
             Client.Api.CreateTask();
@@ -544,7 +553,7 @@ namespace Nekara.Models
             {
                 Client.Api.StartTask(this.TaskId);
                 // TODO: Replace TaskScheduler with ControlledTaskScheduler
-                this.InnerTask.Start(NativeTasks.TaskScheduler.Current);
+                this.InnerTask.Start(_scheduler);
                 Task.AllPending.Remove(this);
                 Client.Api.SignalUpdatedResource(this.ResourceId);
                 Client.Api.DeleteResource(this.ResourceId);
@@ -561,17 +570,6 @@ namespace Nekara.Models
                 Task.AllPending.Remove(this);
             }
         }
-
-        /* public static Task Unwrap(this Task<Task> task)
-        {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
-
-            var mt = new Task(taskId, resourceId);
-            // mt.InnerTask = Task.Unwrap();
-
-            return mt;
-        } */
 
         public static Task Delay(TimeSpan delay)
         {
@@ -616,8 +614,62 @@ namespace Nekara.Models
 
         public ConfiguredTaskAwaitable ConfigureAwait(bool continueOnCapturedContext)
         {
-            throw new NotImplementedException();
+            Client.Api.ContextSwitch();
+            if (this.Completed)
+            {
+                return new ConfiguredTaskAwaitable(this);
+            }
+            else
+            {
+                Client.Api.BlockedOnResource(this.ResourceId);
+                return new ConfiguredTaskAwaitable(this);
+            }
+
+            // throw new NotImplementedException();
         }
+
+        public struct ConfiguredTaskAwaitable
+        {
+            private static NekaraClient _Client = RuntimeEnvironment.Client;
+            public ConfiguredTaskAwaiter _t1;
+
+            public ConfiguredTaskAwaitable(Task task)
+            {
+                this._t1 = new ConfiguredTaskAwaiter(task);
+            }
+
+            public ConfiguredTaskAwaiter GetAwaiter()
+            {
+                return this._t1;
+            }
+
+            public struct ConfiguredTaskAwaiter : ICriticalNotifyCompletion, INotifyCompletion
+            {
+                public Task task;
+                public ConfiguredTaskAwaiter(Task task)
+                {
+                    this.task = task;
+                }
+
+                public bool IsCompleted { get { return true; } }
+
+                public void GetResult()
+                {
+                    throw new NotImplementedException();
+                }
+
+                public void OnCompleted(Action continuation)
+                {
+                    throw new NotImplementedException();
+                }
+
+                public void UnsafeOnCompleted(Action continuation)
+                {
+                    throw new NotImplementedException();
+                }
+            }
+        }
+
 
         public static YieldAwaitable Yield()
         {
@@ -976,6 +1028,12 @@ namespace Nekara.Models
             this._InnerTaskFactory = new NativeTasks.TaskFactory(scheduler);
         }
 
+        public TaskFactory(TaskScheduler scheduler)
+        {
+            // this._InnerTaskFactory = new NativeTasks.TaskFactory(scheduler.taskSchedulerTest);
+            this._InnerTaskFactory = new NativeTasks.TaskFactory(scheduler);
+        }
+
         public TaskFactory(NativeTasks.TaskCreationOptions creationOptions, NativeTasks.TaskContinuationOptions continuationOptions)
         {
             this._InnerTaskFactory = new NativeTasks.TaskFactory(creationOptions, continuationOptions);
@@ -986,7 +1044,7 @@ namespace Nekara.Models
             this._InnerTaskFactory = new NativeTasks.TaskFactory(creationOptions, continuationOptions);
         }
 
-        // Methods
+        // Methods: "Client.Api.CreateTask();" have been moved inside the Wrapper task. Needs to be Re-stored back.
         public Task StartNew(Action action)
         {
             int taskId = Client.TaskIdGenerator.Generate();
@@ -1001,6 +1059,7 @@ namespace Nekara.Models
             {
                 try
                 {
+                    //  Client.Api.CreateTask();
                     Client.Api.StartTask(taskId);
                     action();
                     mt.Completed = true;
@@ -1128,7 +1187,7 @@ namespace Nekara.Models
             return mt;
         }
 
-        public Task<TResult> StartNew<TResult>(Func<object, TResult> function, object state, CancellationToken cancellationToken, NativeTasks.TaskCreationOptions creationOptions, TaskScheduler scheduler)
+        public Task<TResult> StartNew<TResult>(Func<object, TResult> function, object state, CancellationToken cancellationToken, NativeTasks.TaskCreationOptions creationOptions, NativeTasks.TaskScheduler scheduler)
         {
             throw new NotImplementedException();
         }
@@ -1457,24 +1516,105 @@ namespace Nekara.Models
 
     public class SemaphoreSlim
     {
+        private System.Threading.SemaphoreSlim semaphoreSlim;
+
         public SemaphoreSlim(int initialCount)
         {
-            throw new NotImplementedException();
+            this.semaphoreSlim = new System.Threading.SemaphoreSlim(initialCount);
+            // throw new NotImplementedException();
         }
 
         public Task WaitAsync()
         {
-            throw new NotImplementedException();
+            Task _t1 = new Task();
+            _t1.InnerTask = this.semaphoreSlim.WaitAsync();
+            _t1.Completed = _t1.InnerTask.IsCompleted;
+
+            return _t1;
+
+            // throw new NotImplementedException();
         }
 
         public int Release()
         {
-            throw new NotImplementedException();
+            return this.semaphoreSlim.Release();
+            // throw new NotImplementedException();
         }
     }
 
-    public abstract class TaskScheduler // : NativeTasks.TaskScheduler
+    /* Modelling Task Scheduler.
+     * Creating a test class to Inherit NativeTasks.TaskScheduler.
+     * Modeled Nekara.TaskScheduler will use the test class. */
+
+    public abstract class TaskScheduler : NativeTasks.TaskScheduler
     {
+
+        /* protected abstract IEnumerable<Task> GetScheduledTasks(int x = 0);
+        protected internal abstract void QueueTask(Task task);
+        protected abstract bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued); */
+
+        protected override IEnumerable<NativeTasks.Task> GetScheduledTasks()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected override void QueueTask(NativeTasks.Task task)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected override bool TryExecuteTaskInline(NativeTasks.Task task, bool taskWasPreviouslyQueued)
+        {
+            throw new NotImplementedException();
+        }
+
+    }
+
+    /* public abstract class TaskScheduler : TaskSchedulerTest
+    {
+        internal TaskSchedulerTest taskSchedulerTest;
+
+        protected TaskScheduler()
+        {
+            taskSchedulerTest = new TaskSchedulerTest();
+        }
+
+        protected abstract IEnumerable<Task> GetScheduledTasks();
+        protected internal abstract void QueueTask(Task task);
+        protected abstract bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued);
+
+
+        public static NativeTasks.TaskScheduler Current { get { return TaskSchedulerTest.Current; } }
+
+        public static NativeTasks.TaskScheduler Default { get { return TaskSchedulerTest.Default; } }
+
+        public int Id => taskSchedulerTest.Id;
+
+        public virtual int MaximumConcurrencyLevel => taskSchedulerTest.MaximumConcurrencyLevel;
+
+        
+        public static event EventHandler<NativeTasks.UnobservedTaskExceptionEventArgs> UnobservedTaskException;
+
+        
+        public static TaskScheduler FromCurrentSynchronizationContext()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected bool TryExecuteTask(Task task)
+        {
+            return taskSchedulerTest.TryExecuteTask_dummy(task.InnerTask);
+        }
+
+        protected internal virtual bool TryDequeue(Task task)
+        {
+           return false;
+        }
+    } */
+
+    /* public abstract class TaskScheduler  // : NativeTasks.TaskScheduler
+    {
+        private TaskSchedulerTest taskSchedulerTest;
 
         protected TaskScheduler()
         {
@@ -1504,10 +1644,10 @@ namespace Nekara.Models
             throw new NotImplementedException();
         }
 
-        /* protected IEnumerable<NativeTasks.Task> GetScheduledTasks()
-        {
-            throw new NotImplementedException();
-        } */
+        // protected IEnumerable<NativeTasks.Task> GetScheduledTasks()
+        // {
+            // throw new NotImplementedException();
+        // } 
 
         protected bool TryExecuteTask(Task task)
         {
@@ -1533,7 +1673,7 @@ namespace Nekara.Models
             throw new NotImplementedException();
         }
 
-    }
+    } */
 
     namespace Xunit
     {
