@@ -79,7 +79,18 @@ namespace Nekara.Models
             TaskId = Client.TaskIdGenerator.Generate();
             ResourceId = Client.ResourceIdGenerator.Generate();
 
-            InnerTask = new NativeTasks.Task(action);
+            Client.Api.CreateResource(this.ResourceId);
+            Task.AllPending.Add(this);
+
+            InnerTask = new NativeTasks.Task(() => {
+                Client.Api.CreateTask();
+                Client.Api.StartTask(this.TaskId);
+                action();
+                Task.AllPending.Remove(this);
+                Client.Api.SignalUpdatedResource(this.ResourceId);
+                Client.Api.DeleteResource(this.ResourceId);
+                Client.Api.EndTask(this.TaskId);
+            });
 
             Completed = false;
             Error = null;
@@ -87,7 +98,26 @@ namespace Nekara.Models
 
         public Task(Action<object> action, object state)
         {
-            throw new NotImplementedException();
+            TaskId = Client.TaskIdGenerator.Generate();
+            ResourceId = Client.ResourceIdGenerator.Generate();
+
+            Client.Api.CreateResource(this.ResourceId);
+            Task.AllPending.Add(this);
+
+            InnerTask = new NativeTasks.Task(() => {
+                Client.Api.CreateTask();
+                Client.Api.StartTask(this.TaskId);
+                action(state);
+                Task.AllPending.Remove(this);
+                Client.Api.SignalUpdatedResource(this.ResourceId);
+                Client.Api.DeleteResource(this.ResourceId);
+                Client.Api.EndTask(this.TaskId);
+            });
+
+            Completed = false;
+            Error = null;
+
+            // throw new NotImplementedException();
         }
 
         public Task()
@@ -392,6 +422,9 @@ namespace Nekara.Models
                     Client.Api.StartTask(taskId);
                     action();
                     mt.Completed = true;
+#if DEBUG
+                    Console.WriteLine("Task with resorceId-{0} moved to completed", resourceId);
+#endif
                     Task.AllPending.Remove(mt);
                     Client.Api.SignalUpdatedResource(resourceId);
                     Client.Api.DeleteResource(resourceId);
@@ -539,25 +572,55 @@ namespace Nekara.Models
         // TODO: Call Start Method with Native Task Scheduler.
         public void Start(TaskScheduler _scheduler)
         {
-            throw new NotImplementedException();
+
+            try
+            {
+                if (_scheduler._dt == null)
+                {
+                    _scheduler._dt = Task.Run(() => {
+
+                        bool _f1 = true;
+                        while (true)
+                        {
+                            _f1 = true;
+                            foreach (Task _t2 in _scheduler._taskList)
+                            {
+                                if (!_t2.Completed)
+                                {
+                                    Client.Api.ContextSwitch();
+                                    _f1 = false;
+                                }
+                            }
+
+                            if (_f1)
+                            {
+                                break;
+                            }
+                        }
+                    });
+                }
+                _scheduler._taskList.Add(this);
+
+                this.InnerTask.Start(_scheduler);
+            }
+            catch (Exception ex)
+            {
+#if DEBUG
+                Console.WriteLine("\n\n[NekaraModels.Task.Start] rethrowing!");
+                Console.WriteLine(ex);
+#endif
+                this.Completed = true;
+                this.Error = ex;
+                Task.AllPending.Remove(this);
+            }
         }
 
         // TODO: Replace TaskScheduler with ControlledTaskScheduler
         public void Start(NativeTasks.TaskScheduler _scheduler)
         {
-            Task.AllPending.Add(this);
-            Client.Api.CreateTask();
-            Client.Api.CreateResource(this.ResourceId);
-
             try
             {
-                Client.Api.StartTask(this.TaskId);
-                // TODO: Replace TaskScheduler with ControlledTaskScheduler
                 this.InnerTask.Start(_scheduler);
-                Task.AllPending.Remove(this);
-                Client.Api.SignalUpdatedResource(this.ResourceId);
-                Client.Api.DeleteResource(this.ResourceId);
-                Client.Api.EndTask(this.TaskId);
             }
             catch (Exception ex)
             {
@@ -1011,6 +1074,7 @@ namespace Nekara.Models
     {
         private NativeTasks.TaskFactory _InnerTaskFactory;
         private static readonly NekaraClient Client = RuntimeEnvironment.Client;
+        private TaskScheduler _taskSch;
 
         // Constructors
         public TaskFactory()
@@ -1032,6 +1096,7 @@ namespace Nekara.Models
         {
             // this._InnerTaskFactory = new NativeTasks.TaskFactory(scheduler.taskSchedulerTest);
             this._InnerTaskFactory = new NativeTasks.TaskFactory(scheduler);
+            this._taskSch = scheduler;
         }
 
         public TaskFactory(NativeTasks.TaskCreationOptions creationOptions, NativeTasks.TaskContinuationOptions continuationOptions)
@@ -1044,7 +1109,6 @@ namespace Nekara.Models
             this._InnerTaskFactory = new NativeTasks.TaskFactory(creationOptions, continuationOptions);
         }
 
-        // Methods: "Client.Api.CreateTask();" have been moved inside the Wrapper task. Needs to be Re-stored back.
         public Task StartNew(Action action)
         {
             int taskId = Client.TaskIdGenerator.Generate();
@@ -1059,7 +1123,6 @@ namespace Nekara.Models
             {
                 try
                 {
-                    //  Client.Api.CreateTask();
                     Client.Api.StartTask(taskId);
                     action();
                     mt.Completed = true;
@@ -1067,6 +1130,95 @@ namespace Nekara.Models
                     Client.Api.SignalUpdatedResource(resourceId);
                     Client.Api.DeleteResource(resourceId);
                     Client.Api.EndTask(taskId);
+                }
+                catch (Exception ex)
+                {
+#if DEBUG
+                    Console.WriteLine("\n[NekaraModels.TaskFactory.StartNew] {0}\n    {1}", ex.GetType().Name, ex.Message);
+                    /*if (ex.InnerException is TestingServiceException)
+                    {
+                        Console.WriteLine(ex.InnerException.StackTrace);
+                    }*/
+#endif
+                    mt.Completed = true;
+                    mt.Error = ex;
+                    Task.AllPending.Remove(mt);
+                    return;
+                }
+            });
+
+            mt.InnerTask = t;
+            return mt;
+        }
+
+        // StartNew_temp() for Testing new Task Scheduler Mock();
+        public Task StartNew_temp(Action action)
+        {
+            int taskId = Client.TaskIdGenerator.Generate();
+            int resourceId = Client.ResourceIdGenerator.Generate();
+
+
+            var mt = new Task(taskId, resourceId);
+            Task.AllPending.Add(mt);
+
+            bool _f = false;
+
+            Client.Api.CreateResource(resourceId);
+
+            if (_taskSch._threadCount > _taskSch._taskList.Count)
+            {
+                Client.Api.CreateTask();
+
+            }
+            else
+            {
+                _f = true;
+            }
+
+            if (_taskSch._taskList.Count == _taskSch._threadCount)
+            {
+                Task _t3 = Task.Run(() => {
+
+                    bool _f1 = true;
+                    while (true)
+                    {
+                        _f1 = true;
+                        foreach (Task _t2 in _taskSch._taskList)
+                        {
+                            if (!_t2.Completed)
+                            {
+                                Client.Api.ContextSwitch();
+                                _f1 = false;
+                            }
+                        }
+
+                        if (_f1)
+                        {
+                            break;
+                        }
+                    }
+                });
+            }
+
+            _taskSch._taskList.Add(mt);
+
+            var t = _InnerTaskFactory.StartNew(() =>
+            {
+                try
+                {
+                    if (_f)
+                    {
+                        Client.Api.CreateTask();
+                    }
+                    Client.Api.StartTask(taskId);
+
+                    action();
+                    mt.Completed = true;
+                    Task.AllPending.Remove(mt);
+                    Client.Api.SignalUpdatedResource(resourceId);
+                    Client.Api.DeleteResource(resourceId);
+                    Client.Api.EndTask(taskId);
+
                 }
                 catch (Exception ex)
                 {
@@ -1548,6 +1700,9 @@ namespace Nekara.Models
 
     public abstract class TaskScheduler : NativeTasks.TaskScheduler
     {
+        internal List<Task> _taskList = new List<Task>();
+        public int _threadCount = 64;
+        internal Task _dt;
 
         /* protected abstract IEnumerable<Task> GetScheduledTasks(int x = 0);
         protected internal abstract void QueueTask(Task task);
@@ -1568,6 +1723,123 @@ namespace Nekara.Models
             throw new NotImplementedException();
         }
 
+    }
+
+
+    public abstract class SingleThreadedTaskScheduler : NativeTasks.TaskScheduler
+    {
+        [ThreadStatic]
+        private static bool _currentThreadIsProcessingItems;
+
+        private readonly LinkedList<System.Threading.Tasks.Task> _tasks = new LinkedList<System.Threading.Tasks.Task>(); // protected by lock(_tasks)
+
+        private readonly int _maxDegreeOfParallelism;
+
+        // Indicates whether the scheduler is currently processing work items. 
+        private int _delegatesQueuedOrRunning = 0;
+
+        // Creates a new instance with the specified degree of parallelism. 
+        public SingleThreadedTaskScheduler(int maxDegreeOfParallelism)
+        {
+            if (maxDegreeOfParallelism < 1) throw new ArgumentOutOfRangeException("maxDegreeOfParallelism");
+            _maxDegreeOfParallelism = maxDegreeOfParallelism;
+        }
+
+        // Queues a task to the scheduler. 
+        protected sealed override void QueueTask(System.Threading.Tasks.Task task)
+        {
+            // Add the task to the list of tasks to be processed.  If there aren't enough 
+            // delegates currently queued or running to process tasks, schedule another. 
+            lock (_tasks)
+            {
+                _tasks.AddLast(task);
+                if (_delegatesQueuedOrRunning < _maxDegreeOfParallelism)
+                {
+                    ++_delegatesQueuedOrRunning;
+                    NotifyThreadPoolOfPendingWork();
+                }
+            }
+        }
+
+        // Inform the ThreadPool that there's work to be executed for this scheduler. 
+        private void NotifyThreadPoolOfPendingWork()
+        {
+            ThreadPool.UnsafeQueueUserWorkItem(_ =>
+            {
+                // Note that the current thread is now processing work items.
+                // This is necessary to enable inlining of tasks into this thread.
+                _currentThreadIsProcessingItems = true;
+                try
+                {
+                    // Process all available items in the queue.
+                    while (true)
+                    {
+                        System.Threading.Tasks.Task item;
+                        lock (_tasks)
+                        {
+                            // When there are no more items to be processed,
+                            // note that we're done processing, and get out.
+                            if (_tasks.Count == 0)
+                            {
+                                --_delegatesQueuedOrRunning;
+                                break;
+                            }
+
+                            // Get the next item from the queue
+                            item = _tasks.First.Value;
+                            _tasks.RemoveFirst();
+                        }
+
+                        // Execute the task we pulled out of the queue
+                        base.TryExecuteTask(item);
+                    }
+                }
+                // We're done processing items on the current thread
+                finally { _currentThreadIsProcessingItems = false; }
+            }, null);
+        }
+
+        // Attempts to execute the specified task on the current thread. 
+        protected sealed override bool TryExecuteTaskInline(System.Threading.Tasks.Task task, bool taskWasPreviouslyQueued)
+        {
+            // If this thread isn't already processing a task, we don't support inlining
+            if (!_currentThreadIsProcessingItems) return false;
+
+            // If the task was previously queued, remove it from the queue
+            if (taskWasPreviouslyQueued)
+                // Try to run the task. 
+                if (TryDequeue(task))
+                    return base.TryExecuteTask(task);
+                else
+                    return false;
+            else
+                return base.TryExecuteTask(task);
+        }
+
+        // Attempt to remove a previously scheduled task from the scheduler. 
+        protected sealed override bool TryDequeue(System.Threading.Tasks.Task task)
+        {
+            lock (_tasks) return _tasks.Remove(task);
+        }
+
+        // Gets the maximum concurrency level supported by this scheduler. 
+        public sealed override int MaximumConcurrencyLevel { get { return _maxDegreeOfParallelism; } }
+
+        // Gets an enumerable of the tasks currently scheduled on this scheduler. 
+        protected sealed override IEnumerable<System.Threading.Tasks.Task> GetScheduledTasks()
+        {
+            bool lockTaken = false;
+            try
+            {
+                Monitor.TryEnter(_tasks, ref lockTaken);
+                if (lockTaken) return _tasks;
+                else throw new NotSupportedException();
+            }
+            finally
+            {
+                if (lockTaken) Monitor.Exit(_tasks);
+            }
+        }
     }
 
     /* public abstract class TaskScheduler : TaskSchedulerTest
