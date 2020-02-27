@@ -450,17 +450,112 @@ namespace Nekara.Models
             return mt;
         }
 
+        // NativeTask.Run(Func<Task> function) returns a Proxy for the Task returned by the Function
         public static Task Run(Func<Task> function)
         {
-            throw new NotImplementedException();
+            int taskId = Client.TaskIdGenerator.Generate();
+            int resourceId = Client.ResourceIdGenerator.Generate();
+
+            var mt = new Task(taskId, resourceId);
+            Task.AllPending.Add(mt);
+            Client.Api.CreateTask();
+            Client.Api.CreateResource(resourceId);
+
+            var _t1 = NativeTasks.Task.Run(() =>
+            {
+                try
+                {
+                    Client.Api.StartTask(taskId);
+
+                    function();
+
+                    mt.Completed = true;
+#if DEBUG
+                    Console.WriteLine("Task with resorceId-{0} moved to completed", resourceId);
+#endif
+                    Task.AllPending.Remove(mt);
+                    Client.Api.SignalUpdatedResource(resourceId);
+                    Client.Api.DeleteResource(resourceId);
+                    Client.Api.EndTask(taskId);
+                }
+
+                catch (Exception ex)
+                {
+#if DEBUG
+                    Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
+                    /*if (ex.InnerException is TestingServiceException)
+                    {
+                        Console.WriteLine(ex.InnerException.StackTrace);
+                    }*/
+#endif
+                    mt.Completed = true;
+                    mt.Error = ex;
+                    Task.AllPending.Remove(mt);
+                    return;
+                }
+
+            });
+
+
+            mt.InnerTask = _t1;
+            return mt;
         }
 
-
-        public static Task<TResult> Run<TResult>(Func<Task<TResult>> function)
+        // NativeTask.Run(Task<TResult> function) returns a Proxy for the Task<TResult> returned by the Function
+        public static Task<TResult> Run<TResult>(Func<NativeTasks.Task<TResult>> function)
         {
-            // throw new NotImplementedException();
+            int taskId = Client.TaskIdGenerator.Generate();
+            int resourceId = Client.ResourceIdGenerator.Generate();
 
-            return function();
+            var mt = new Task<TResult>(taskId, resourceId);
+            Task.AllPending.Add(mt);
+            Client.Api.CreateTask();
+            Client.Api.CreateResource(resourceId);
+
+            var _t1 = NativeTasks.Task.Run(() =>
+            {
+                try
+                {
+                    Client.Api.StartTask(taskId);
+
+                    var _t2 = function();
+
+                    mt.InnerTask = _t2;
+
+                    mt.InnerTask.Wait();
+
+                    mt.Completed = true;
+#if DEBUG
+                    Console.WriteLine("Task with resorceId-{0} moved to completed", resourceId);
+#endif
+                    Task.AllPending.Remove(mt);
+                    Client.Api.SignalUpdatedResource(resourceId);
+                    Client.Api.DeleteResource(resourceId);
+                    Client.Api.EndTask(taskId);
+                }
+
+                catch (Exception ex)
+                {
+#if DEBUG
+                    Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
+                    /*if (ex.InnerException is TestingServiceException)
+                    {
+                        Console.WriteLine(ex.InnerException.StackTrace);
+                    }*/
+#endif
+                    mt.Completed = true;
+                    mt.Error = ex;
+                    Task.AllPending.Remove(mt);
+                    return;
+                }
+
+            });
+
+
+            // mt.InnerTask = _t1;
+            return mt;
+
+            // return function();
         }
 
         public static void WaitAll(params Task[] tasks)
