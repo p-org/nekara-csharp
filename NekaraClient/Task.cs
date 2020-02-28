@@ -18,6 +18,17 @@ using System.Runtime.ExceptionServices;
 namespace Nekara.Models
 {
     /// <summary>
+    /// CtrlModel class
+    /// </summary>
+    public class CtrlModel
+    {
+        /// <summary>
+        /// Static bool variable, which guide controlled models to send API to Nekara server or not. By default true.
+        /// </summary>
+        public static bool _interactwithNekara = true;
+    }
+
+    /// <summary>
     /// This is a "controlled" Task meant to replace the native System.Threading.Tasks.Task class
     /// in a user application during a test. The attribute <see cref="AsyncMethodBuilderAttribute"/> indicates that
     /// this is the Task object to be created when the <see cref="TaskMethodBuilder"/> implicitly creates
@@ -38,12 +49,23 @@ namespace Nekara.Models
         {
             get
             {
-                int taskId = Client.TaskIdGenerator.Generate();
-                int resourceId = Client.ResourceIdGenerator.Generate();
-                var task = new Task(taskId, resourceId);
-                task.Completed = true;
-                task.InnerTask = NativeTasks.Task.CompletedTask;
-                return task;
+
+                if (CtrlModel._interactwithNekara)
+                {
+                    int taskId = Client.TaskIdGenerator.Generate();
+                    int resourceId = Client.ResourceIdGenerator.Generate();
+                    var task = new Task(taskId, resourceId);
+                    task.Completed = true;
+                    task.InnerTask = NativeTasks.Task.CompletedTask;
+                    return task;
+                }
+                else
+                {
+                    var task = new Task();
+                    task.Completed = true;
+                    task.InnerTask = NativeTasks.Task.CompletedTask;
+                    return task;
+                }
             }
         }
 
@@ -53,7 +75,7 @@ namespace Nekara.Models
 
         public int TaskId { get; protected set; }
         public int ResourceId { get; protected set; }
-        public int Id { get { return TaskId; } }
+        public int Id { get { if (TaskId == 0 && this.InnerTask != null) { return this.InnerTask.Id; } else { return TaskId; } } }
         public AggregateException Exception { get { return this.InnerTask.Exception; } }
 
         public NativeTasks.TaskStatus Status { get { return this.InnerTask.Status; } }
@@ -122,10 +144,13 @@ namespace Nekara.Models
 
         public Task()
         {
-            TaskId = Client.TaskIdGenerator.Generate();
-            ResourceId = Client.ResourceIdGenerator.Generate();
+            if (CtrlModel._interactwithNekara)
+            {
+                TaskId = Client.TaskIdGenerator.Generate();
+                ResourceId = Client.ResourceIdGenerator.Generate();
 
-            Client.Api.CreateResource(this.ResourceId);
+                Client.Api.CreateResource(this.ResourceId);
+            }
 
             InnerTask = null;
 
@@ -142,50 +167,64 @@ namespace Nekara.Models
         /// </summary>
         public void Wait()
         {
-            try
+            if (CtrlModel._interactwithNekara)
             {
-                Client.Api.ContextSwitch();
-                if (this.Completed)
+                try
                 {
-                    return;
+                    Client.Api.ContextSwitch();
+                    if (this.Completed)
+                    {
+                        return;
+                    }
+                    else
+                    {
+                        Client.Api.BlockedOnResource(this.ResourceId);
+                        return;
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Client.Api.BlockedOnResource(this.ResourceId);
-                    return;
+#if DEBUG
+                    Console.WriteLine("\n[NekaraModels.Task.Run] Exception in Nekara.Models.Task.Wait, rethrowing Error");
+                    Console.WriteLine("    {0}: {1}", ex.GetType().Name, ex.Message);
+#endif
+                    this.Completed = true;
+                    Task.AllPending.Remove(this);
+                    throw ex;
                 }
             }
-            catch (Exception ex)
+            else
             {
-#if DEBUG
-                Console.WriteLine("\n[NekaraModels.Task.Run] Exception in Nekara.Models.Task.Wait, rethrowing Error");
-                Console.WriteLine("    {0}: {1}", ex.GetType().Name, ex.Message);
-#endif
-                this.Completed = true;
-                Task.AllPending.Remove(this);
-                throw ex;
+                this.InnerTask.Wait();
             }
         }
 
         // Note (check): Wait(timeouts) - we don't care for timeouts
         public bool Wait(TimeSpan timeout)
         {
-            long totalMilliseconds = (long)timeout.TotalMilliseconds;
-            if (totalMilliseconds < -1 || totalMilliseconds > Int32.MaxValue)
+            if (CtrlModel._interactwithNekara)
             {
-                throw new ArgumentOutOfRangeException("timeout");
+                long totalMilliseconds = (long)timeout.TotalMilliseconds;
+                if (totalMilliseconds < -1 || totalMilliseconds > Int32.MaxValue)
+                {
+                    throw new ArgumentOutOfRangeException("timeout");
+                }
+
+                Random _r = new Random();
+
+                // The if-then should be emitted (re-check)
+                if (totalMilliseconds > 0 && (_r.Next() % 2) == 0)
+                {
+                    return false;
+                }
+
+                Wait();
+                return true;
             }
-
-            Random _r = new Random();
-
-            // The if-then should be emitted (re-check)
-            if (totalMilliseconds > 0 && (_r.Next() % 2) == 0)
+            else
             {
-                return false;
+                return this.InnerTask.Wait(timeout);
             }
-
-            Wait();
-            return true;
         }
 
         public object AsyncState => throw new NotImplementedException();
@@ -221,51 +260,95 @@ namespace Nekara.Models
 
         public static Task<TResult> FromResult<TResult>(TResult result)
         {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
+            if (CtrlModel._interactwithNekara)
+            {
+                int taskId = Client.TaskIdGenerator.Generate();
+                int resourceId = Client.ResourceIdGenerator.Generate();
 
-            var _mt = new Task<TResult>(taskId, resourceId);
-            _mt.InnerTask = NativeTasks.Task.FromResult(result);
-            _mt.Completed = _mt.InnerTask.IsCompleted;
+                var _mt = new Task<TResult>(taskId, resourceId);
+                _mt.InnerTask = NativeTasks.Task.FromResult(result);
+                _mt.Completed = _mt.InnerTask.IsCompleted;
 
-            return _mt;
+                return _mt;
+            }
+            else
+            {
+                var _mt = new Task<TResult>();
+                _mt.InnerTask = NativeTasks.Task.FromResult(result);
+                _mt.Completed = _mt.InnerTask.IsCompleted;
+
+                return _mt;
+            }
         }
 
         public static Task FromException(Exception exception)
         {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
+            if (CtrlModel._interactwithNekara)
+            {
+                int taskId = Client.TaskIdGenerator.Generate();
+                int resourceId = Client.ResourceIdGenerator.Generate();
 
 
-            var _mt = new Task(taskId, resourceId);
-            _mt.InnerTask = NativeTasks.Task.FromException(exception);
-            _mt.Completed = _mt.InnerTask.IsCompleted;
+                var _mt = new Task(taskId, resourceId);
+                _mt.InnerTask = NativeTasks.Task.FromException(exception);
+                _mt.Completed = _mt.InnerTask.IsCompleted;
 
-            return _mt;
+                return _mt;
+            }
+            else
+            {
+                var _mt = new Task();
+                _mt.InnerTask = NativeTasks.Task.FromException(exception);
+                _mt.Completed = _mt.InnerTask.IsCompleted;
+
+                return _mt;
+            }
         }
 
         public static Task<TResult> FromException<TResult>(Exception exception)
         {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
+            if (CtrlModel._interactwithNekara)
+            {
+                int taskId = Client.TaskIdGenerator.Generate();
+                int resourceId = Client.ResourceIdGenerator.Generate();
 
-            var _mt = new Task<TResult>(taskId, resourceId);
-            _mt.InnerTask = NativeTasks.Task.FromException<TResult>(exception);
-            _mt.Completed = _mt.InnerTask.IsCompleted;
+                var _mt = new Task<TResult>(taskId, resourceId);
+                _mt.InnerTask = NativeTasks.Task.FromException<TResult>(exception);
+                _mt.Completed = _mt.InnerTask.IsCompleted;
 
-            return _mt;
+                return _mt;
+            }
+            else
+            {
+                var _mt = new Task<TResult>();
+                _mt.InnerTask = NativeTasks.Task.FromException<TResult>(exception);
+                _mt.Completed = _mt.InnerTask.IsCompleted;
+
+                return _mt;
+            }
         }
 
         internal static Task FromCancellation(CancellationToken cancellationToken)
         {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
+            if (CtrlModel._interactwithNekara)
+            {
+                int taskId = Client.TaskIdGenerator.Generate();
+                int resourceId = Client.ResourceIdGenerator.Generate();
 
-            var _mt = new Task(taskId, resourceId);
-            _mt.InnerTask = NativeTasks.Task.FromCanceled(cancellationToken);
-            _mt.Completed = _mt.InnerTask.IsCompleted;
+                var _mt = new Task(taskId, resourceId);
+                _mt.InnerTask = NativeTasks.Task.FromCanceled(cancellationToken);
+                _mt.Completed = _mt.InnerTask.IsCompleted;
 
-            return _mt;
+                return _mt;
+            }
+            else
+            {
+                var _mt = new Task();
+                _mt.InnerTask = NativeTasks.Task.FromCanceled(cancellationToken);
+                _mt.Completed = _mt.InnerTask.IsCompleted;
+
+                return _mt;
+            }
         }
 
         public static Task FromCanceled(CancellationToken cancellationToken)
@@ -275,13 +358,23 @@ namespace Nekara.Models
 
         internal static Task<TResult> FromCancellation<TResult>(CancellationToken cancellationToken)
         {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
+            if (CtrlModel._interactwithNekara)
+            {
+                int taskId = Client.TaskIdGenerator.Generate();
+                int resourceId = Client.ResourceIdGenerator.Generate();
 
-            var _mt = new Task<TResult>(taskId, resourceId);
-            _mt.InnerTask = NativeTasks.Task.FromCanceled<TResult>(cancellationToken);
+                var _mt = new Task<TResult>(taskId, resourceId);
+                _mt.InnerTask = NativeTasks.Task.FromCanceled<TResult>(cancellationToken);
 
-            return _mt;
+                return _mt;
+            }
+            else
+            {
+                var _mt = new Task<TResult>();
+                _mt.InnerTask = NativeTasks.Task.FromCanceled<TResult>(cancellationToken);
+
+                return _mt;
+            }
         }
 
         public static Task<TResult> FromCanceled<TResult>(CancellationToken cancellationToken)
@@ -408,206 +501,290 @@ namespace Nekara.Models
 
         public static Task Run(Action action)
         {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
-
-            var mt = new Task(taskId, resourceId);
-            Task.AllPending.Add(mt);
-            Client.Api.CreateTask();
-            Client.Api.CreateResource(resourceId);
-            var t = NativeTasks.Task.Run(() =>
+            if (CtrlModel._interactwithNekara)
             {
-                try
-                {
-                    Client.Api.StartTask(taskId);
-                    action();
-                    mt.Completed = true;
-#if DEBUG
-                    Console.WriteLine("Task with resorceId-{0} moved to completed", resourceId);
-#endif
-                    Task.AllPending.Remove(mt);
-                    Client.Api.SignalUpdatedResource(resourceId);
-                    Client.Api.DeleteResource(resourceId);
-                    Client.Api.EndTask(taskId);
-                }
-                catch (Exception ex)
-                {
-#if DEBUG
-                    Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
-                    /*if (ex.InnerException is TestingServiceException)
-                    {
-                        Console.WriteLine(ex.InnerException.StackTrace);
-                    }*/
-#endif
-                    mt.Completed = true;
-                    mt.Error = ex;
-                    Task.AllPending.Remove(mt);
-                    return;
-                }
-            });
+                Task mt = _InitTask();
 
-            mt.InnerTask = t;
-            return mt;
+                var t = NativeTasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        Client.Api.StartTask(mt.TaskId);
+                        action();
+                        mt.Completed = true;
+                        Task.AllPending.Remove(mt);
+                        Client.Api.SignalUpdatedResource(mt.ResourceId);
+                        Client.Api.DeleteResource(mt.ResourceId);
+                        Client.Api.EndTask(mt.TaskId);
+                    }
+                    catch (Exception ex)
+                    {
+#if DEBUG
+                        Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
+                        /*if (ex.InnerException is TestingServiceException)
+                        {
+                            Console.WriteLine(ex.InnerException.StackTrace);
+                        }*/
+#endif
+                        mt.Completed = true;
+                        mt.Error = ex;
+                        Task.AllPending.Remove(mt);
+                        return;
+                    }
+                });
+
+                mt.InnerTask = t;
+                return mt;
+            }
+            else
+            {
+                var mt = new Task();
+                Task.AllPending.Add(mt);
+
+                var t = NativeTasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        action();
+                        mt.Completed = true;
+                        Task.AllPending.Remove(mt);
+                    }
+                    catch (Exception ex)
+                    {
+                        mt.Completed = true;
+                        mt.Error = ex;
+                        Task.AllPending.Remove(mt);
+                        return;
+                    }
+                });
+
+                mt.InnerTask = t;
+                return mt;
+            }
         }
 
         // NativeTask.Run(Func<Task> function) returns a Proxy for the Task returned by the Function
         public static Task Run(Func<Task> function)
         {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
-
-            var mt = new Task(taskId, resourceId);
-            Task.AllPending.Add(mt);
-            Client.Api.CreateTask();
-            Client.Api.CreateResource(resourceId);
-
-            var _t1 = NativeTasks.Task.Run(() =>
+            if (CtrlModel._interactwithNekara)
             {
-                try
+                Task mt = _InitTask();
+
+                var _t1 = NativeTasks.Task.Run(() =>
                 {
-                    Client.Api.StartTask(taskId);
-
-                    function();
-
-                    mt.Completed = true;
-#if DEBUG
-                    Console.WriteLine("Task with resorceId-{0} moved to completed", resourceId);
-#endif
-                    Task.AllPending.Remove(mt);
-                    Client.Api.SignalUpdatedResource(resourceId);
-                    Client.Api.DeleteResource(resourceId);
-                    Client.Api.EndTask(taskId);
-                }
-
-                catch (Exception ex)
-                {
-#if DEBUG
-                    Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
-                    /*if (ex.InnerException is TestingServiceException)
+                    try
                     {
-                        Console.WriteLine(ex.InnerException.StackTrace);
-                    }*/
+                        Client.Api.StartTask(mt.TaskId);
+
+                        function();
+
+                        mt.Completed = true;
+
+                        Task.AllPending.Remove(mt);
+                        Client.Api.SignalUpdatedResource(mt.ResourceId);
+                        Client.Api.DeleteResource(mt.ResourceId);
+                        Client.Api.EndTask(mt.ResourceId);
+                    }
+
+                    catch (Exception ex)
+                    {
+#if DEBUG
+                        Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
 #endif
-                    mt.Completed = true;
-                    mt.Error = ex;
-                    Task.AllPending.Remove(mt);
-                    return;
-                }
+                        mt.Completed = true;
+                        mt.Error = ex;
+                        Task.AllPending.Remove(mt);
+                        return;
+                    }
 
-            });
+                });
 
 
-            mt.InnerTask = _t1;
-            return mt;
+                mt.InnerTask = _t1;
+                return mt;
+            }
+            else
+            {
+                var mt = new Task();
+                Task.AllPending.Add(mt);
+
+                var _t1 = NativeTasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        function();
+                        mt.Completed = true;
+                        Task.AllPending.Remove(mt);
+                    }
+
+                    catch (Exception ex)
+                    {
+                        mt.Completed = true;
+                        mt.Error = ex;
+                        Task.AllPending.Remove(mt);
+                        return;
+                    }
+
+                });
+                mt.InnerTask = _t1;
+                return mt;
+            }
         }
 
         // NativeTask.Run(Task<TResult> function) returns a Proxy for the Task<TResult> returned by the Function
         public static Task<TResult> Run<TResult>(Func<NativeTasks.Task<TResult>> function)
         {
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
-
-            var mt = new Task<TResult>(taskId, resourceId);
-            Task.AllPending.Add(mt);
-            Client.Api.CreateTask();
-            Client.Api.CreateResource(resourceId);
-
-            var _t1 = NativeTasks.Task.Run(() =>
+            if (CtrlModel._interactwithNekara)
             {
-                try
+                int taskId = Client.TaskIdGenerator.Generate();
+                int resourceId = Client.ResourceIdGenerator.Generate();
+
+                var mt = new Task<TResult>(taskId, resourceId);
+                Task.AllPending.Add(mt);
+                Client.Api.CreateTask();
+                Client.Api.CreateResource(resourceId);
+
+                var _t1 = NativeTasks.Task.Run(() =>
                 {
-                    Client.Api.StartTask(taskId);
-
-                    var _t2 = function();
-
-                    mt.InnerTask = _t2;
-
-                    mt.InnerTask.Wait();
-
-                    mt.Completed = true;
-#if DEBUG
-                    Console.WriteLine("Task with resorceId-{0} moved to completed", resourceId);
-#endif
-                    Task.AllPending.Remove(mt);
-                    Client.Api.SignalUpdatedResource(resourceId);
-                    Client.Api.DeleteResource(resourceId);
-                    Client.Api.EndTask(taskId);
-                }
-
-                catch (Exception ex)
-                {
-#if DEBUG
-                    Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
-                    /*if (ex.InnerException is TestingServiceException)
+                    try
                     {
-                        Console.WriteLine(ex.InnerException.StackTrace);
-                    }*/
+                        Client.Api.StartTask(taskId);
+
+                        var _t2 = function();
+                        mt.InnerTask = _t2;
+                        mt.InnerTask.Wait();
+                        mt.Completed = true;
+
+                        Task.AllPending.Remove(mt);
+                        Client.Api.SignalUpdatedResource(resourceId);
+                        Client.Api.DeleteResource(resourceId);
+                        Client.Api.EndTask(taskId);
+                    }
+
+                    catch (Exception ex)
+                    {
+#if DEBUG
+                        Console.WriteLine("\n[NekaraModels.Task.Run] {0}\n    {1}", ex.GetType().Name, ex.Message);
+                        /*if (ex.InnerException is TestingServiceException)
+                        {
+                            Console.WriteLine(ex.InnerException.StackTrace);
+                        }*/
 #endif
-                    mt.Completed = true;
-                    mt.Error = ex;
-                    Task.AllPending.Remove(mt);
-                    return;
-                }
+                        mt.Completed = true;
+                        mt.Error = ex;
+                        Task.AllPending.Remove(mt);
+                        return;
+                    }
 
-            });
+                });
+                return mt;
+            }
+            else
+            {
+                var mt = new Task<TResult>();
+                Task.AllPending.Add(mt);
 
+                var _t1 = NativeTasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        var _t2 = function();
+                        mt.InnerTask = _t2;
+                        mt.InnerTask.Wait();
+                        mt.Completed = true;
+                        Task.AllPending.Remove(mt);
+                    }
+                    catch (Exception ex)
+                    {
+                        mt.Completed = true;
+                        mt.Error = ex;
+                        Task.AllPending.Remove(mt);
+                        return;
+                    }
 
-            // mt.InnerTask = _t1;
-            return mt;
+                });
+                return mt;
 
-            // return function();
+            }
         }
 
         public static void WaitAll(params Task[] tasks)
         {
-            // we could call task.Wait on each task, but doing it this way to avoid
-            // calling ContextSwitch multiple times
-            Client.Api.ContextSwitch();
-
-            int errors = 0;
-            int ignoredErrors = 0;
-
-            // we can simply sequentially wait for all the tasks
-            foreach (Task task in tasks)
+            if (CtrlModel._interactwithNekara)
             {
-                try
+                // we could call task.Wait on each task, but doing it this way to avoid
+                // calling ContextSwitch multiple times
+                Client.Api.ContextSwitch();
+
+                int errors = 0;
+                int ignoredErrors = 0;
+
+                // we can simply sequentially wait for all the tasks
+                foreach (Task task in tasks)
                 {
-                    if (!task.Completed) Client.Api.BlockedOnResource(task.ResourceId);
+                    try
+                    {
+                        if (!task.Completed) Client.Api.BlockedOnResource(task.ResourceId);
+                    }
+                    catch (Exception ex)
+                    {
+                        task.Completed = true;
+                        task.Error = ex;
+                        Task.AllPending.Remove(task);
+                        errors++;
+                        if (ex is IntentionallyIgnoredException) ignoredErrors++;
+                    }
                 }
-                catch (Exception ex)
+
+                if (errors > 0)
                 {
-                    task.Completed = true;
-                    task.Error = ex;
-                    Task.AllPending.Remove(task);
-                    errors++;
-                    if (ex is IntentionallyIgnoredException) ignoredErrors++;
+                    var inner = tasks.Where(task => task.Error != null).Select(task => task.Error).ToArray();
+#if DEBUG
+                    Console.WriteLine($"Throwing {ignoredErrors}/{errors} Errors from Task.WaitAll!!!");
+#endif
+                    if (ignoredErrors > 0)
+                    {
+                        throw new IntentionallyIgnoredException("Multiple exceptions thrown from child Tasks", new AggregateException(inner));
+                    }
+                    throw new AggregateException(inner);
                 }
             }
-
-            if (errors > 0)
+            else
             {
-                var inner = tasks.Where(task => task.Error != null).Select(task => task.Error).ToArray();
-#if DEBUG
-                Console.WriteLine($"Throwing {ignoredErrors}/{errors} Errors from Task.WaitAll!!!");
-#endif
-                if (ignoredErrors > 0)
+                NativeTasks.Task[] _tasks = new NativeTasks.Task[tasks.Length];
+                for (int _i = 0; _i < tasks.Length; _i++)
                 {
-                    throw new IntentionallyIgnoredException("Multiple exceptions thrown from child Tasks", new AggregateException(inner));
+                    _tasks[_i] = tasks[_i].InnerTask;
                 }
-                throw new AggregateException(inner);
+
+                NativeTasks.Task.WaitAll(_tasks);
             }
         }
 
         public static void WaitAny(params Task[] tasks)
         {
-            Client.Api.ContextSwitch();
-            // need to call BlockedOnAnyResource only if none of the tasks are completed already
-            if (tasks.Aggregate(true, (acc, task) => acc && !task.Completed))
+            if (CtrlModel._interactwithNekara)
             {
-                Client.Api.BlockedOnAnyResource(tasks.Select(task => task.ResourceId).ToArray());
+                Client.Api.ContextSwitch();
+                // need to call BlockedOnAnyResource only if none of the tasks are completed already
+                if (tasks.Aggregate(true, (acc, task) => acc && !task.Completed))
+                {
+                    Client.Api.BlockedOnAnyResource(tasks.Select(task => task.ResourceId).ToArray());
+                }
+            }
+            else
+            {
+                NativeTasks.Task[] _tasks = new NativeTasks.Task[tasks.Length];
+                for (int _i = 0; _i < tasks.Length; _i++)
+                {
+                    _tasks[_i] = tasks[_i].InnerTask;
+                }
+
+                NativeTasks.Task.WaitAny(_tasks);
             }
         }
 
+        // CtrlModel._interactwithNekara Taken care
         public static Task WhenAll(params Task[] tasks)
         {
             return Task.Run(() => WaitAll(tasks));
@@ -621,27 +798,48 @@ namespace Nekara.Models
 
         public static Task<Task> WhenAny(params Task[] tasks)
         {
-            // throw new NotImplementedException();
-
-            Client.Api.ContextSwitch();
-            // need to call BlockedOnAnyResource only if none of the tasks are completed already
-            if (tasks.Aggregate(true, (acc, task) => acc && !task.Completed))
+            if (CtrlModel._interactwithNekara)
             {
-                Client.Api.BlockedOnAnyResource(tasks.Select(task => task.ResourceId).ToArray());
-            }
+                //TODO: Replace Random number generation with Nekara random number generation
 
-            List<Task> _parts = new List<Task>();
-            foreach (Task _t1 in tasks)
+                Client.Api.ContextSwitch();
+                // need to call BlockedOnAnyResource only if none of the tasks are completed already
+                if (tasks.Aggregate(true, (acc, task) => acc && !task.Completed))
+                {
+                    Client.Api.BlockedOnAnyResource(tasks.Select(task => task.ResourceId).ToArray());
+                }
+
+                List<Task> _t3 = new List<Task>();
+                foreach (Task _t1 in tasks)
+                {
+                    if (_t1.IsCompleted)
+                        _t3.Add(_t1);
+                }
+
+                Random _rnd = new Random();
+
+                Task<Task> _t2 = new Task<Task>(_t3[_rnd.Next(_t3.Count)]);
+                _t2.Completed = true;
+                return _t2;
+            }
+            else
             {
-                if (_t1.IsCompleted)
-                    _parts.Add(_t1);
+                NativeTasks.Task[] _tasks = new NativeTasks.Task[tasks.Length];
+                for (int _i = 0; _i < tasks.Length; _i++)
+                {
+                    _tasks[_i] = tasks[_i].InnerTask;
+                }
+
+                NativeTasks.Task<NativeTasks.Task> _t4 = NativeTasks.Task.WhenAny(_tasks);
+
+                Task _t5 = new Task();
+                _t5.InnerTask = _t4.Result;
+
+                Task<Task> _t2 = new Task<Task>();
+                _t2.Completed = true;
+                _t2.Result = _t5;
+                return _t2;
             }
-
-            Random _rnd = new Random();
-
-            Task<Task> _t2 = new Task<Task>(_parts[_rnd.Next(_parts.Count)]);
-            _t2.Completed = true;
-            return _t2;
         }
 
         public static Task WhenAll(IEnumerable<Task> tasks)
@@ -748,26 +946,38 @@ namespace Nekara.Models
 
         public static Task Delay(int millisecondsDelay, CancellationToken cancellationToken)
         {
-            Client.Api.ContextSwitch();
-
-            if (millisecondsDelay < -1 || millisecondsDelay > Int32.MaxValue)
+            if (CtrlModel._interactwithNekara)
             {
-                throw new ArgumentOutOfRangeException("timeout");
-            }
+                Client.Api.ContextSwitch();
 
-            if (cancellationToken.IsCancellationRequested)
+                if (millisecondsDelay < -1 || millisecondsDelay > Int32.MaxValue)
+                {
+                    throw new ArgumentOutOfRangeException("timeout");
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    // return a Task created as already-Canceled
+                    return Task.FromCancellation(cancellationToken);
+                }
+
+                int taskId = Client.TaskIdGenerator.Generate();
+                int resourceId = Client.ResourceIdGenerator.Generate();
+
+                var _mt = new Task(taskId, resourceId);
+                _mt.Completed = true;
+
+                return _mt;
+            }
+            else
             {
-                // return a Task created as already-Canceled
-                return Task.FromCancellation(cancellationToken);
+                var _t1 = NativeTasks.Task.Delay(millisecondsDelay, cancellationToken);
+
+                Task _t2 = new Task();
+                _t2.InnerTask = _t1;
+                _t2.Completed = _t1.IsCompleted;
+                return _t2;
             }
-
-            int taskId = Client.TaskIdGenerator.Generate();
-            int resourceId = Client.ResourceIdGenerator.Generate();
-
-            var _mt = new Task(taskId, resourceId);
-            _mt.Completed = true;
-
-            return _mt;
         }
 
         public ConfiguredTaskAwaitable ConfigureAwait(bool continueOnCapturedContext)
@@ -862,6 +1072,20 @@ namespace Nekara.Models
         public void Wait(CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
+        }
+
+        // Internal Methods follows below
+        internal static Task _InitTask()
+        {
+            int taskId = Client.TaskIdGenerator.Generate();
+            int resourceId = Client.ResourceIdGenerator.Generate();
+
+            var mt = new Task(taskId, resourceId);
+            Task.AllPending.Add(mt);
+            Client.Api.CreateTask();
+            Client.Api.CreateResource(resourceId);
+
+            return mt;
         }
     }
 
@@ -1334,6 +1558,57 @@ namespace Nekara.Models
             mt.InnerTask = t;
             return mt;
         }
+
+        public Task StartNew_temp<TResult>(Func<TResult> function)
+        {
+            int taskId = Client.TaskIdGenerator.Generate();
+            int resourceId = Client.ResourceIdGenerator.Generate();
+
+
+            var mt = new Task(taskId, resourceId);
+            Task.AllPending.Add(mt);
+
+            bool _f = false;
+
+            Client.Api.CreateResource(resourceId);
+
+            if (_taskSch._threadCount > _taskSch._taskList.Count)
+            {
+                Client.Api.CreateTask();
+
+            }
+            else
+            {
+                _f = true;
+            }
+
+            _taskSch._taskList.Add(mt);
+
+            var t = _InnerTaskFactory.StartNew(() =>
+            {
+
+                if (_f)
+                {
+                    Client.Api.CreateTask();
+                }
+                Client.Api.StartTask(mt.TaskId);
+
+                var _t = function();
+
+                mt.Completed = true;
+                Task.AllPending.Remove(mt);
+                Client.Api.SignalUpdatedResource(mt.ResourceId);
+                Client.Api.DeleteResource(mt.ResourceId);
+                Client.Api.EndTask(mt.TaskId);
+                // await NativeTasks.Task.Run(() => Console.WriteLine("Pls Ignore me"));
+                return _t;
+            });
+
+            mt.InnerTask = t;
+            return mt;
+
+        }
+
 
         public Task StartNew(Action<Object> action, Object state, CancellationToken cancellationToken,
                             NativeTasks.TaskCreationOptions creationOptions, NativeTasks.TaskScheduler scheduler)
