@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Nekara.Abstractions;
+using System.Runtime.InteropServices;
 
 namespace Nekara.Core
 {
@@ -17,6 +18,45 @@ namespace Nekara.Core
     /// </summary>
     public class TestingSession : ITestingService
     {
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_WithoutSeed();
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_WithSeed(int _seed);
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_CreateTask();
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_StartTask(int _threadID);
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_EndTask(int _threadID);
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_ContextSwitch();
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_WaitforMainTask();
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_CreateResource(int _resourceID);
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_DeleteResource(int _resourceID);
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_SignalUpdatedResource(int _resourceID);
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_BlockedOnAnyResource(int[] _resourceID, int _size);
+        [DllImport("NekaraService.dll")]
+        public static extern int NS_GenerateResourceID();
+        [DllImport("NekaraService.dll")]
+        public static extern int NS_GenerateThreadTD();
+        [DllImport("NekaraService.dll")]
+        public static extern bool NS_CreateNondetBool();
+        [DllImport("NekaraService.dll")]
+        public static extern int NS_CreateNondetInteger(int _maxvalue);
+        [DllImport("NekaraService.dll")]
+        public static extern bool NS_Dispose();
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_BlockedOnResource(int _resourceID);
+        [DllImport("NekaraService.dll")]
+        public static extern void NS_Test_forCS();
+        [DllImport("NekaraService.dll")]
+        public static extern int NS_Test_Get_Seed();
+
         // It appears that Process.GetCurrentProcess is a very expensive call
         // (makes the whole app 10 ~ 15x slower when called in AppendLog), so we save the reference here.
         // However, this object is used only for debugging and can be omitted entirely.
@@ -53,6 +93,7 @@ namespace Nekara.Core
 
         public TestingSession(string assemblyName, string assemblyPath, string methodDeclaringClass, string methodName, int schedulingSeed, int timeoutMs = Constants.SessionTimeoutMs, int maxDecisions = Constants.SessionMaxDecisions)
         {
+
             this.Meta = new SessionInfo(IdGen.Generate().ToString(), assemblyName, assemblyPath, methodDeclaringClass, methodName, schedulingSeed, timeoutMs, maxDecisions);
 
             this.records = new List<SessionRecord>();
@@ -74,7 +115,7 @@ namespace Nekara.Core
                 meta.methodName,
                 meta.schedulingSeed,
                 meta.timeoutMs,
-                meta.maxDecisions) { }
+                meta.maxDecisions) {  }
 
         public string Id { get { return this.Meta.id; } }
 
@@ -241,11 +282,12 @@ namespace Nekara.Core
                         PrintTrace(testTrace);
                     }
 
-                    if (testTrace.Count == 0)
+                    // TODO: Uncomment while doing for Traces
+                    /* if (testTrace.Count == 0)
                     {
                         userProgramFaulty = true;
                         userProgramFaultyReason = "There seems to be no concurrency modeled in the user program - 0 scheduling decisions were made";
-                    }
+                    } */
 
                     // if result is set, then there was something wrong with the user program so we do not record the trace
                     if (userProgramFaulty)
@@ -271,7 +313,7 @@ namespace Nekara.Core
                             this.logFile.Close();
                         }
                         // If it is in replay mode, compare with previous trace
-                        else
+                        /* else
                         {
                             // if the results are different, then something is wrong with the user program
                             if (this.LastRecord.result != result || this.LastRecord.reason != reason)
@@ -321,13 +363,13 @@ namespace Nekara.Core
                                     }
                                 }
                             }
-                        }
+                        } */
 
                         lock (this.records)
                         {
                             if (!this.IsReplayMode || reproducible) this.records.Add(record);
-                        }
-                    }
+                        } 
+                    } 
 
 #if DEBUG
                     //Console.WriteLine(Profiler.ToString());
@@ -375,7 +417,8 @@ namespace Nekara.Core
             {
                 lock (this.pendingRequests)
                 {
-                    this.pendingRequests.Add(invocation);
+                    // New changes
+                    // this.pendingRequests.Add(invocation);
                 }
             }
 
@@ -418,7 +461,8 @@ namespace Nekara.Core
                 {
                     lock (this.pendingRequests)
                     {
-                        this.pendingRequests.Remove(invocation);
+                        // New changes
+                        // this.pendingRequests.Remove(invocation);
                     }
                 }
             };
@@ -457,10 +501,12 @@ namespace Nekara.Core
 #if DEBUG
             var stamp = Profiler.Update("CreateTaskBegin");
 #endif
-            lock (programState)
+            /* lock (programState)
             {
                 programState.InitTaskCreation();
-            }
+            } */
+
+            NS_CreateTask();
 #if DEBUG
             stamp = Profiler.Update("CreateTaskEnd", stamp);
 #endif
@@ -477,20 +523,22 @@ namespace Nekara.Core
 #if DEBUG
             var stamp = Profiler.Update("StartTaskBegin");
 #endif
-            TaskCompletionSource<bool> tcs;
+            /* TaskCompletionSource<bool> tcs;
 
             lock (programState)
             {
                 Assert(programState.numPendingTaskCreations > 0, $"Unexpected StartTask! StartTask({taskId}) called without calling CreateTask");
                 Assert(!programState.HasTask(taskId), $"Duplicate declaration of task: {taskId}");
                 tcs = programState.AddTask(taskId);
-            }
+            } */
+
+            NS_StartTask(taskId);
 
 #if DEBUG
             stamp = Profiler.Update("StartTaskUpdate", stamp);
 #endif
 
-            tcs.Task.Wait();
+            // tcs.Task.Wait();
 
 #if DEBUG
             stamp = Profiler.Update("StartTaskEnd", stamp);
@@ -508,13 +556,13 @@ namespace Nekara.Core
 #if DEBUG
             var stamp = Profiler.Update("EndTaskBegin");
 #endif
-            WaitForPendingTaskCreations();
+            // WaitForPendingTaskCreations();
 
 #if DEBUG
             stamp = Profiler.Update("EndTaskWaited", stamp);
 #endif
 
-            lock (programState)
+            /* lock (programState)
             {
                 Assert(programState.HasTask(taskId), $"EndTask called on unknown task: {taskId}");
                 //Console.WriteLine($"EndTask({taskId}) Status: {programState.taskToTcs[taskId].Task.Status}");
@@ -525,13 +573,14 @@ namespace Nekara.Core
                     $"EndTask called but Task ({taskId}) did not receive control before (Task.Status == WaitingForActivation). Something is wrong with the test program - maybe ContextSwitch is called from an unmodelled Task?",
                     ()=> programState.taskToTcs[taskId].TrySetException(new TestFailedException($"EndTask called but Task ({taskId}) did not receive control before (Task.Status == WaitingForActivation)")));
                 programState.RemoveTask(taskId);
-            }
+            } */
 
 #if DEBUG
             stamp = Profiler.Update("EndTaskUpdate", stamp);
 #endif
 
-            ContextSwitch();
+            // ContextSwitch();
+            NS_EndTask(taskId);
 
 #if DEBUG
             stamp = Profiler.Update("EndTaskEnd", stamp);
@@ -549,11 +598,13 @@ namespace Nekara.Core
             var stamp = Profiler.Update("CreateResourceBegin");
 #endif
 
-            lock (programState)
+            /* lock (programState)
             {
                 Assert(!programState.HasResource(resourceId), $"Duplicate declaration of resource: {resourceId}");
                 programState.AddResource(resourceId);
-            }
+            } */
+
+            NS_CreateResource(resourceId);
 
 #if DEBUG
             stamp = Profiler.Update("CreateResourceEnd", stamp);
@@ -569,12 +620,14 @@ namespace Nekara.Core
             var stamp = Profiler.Update("DeleteResourceBegin");
 #endif
 
-            lock (programState)
+            /* lock (programState)
             {
                 Assert(programState.HasResource(resourceId), $"DeleteResource called on unknown resource: {resourceId}");
                 Assert(programState.SafeToDeleteResource(resourceId), $"DeleteResource called on resource {resourceId} but some tasks are blocked on it");
                 programState.resourceSet.Remove(resourceId);
-            }
+            } */
+
+            NS_DeleteResource(resourceId);
 #if DEBUG
             stamp = Profiler.Update("DeleteResourceEnd", stamp);
 #endif
@@ -593,18 +646,18 @@ namespace Nekara.Core
 #if DEBUG
             var stamp = Profiler.Update("BlockedOnResourceBegin");
 #endif
-            lock (programState)
+            /* lock (programState)
             {
                 Assert(programState.HasResource(resourceId), $"Illegal operation, resource {resourceId} has not been declared");
                 Assert(!programState.IsBlockedOnTask(programState.currentTask),
                     $"Illegal operation, task {programState.currentTask} already blocked on a resource");
                 programState.BlockTaskOnAnyResource(programState.currentTask, resourceId);
-            }
+            } */
 #if DEBUG
             stamp = Profiler.Update("BlockedOnResourceUpdate", stamp);
 #endif
-
-            ContextSwitch();
+            NS_BlockedOnResource(resourceId);
+            // ContextSwitch();
 #if DEBUG
             stamp = Profiler.Update("BlockedOnResourceEnd", stamp);
 #endif
@@ -619,7 +672,7 @@ namespace Nekara.Core
 #if DEBUG
             var stamp = Profiler.Update("BlockedOnAnyResourceBegin");
 #endif
-            lock (programState)
+            /* lock (programState)
             {
                 foreach (int resourceId in resourceIds)
                 {
@@ -628,12 +681,14 @@ namespace Nekara.Core
                 Assert(!programState.IsBlockedOnTask(programState.currentTask),
                     $"Illegal operation, task {programState.currentTask} already blocked on a resource");
                 programState.BlockTaskOnAnyResource(programState.currentTask, resourceIds);
-            }
+            } */
 #if DEBUG
             stamp = Profiler.Update("BlockedOnResourceUpdate", stamp);
 #endif
 
-            ContextSwitch();
+            // ContextSwitch();
+
+            NS_BlockedOnAnyResource(resourceIds, resourceIds.Length);
 #if DEBUG
             stamp = Profiler.Update("BlockedOnResourceEnd", stamp);
 #endif
@@ -650,7 +705,7 @@ namespace Nekara.Core
             var stamp = Profiler.Update("SignalUpdatedResourceBegin");
 #endif
 
-            lock (programState)
+            /* lock (programState)
             {
                 Assert(programState.HasResource(resourceId), $"Illegal operation, resource {resourceId} has not been declared");
 
@@ -659,7 +714,9 @@ namespace Nekara.Core
                 {
                     programState.UnblockTask(taskId);
                 }
-            }
+            } */
+
+            NS_SignalUpdatedResource(resourceId);
 
 #if DEBUG
             stamp = Profiler.Update("SignalUpdatedResourceEnd", stamp);
@@ -674,7 +731,7 @@ namespace Nekara.Core
 #if DEBUG
             var stamp = Profiler.Update("CreateNondetBoolBegin");
 #endif
-            lock (programState)
+            /* lock (programState)
             {
                 bool value = this.randomizer.NextBool();
                 this.PushTrace(DecisionType.CreateNondetBool, value ? 1 : 0, programState.currentTask, programState);
@@ -682,7 +739,9 @@ namespace Nekara.Core
                 stamp = Profiler.Update("CreateNondetBoolEnd", stamp);
 #endif
                 return value;
-            }
+            } */
+
+            return NS_CreateNondetBool();
         }
 
         /// <summary>
@@ -693,7 +752,7 @@ namespace Nekara.Core
 #if DEBUG
             var stamp = Profiler.Update("CreateNondetIntegerBegin");
 #endif
-            lock (programState)
+            /* lock (programState)
             {
                 int value = this.randomizer.NextInt(maxValue);
                 this.PushTrace(DecisionType.CreateNondetInteger, value, programState.currentTask, programState);
@@ -701,7 +760,9 @@ namespace Nekara.Core
                 stamp = Profiler.Update("CreateNondetIntegerEnd", stamp);
 #endif
                 return value;
-            }
+            } */
+
+            return NS_CreateNondetInteger(maxValue);
         }
 
         /// <summary>
@@ -743,13 +804,13 @@ namespace Nekara.Core
             var stamp = Profiler.Update("ContextSwitchBegin");
 #endif
 
-            WaitForPendingTaskCreations();
+            // WaitForPendingTaskCreations();
 
 #if DEBUG
             stamp = Profiler.Update("ContextSwitchWaited", stamp);
 #endif
 
-            var tcs = new TaskCompletionSource<bool>();
+            /* var tcs = new TaskCompletionSource<bool>();
             int[] enabledTasks;
             int next;
             int currentTask;
@@ -850,7 +911,9 @@ namespace Nekara.Core
                     stamp = Profiler.Update("ContextSwitchEnd", stamp);
 #endif
                 }
-            }
+            } */
+
+            NS_ContextSwitch();
         }
 
         /// <summary>
@@ -887,7 +950,12 @@ namespace Nekara.Core
 
             try
             {
-                this.EndTask(0);
+                // this.EndTask(0);
+                NS_WaitforMainTask();
+                NS_Test_forCS();
+                
+                programState.RemoveTask(0);
+                this.Finish(TestResult.Pass);
             }
             catch (TestingServiceException ex)
             {

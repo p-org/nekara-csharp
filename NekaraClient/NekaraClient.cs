@@ -178,7 +178,7 @@ namespace Nekara.Client
                     {
                         long started = Stopwatch.GetTimestamp();
                         return this.RunNewTestSession(definition.Run, SchedulingSeedGenerator.Generate())
-                        .Then(result => this.ReplayTestSession(((SessionRecord)result).sessionId, false))
+                        // .Then(result => this.ReplayTestSession(((SessionRecord)result).sessionId, false))
                         .Then(result =>
                         {
                             SessionRecord record = (SessionRecord)result;

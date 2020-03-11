@@ -18,6 +18,14 @@ namespace Nekara.Core
     /// </summary>
     public class NekaraServer : MarshalByRefObject
     {
+
+        [System.Runtime.InteropServices.DllImport("NekaraService.dll")]
+        public static extern void NS_WithoutSeed();
+        [System.Runtime.InteropServices.DllImport("NekaraService.dll")]
+        public static extern void NS_WithSeed(int _seed);
+        [System.Runtime.InteropServices.DllImport("NekaraService.dll")]
+        public static extern int NS_Test_Get_Seed();
+
         public static decimal StartedAt = Math.Round((decimal)Stopwatch.GetTimestamp()/10000, 0);
         public static int gCount = 0;
         private Dictionary<string, TestingSession> testSessions;
@@ -45,6 +53,11 @@ namespace Nekara.Core
         public string InitializeTestSession(JObject arg)
         {
             var sessionInfo = SessionInfo.FromJson(arg);
+
+            // New Changes:
+            NS_WithSeed(sessionInfo.schedulingSeed);
+            sessionInfo.timeoutMs = 1000000;
+
             var session = new TestingSession(sessionInfo);
 
             session.OnComplete += (sender, record) =>
