@@ -19,11 +19,11 @@ namespace Nekara.Core
     public class NekaraServer : MarshalByRefObject
     {
 
-        [System.Runtime.InteropServices.DllImport("NekaraService.dll")]
+        [System.Runtime.InteropServices.DllImport("NekaraCore.dll")]
         public static extern void NS_WithoutSeed();
-        [System.Runtime.InteropServices.DllImport("NekaraService.dll")]
+        [System.Runtime.InteropServices.DllImport("NekaraCore.dll")]
         public static extern void NS_WithSeed(int _seed);
-        [System.Runtime.InteropServices.DllImport("NekaraService.dll")]
+        [System.Runtime.InteropServices.DllImport("NekaraCore.dll")]
         public static extern int NS_Test_Get_Seed();
 
         public static decimal StartedAt = Math.Round((decimal)Stopwatch.GetTimestamp()/10000, 0);

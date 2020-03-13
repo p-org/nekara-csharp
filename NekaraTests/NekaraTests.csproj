@@ -10,67 +10,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Orleans\DeadlockGrain.cs" />
-    <Compile Remove="PSharp\TestingRuntime.cs" />
-    <Compile Remove="PSharp\TestMachineRuntime.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Connections.Abstractions" Version="3.0.0" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="1.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="3.0.0" />
-    <PackageReference Include="Microsoft.Orleans.CodeGenerator.MSBuild" Version="3.0.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NekaraClient\NekaraClient.csproj" />
+    <ProjectReference Include="..\NekaraClient\NekaraRpcManagedClient.csproj" />
     <ProjectReference Include="..\NekaraModels\NekaraModels.csproj" />
-    <ProjectReference Include="..\Nekara\Nekara.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="Microsoft.Extensions.Configuration">
-      <HintPath>..\..\..\src\orleans\src\Orleans.CodeGenerator.MSBuild\bin\Debug\netcoreapp3.0\Microsoft.Extensions.Configuration.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Extensions.Configuration.Abstractions">
-      <HintPath>..\..\..\src\orleans\src\Orleans.CodeGenerator.MSBuild\bin\Debug\netcoreapp3.0\Microsoft.Extensions.Configuration.Abstractions.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Extensions.DependencyInjection">
-      <HintPath>..\..\..\src\orleans\src\Orleans.CodeGenerator.MSBuild\bin\Debug\netcoreapp3.0\Microsoft.Extensions.DependencyInjection.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Extensions.DependencyModel">
-      <HintPath>..\..\..\src\orleans\src\Orleans.CodeGenerator.MSBuild\bin\Debug\netcoreapp3.0\Microsoft.Extensions.DependencyModel.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Extensions.Logging">
-      <HintPath>..\..\..\src\orleans\src\Orleans.CodeGenerator.MSBuild\bin\Debug\netcoreapp3.0\Microsoft.Extensions.Logging.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Extensions.Options">
-      <HintPath>..\..\..\src\orleans\src\Orleans.CodeGenerator.MSBuild\bin\Debug\netcoreapp3.0\Microsoft.Extensions.Options.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.PSharp">
-      <HintPath>..\..\..\src\PSharp\bin\netcoreapp2.1\Microsoft.PSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="Orleans.Client">
-      <HintPath>..\..\..\src\orleans\src\Orleans.Client\bin\Debug\netstandard2.0\Orleans.Client.dll</HintPath>
-    </Reference>
-    <Reference Include="Orleans.Core">
-      <HintPath>..\..\..\src\orleans\src\Orleans.Core\bin\Debug\netstandard2.0\Orleans.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="Orleans.Core.Abstractions">
-      <HintPath>..\..\..\src\orleans\src\Orleans.Core.Abstractions\bin\Debug\netstandard2.0\Orleans.Core.Abstractions.dll</HintPath>
-    </Reference>
-    <Reference Include="Orleans.Runtime">
-      <HintPath>..\..\..\src\orleans\src\Orleans.Runtime\bin\Debug\netstandard2.0\Orleans.Runtime.dll</HintPath>
-    </Reference>
-    <Reference Include="Orleans.Runtime.Abstractions">
-      <HintPath>..\..\..\src\orleans\src\Orleans.Runtime.Abstractions\bin\Debug\netstandard2.0\Orleans.Runtime.Abstractions.dll</HintPath>
-    </Reference>
-    <Reference Include="Orleans.Server">
-      <HintPath>..\..\..\src\orleans\src\Orleans.Server\bin\Debug\netstandard2.0\Orleans.Server.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\Nekara\NekaraRpcServer.csproj" />
   </ItemGroup>
 
 </Project>

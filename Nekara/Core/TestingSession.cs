@@ -18,43 +18,43 @@ namespace Nekara.Core
     /// </summary>
     public class TestingSession : ITestingService
     {
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_WithoutSeed();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_WithSeed(int _seed);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_CreateTask();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_StartTask(int _threadID);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_EndTask(int _threadID);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_ContextSwitch();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_WaitforMainTask();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_CreateResource(int _resourceID);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_DeleteResource(int _resourceID);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_SignalUpdatedResource(int _resourceID);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_BlockedOnAnyResource(int[] _resourceID, int _size);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern int NS_GenerateResourceID();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern int NS_GenerateThreadTD();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern bool NS_CreateNondetBool();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern int NS_CreateNondetInteger(int _maxvalue);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern bool NS_Dispose();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_BlockedOnResource(int _resourceID);
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_Test_forCS();
-        [DllImport("NekaraService.dll")]
+        [DllImport("NekaraCore.dll")]
         public static extern int NS_Test_Get_Seed();
 
         // It appears that Process.GetCurrentProcess is a very expensive call
