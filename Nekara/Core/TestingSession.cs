@@ -19,9 +19,9 @@ namespace Nekara.Core
     public class TestingSession : ITestingService
     {
         [DllImport("NekaraCore.dll")]
-        public static extern void NS_WithoutSeed();
+        public static extern void NS_WithoutSeed(int max_decisions);
         [DllImport("NekaraCore.dll")]
-        public static extern void NS_WithSeed(int _seed);
+        public static extern void NS_WithSeed(int _seed, int max_decisions);
         [DllImport("NekaraCore.dll")]
         public static extern void NS_CreateTask();
         [DllImport("NekaraCore.dll")]
@@ -52,10 +52,6 @@ namespace Nekara.Core
         public static extern bool NS_Dispose();
         [DllImport("NekaraCore.dll")]
         public static extern void NS_BlockedOnResource(int _resourceID);
-        [DllImport("NekaraCore.dll")]
-        public static extern void NS_Test_forCS();
-        [DllImport("NekaraCore.dll")]
-        public static extern int NS_Test_Get_Seed();
 
         // It appears that Process.GetCurrentProcess is a very expensive call
         // (makes the whole app 10 ~ 15x slower when called in AppendLog), so we save the reference here.
@@ -952,10 +948,9 @@ namespace Nekara.Core
             {
                 // this.EndTask(0);
                 NS_WaitforMainTask();
-                NS_Test_forCS();
                 
                 programState.RemoveTask(0);
-                this.Finish(TestResult.Pass);
+                // this.Finish(TestResult.Pass);
             }
             catch (TestingServiceException ex)
             {

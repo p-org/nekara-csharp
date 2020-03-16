@@ -13,7 +13,7 @@ namespace NekaraUnitTest
         public static void TestCompletedTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession();
+            nekara.Api.CreateSession(1000);
 
             Task task = Task.CompletedTask;
             nekara.Api.Assert(task.IsCompleted, "The task has not completed.");
@@ -23,7 +23,7 @@ namespace NekaraUnitTest
         public static void TestCanceledTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession();
+            nekara.Api.CreateSession(1000);
 
             CancellationToken token = new CancellationToken(true);
             Task task = Task.FromCanceled(token);
@@ -34,7 +34,7 @@ namespace NekaraUnitTest
         public static void TestCanceledTaskWithResult()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession();
+            nekara.Api.CreateSession(1000);
 
             CancellationToken token = new CancellationToken(true);
             Task<int> task = Task.FromCanceled<int>(token);
@@ -45,7 +45,7 @@ namespace NekaraUnitTest
         public static void TestFailedTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession();
+            nekara.Api.CreateSession(1000);
 
             Task task = Task.FromException(new InvalidOperationException());
             nekara.Api.Assert(task.IsFaulted, "The task is not faulted.");
@@ -57,7 +57,7 @@ namespace NekaraUnitTest
         public static void TestFailedTaskWithResult()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession();
+            nekara.Api.CreateSession(1000);
 
             Task<int> task = Task.FromException<int>(new InvalidOperationException());
             nekara.Api.Assert(task.IsFaulted, "The task is not faulted.");

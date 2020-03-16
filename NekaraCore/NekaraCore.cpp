@@ -7,12 +7,12 @@ NS::NekaraService* _nsj;
 
 // C# Bindings
 extern "C" {
-    __declspec(dllexport) void NS_WithoutSeed() {
-        _ns = new NS::NekaraService();
+    __declspec(dllexport) void NS_WithoutSeed(int max_decisions) {
+        _ns = new NS::NekaraService(max_decisions);
     }
 
-    __declspec(dllexport) void NS_WithSeed(int _seed) {
-        _ns = new NS::NekaraService(_seed);
+    __declspec(dllexport) void NS_WithSeed(int _seed, int max_decisions) {
+        _ns = new NS::NekaraService(_seed, max_decisions);
     }
 
     __declspec(dllexport) void NS_CreateTask() {
@@ -55,16 +55,6 @@ extern "C" {
         _ns->SignalUpdatedResource(_resourceID);
     }
 
-    __declspec(dllexport) int NS_GenerateResourceID() {
-        assert(_ns != NULL && "Nekara Testing Service not Initialized");
-        return _ns->GenerateResourceID();
-    }
-
-    __declspec(dllexport) int NS_GenerateThreadTD() {
-        assert(_ns != NULL && "Nekara Testing Service not Initialized");
-        return _ns->GenerateThreadTD();
-    }
-
     __declspec(dllexport) bool NS_CreateNondetBool() {
         assert(_ns != NULL && "Nekara Testing Service not Initialized");
         return _ns->CreateNondetBool();
@@ -88,14 +78,6 @@ extern "C" {
     __declspec(dllexport) bool NS_Dispose() {
         _ns = NULL;
         return true;
-    }
-
-    __declspec(dllexport) void NS_Test_forCS() {
-        _ns->_Test_forCS();
-    }
-
-    __declspec(dllexport) int NS_Test_Get_Seed() {
-        return _ns->_Test_Get_Seed();
     }
 }
 
@@ -165,16 +147,6 @@ extern "C" {
     JNIEXPORT void JNICALL Java_NekaraServiceJava_NSJ_1SignalUpdatedResource(JNIEnv* env, jobject obj, jint _resourceID) {
         assert(_nsj != NULL && "Nekara Testing Service not Initialized");
         _nsj->SignalUpdatedResource(_resourceID);
-    }
-
-    JNIEXPORT jint JNICALL Java_NekaraServiceJava_NSJ_1GenerateResourceID(JNIEnv* env, jobject obj) {
-        assert(_nsj != NULL && "Nekara Testing Service not Initialized");
-        return _nsj->GenerateResourceID();
-    }
-
-    JNIEXPORT jint JNICALL Java_NekaraServiceJava_NSJ_1GenerateThreadTD(JNIEnv* env, jobject obj) {
-        assert(_nsj != NULL && "Nekara Testing Service not Initialized");
-        return _nsj->GenerateThreadTD();
     }
 
     JNIEXPORT jboolean  JNICALL Java_NekaraServiceJava_NSJ_1CreateNondetBool(JNIEnv* env, jobject obj) {

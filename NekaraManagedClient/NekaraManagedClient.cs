@@ -8,16 +8,17 @@ namespace NekaraManaged.Client
     public class NekaraManagedClient // : IDisposable
     {
         [DllImport("NekaraCore.dll")]
-        public static extern void NS_WithoutSeed();
+        public static extern void NS_WithoutSeed(int max_decisions);
         [DllImport("NekaraCore.dll")]
-        public static extern void NS_WithSeed(int _seed);
+        public static extern void NS_WithSeed(int _seed, int max_decisions);
 
         private readonly TestRuntimeApi testingApi;
         public Helpers IdGenerator;
 
         public NekaraManagedClient()
         {
-            NS_WithoutSeed();
+            // TODO: Using 1000 as default value as of Now.
+            NS_WithoutSeed(1000);
             this.testingApi = new TestRuntimeApi();
             this.IdGenerator = new Helpers();
         }

@@ -9,9 +9,12 @@
 #include <cassert>
 #include <windows.h>
 
-namespace NS {
+namespace NS 
+{
 
-	class ProjectState {
+	class ProjectState 
+	{
+
 	public:
 		int numPendingTaskCreations;
 		std::map<int, HANDLE> _th_to_sem;

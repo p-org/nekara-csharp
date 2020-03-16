@@ -1,6 +1,5 @@
 using System;
 using Xunit;
-using Xunit.Abstractions;
 using NekaraManaged.Client;
 using Nekara.Models;
 
@@ -10,11 +9,12 @@ namespace NekaraUnitTest
     {
         static int balance;
 
-        static ITestingService nekara = RuntimeEnvironment.Client.Api;
-
         [Fact(Timeout = 5000)]
         public void AccountTest()
         {
+
+            NekaraManagedClient nekara = RuntimeEnvironment.Client;
+            nekara.Api.CreateSession(1000);
 
             int x = 1;
             int y = 2;
@@ -28,19 +28,20 @@ namespace NekaraUnitTest
 
             Task t1 = Task.Run(() =>
             {
-                nekara.ContextSwitch();
+                nekara.Api.ContextSwitch();
                 using (l.Acquire())
                 {
                     if (depositDone && withdrawDone)
                     {
-                        nekara.Assert(balance == (x - y) - z, "Bug found!");
+                        bool _m1 = balance == ((x - y) - z);
+                        nekara.Api.Assert(_m1, "Bug found!");
                     }
                 }
             });
 
             Task t2 = Task.Run(() =>
             {
-                nekara.ContextSwitch();
+                nekara.Api.ContextSwitch();
                 using (l.Acquire())
                 {
                     balance += y;
@@ -50,7 +51,7 @@ namespace NekaraUnitTest
 
             Task t3 = Task.Run(() =>
             {
-                nekara.ContextSwitch();
+                nekara.Api.ContextSwitch();
                 using (l.Acquire())
                 {
                     balance -= z;
@@ -66,39 +67,45 @@ namespace NekaraUnitTest
         [Fact(Timeout = 5000)]
         public void AccountMinimalRunWithApi()
         {
+            NekaraManagedClient nekara = RuntimeEnvironment.Client;
+            nekara.Api.CreateSession(1000);
+
             balance = 0;
 
-            nekara.CreateTask();
+            nekara.Api.CreateTask();
             var t1 = System.Threading.Tasks.Task.Run(() =>
             {
-                nekara.StartTask(1);
+                nekara.Api.StartTask(1);
                 TransactWithApi(100);
-                nekara.EndTask(1);
+                nekara.Api.EndTask(1);
             });
 
-            nekara.CreateTask();
+            nekara.Api.CreateTask();
             var t2 = System.Threading.Tasks.Task.Run(() =>
             {
-                nekara.StartTask(2);
+                nekara.Api.StartTask(2);
                 TransactWithApi(200);
-                nekara.EndTask(2);
+                nekara.Api.EndTask(2);
             });
 
             Task.Run(() => System.Threading.Tasks.Task.WaitAll(t1, t2));
 
-            nekara.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}");
+            nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}");
         }
 
         [Fact(Timeout = 5000)]
         public void AccountMinimalRunWithTask()
         {
+            NekaraManagedClient nekara = RuntimeEnvironment.Client;
+            nekara.Api.CreateSession(1000);
+
             balance = 0;
 
             var t1 = Task.Run(() => TransactWithApi(100));
             var t2 = Task.Run(() => TransactWithApi(200));
 
             Task.WaitAll(t1, t2);
-            nekara.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}");
+            nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}");
         }
 
         static void Transact(int amount)
@@ -111,8 +118,10 @@ namespace NekaraUnitTest
 
         static void TransactWithApi(int amount)
         {
+            NekaraManagedClient nekara = RuntimeEnvironment.Client;
+
             int current = balance;
-            nekara.ContextSwitch();
+            nekara.Api.ContextSwitch();
             balance = current + amount;
         }
     }

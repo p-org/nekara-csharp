@@ -20,11 +20,9 @@ namespace Nekara.Core
     {
 
         [System.Runtime.InteropServices.DllImport("NekaraCore.dll")]
-        public static extern void NS_WithoutSeed();
+        public static extern void NS_WithoutSeed(int max_decisions);
         [System.Runtime.InteropServices.DllImport("NekaraCore.dll")]
-        public static extern void NS_WithSeed(int _seed);
-        [System.Runtime.InteropServices.DllImport("NekaraCore.dll")]
-        public static extern int NS_Test_Get_Seed();
+        public static extern void NS_WithSeed(int _seed, int max_decisions);
 
         public static decimal StartedAt = Math.Round((decimal)Stopwatch.GetTimestamp()/10000, 0);
         public static int gCount = 0;
@@ -55,8 +53,7 @@ namespace Nekara.Core
             var sessionInfo = SessionInfo.FromJson(arg);
 
             // New Changes:
-            NS_WithSeed(sessionInfo.schedulingSeed);
-            sessionInfo.timeoutMs = 1000000;
+            NS_WithSeed(sessionInfo.schedulingSeed, sessionInfo.maxDecisions);
 
             var session = new TestingSession(sessionInfo);
 

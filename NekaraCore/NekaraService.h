@@ -5,24 +5,44 @@
 #include <mutex> 
 #include <assert.h>
 #include <chrono>
+#include <thread>
 
-namespace NS {
+#define MILLISEC 100
+#define SEMAPHORETIMESPAN 100000L
+
+namespace NS 
+{
 
 	std::mutex _obj;
 
-	class NekaraService {
+	class NekaraService 
+	{
+
 	private:
 		ProjectState _projectState;
 		int _currentThread;
 		int _seed;
 		bool _debug = false;
-		int _thread_ID_generator;
-		int _resource_ID_generator;
-		bool _test_var = true;
 		int _max_decisions;
 
+		void WaitForPendingTaskCreations()
+		{
+			while (true)
+			{
+				_obj.lock();
+				if (_projectState.numPendingTaskCreations == 0)
+				{
+					_obj.unlock();
+					return;
+				}
+				_obj.unlock();
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(MILLISEC));
+			}
+		}
+
 	public:
-		NekaraService()
+		NekaraService(int max_decisions)
 		{
 			// getting seed from Nanoseconds
 			std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
@@ -30,12 +50,10 @@ namespace NS {
 			auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
 
 			_currentThread = 0;
-			_thread_ID_generator = 1000;
-			_resource_ID_generator = 100000;
-			_max_decisions = 1000;
+			_max_decisions = max_decisions;
 			_seed = nanoseconds.count() % 999;
-			std::cout << "Your Program is being tested with random seed: " << _seed << "\n";
-			std::cout << "Give the same Seed to the Testing Service for a Re-Play." << "\n";
+			std::cout << "Your Program is being tested with random seed: " << _seed <<  " with max decisions: " << _max_decisions <<"\n";
+			std::cout << "Give the same Seed and Max number of decision(s) to the Testing Service for a Re-Play." << "\n";
 			srand(_seed);
 
 			_obj.lock();
@@ -44,12 +62,10 @@ namespace NS {
 			_obj.unlock();
 		}
 
-		NekaraService(int _seed)
+		NekaraService(int _seed, int max_decisions)
 		{
 			_currentThread = 0;
-			_thread_ID_generator = 1000;
-			_resource_ID_generator = 100000;
-			_max_decisions = 1000;
+			_max_decisions = max_decisions;
 			this->_seed = _seed;
 			std::cout << "Your Program is being tested with seed: " << this->_seed << "\n";
 			srand(_seed);
@@ -62,7 +78,8 @@ namespace NS {
 
 		void CreateThread()
 		{
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "CT-entry" << "\n";
 			}
 
@@ -70,7 +87,8 @@ namespace NS {
 			_projectState.ThreadCreation();
 			_obj.unlock();
 
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "CT-exit" << "\n";
 			}
 
@@ -78,7 +96,8 @@ namespace NS {
 
 		void StartThread(int _threadID)
 		{
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "ST-entry: " << _threadID << "\n";
 			}
 
@@ -87,16 +106,15 @@ namespace NS {
 			HANDLE _obj1 = _projectState._th_to_sem.find(_threadID)->second;
 			_obj.unlock();
 
-			DWORD _dwWaitResult = WaitForSingleObject(_obj1, 100000L);
-			switch (_dwWaitResult)
+			DWORD _dwWaitResult = WaitForSingleObject(_obj1, SEMAPHORETIMESPAN);
+			if (_dwWaitResult == WAIT_TIMEOUT)
 			{
-			case WAIT_TIMEOUT:
 				std::cerr << "Windows ERROR: Semaphore waiting Time-out." << ".\n";
 				abort();
-				break;
 			}
 
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "ST-exit: " << _threadID << "\n";
 			}
 
@@ -104,7 +122,8 @@ namespace NS {
 
 		void EndThread(int _threadID)
 		{
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "ET-entry: " << _threadID << "\n";
 			}
 
@@ -114,7 +133,8 @@ namespace NS {
 
 			ContextSwitch();
 
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "ET-exit: " << _threadID << "\n";
 			}
 
@@ -159,28 +179,6 @@ namespace NS {
 			_obj.unlock();
 		}
 
-		int GenerateThreadTD()
-		{
-			int _threadID;
-			_obj.lock();
-			_threadID = _thread_ID_generator;
-			_thread_ID_generator++;
-			_obj.unlock();
-
-			return _threadID;
-		}
-
-		int GenerateResourceID()
-		{
-			int _resourceID;
-			_obj.lock();
-			_resourceID = _resource_ID_generator;
-			_resource_ID_generator++;
-			_obj.unlock();
-
-			return _resourceID;
-		}
-
 		bool CreateNondetBool()
 		{
 			bool _NondetBool;
@@ -203,7 +201,8 @@ namespace NS {
 
 		void ContextSwitch()
 		{
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "CS-entry" << "\n";
 			}
 
@@ -217,7 +216,7 @@ namespace NS {
 
 			_obj.lock();
 
-			// TODO: The max-decision count has to be re-coded with Trace capture.
+			
 			if (_max_decisions < 0)
 			{
 				std::cerr << "ERROR: Maximum steps reached; the program might be in a live-lock state! (or the program might be a non-terminating program)" << ".\n";
@@ -248,15 +247,11 @@ namespace NS {
 
 			if (_size == 0 && _size_t_s == 0)
 			{
-				_test_var = false;
 				_obj.unlock();
 				return;
 			}
 
-			int _t1 = rand();
-			int _randnum = _t1 % _size;
-
-			// int _randnum = rand() % _size;
+			int _randnum = rand() % _size;
 
 			int _i = 0;
 
@@ -293,59 +288,34 @@ namespace NS {
 
 				if (_current_thread_running)
 				{
-					DWORD _dwWaitResult = WaitForSingleObject(_crr_obj1, 100000L);
-					switch (_dwWaitResult)
+					DWORD _dwWaitResult = WaitForSingleObject(_crr_obj1, SEMAPHORETIMESPAN);
+					if (_dwWaitResult)
 					{
-					case WAIT_TIMEOUT:
 						std::cerr << "Windows ERROR: Semaphore waiting Time-out." << ".\n";
 						abort();
-						break;
 					}
 				}
 			}
 
-			if (_debug) {
-				std::cout << "CS-exit" << "\n";
-			}
-		}
-
-		void WaitForPendingTaskCreations()
-		{
-			while (true)
+			if (_debug) 
 			{
-				_obj.lock();
-				if (_projectState.numPendingTaskCreations == 0)
-				{
-					_obj.unlock();
-					return;
-				}
-				_obj.unlock();
+				std::cout << "CS-exit" << "\n";
 			}
 		}
 
 		void WaitforMainTask()
 		{
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "WMT-entry" << "\n";
 			}
 
 			EndThread(0);
 
-			if (_debug) {
+			if (_debug) 
+			{
 				std::cout << "WMT-exit" << "\n";
 			}
 		}
-
-		void _Test_forCS()
-		{
-			while (_test_var) {}
-		}
-
-		int _Test_Get_Seed()
-		{
-			return _seed;
-		}
-
 	};
-
 }
