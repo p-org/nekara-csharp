@@ -102,7 +102,7 @@ extern "C" {
 
 
 // JAVA Bindings
-#include "C:\Users\t-arut\eclipse-workspace\TestProject\src\NekaraServiceJava.h"
+/* #include "C:\Users\t-arut\eclipse-workspace\TestProject\src\NekaraServiceJava.h"
 #include "C:\Program Files\Java\jdk1.8.0_241\include\jni.h"
 #include "C:\Program Files\Java\jdk1.8.0_241\include\win32\jni_md.h"
 
@@ -190,6 +190,6 @@ extern "C" {
     JNIEXPORT jboolean JNICALL Java_NekaraServiceJava_NSJ_1Dispose(JNIEnv* env, jobject obj) {
         _nsj = NULL;
         return true;
-    }
+    } 
 
-}
+}*/

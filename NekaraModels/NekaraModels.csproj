@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NekaraClient\NekaraRpcManagedClient.csproj" />
+    <ProjectReference Include="..\NekaraManagedClient\NekaraManagedClient.csproj" />
   </ItemGroup>
 
 </Project>

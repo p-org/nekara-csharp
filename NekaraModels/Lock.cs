@@ -1,6 +1,7 @@
 ﻿using System;
-using Nekara.Core;
-using Nekara.Client;
+// using Nekara.Core;
+// using Nekara.Client;
+using NekaraManaged.Client;
 
 namespace Nekara.Models
 {

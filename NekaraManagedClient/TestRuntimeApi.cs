@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace NekaraManaged.Client
 {
-    public class TestRuntimeApi
+    public class TestRuntimeApi : ITestingService
     {
         [DllImport("NekaraCore.dll")]
         public static extern void NS_WithoutSeed();
@@ -107,6 +108,8 @@ namespace NekaraManaged.Client
             {
                 // TODO: Replacement code-to be written
                 // throw new AssertionFailureException(message);
+                Debug.Assert(predicate, s);
+                
             }
         }
 
