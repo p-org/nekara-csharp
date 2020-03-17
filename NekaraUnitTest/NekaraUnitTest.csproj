@@ -14,7 +14,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NekaraCore\NekaraCore.vcxproj" />
+    <ProjectReference Include="..\NekaraCore\NekaraCore.vcxproj">
+      <EmbedInteropTypes>false</EmbedInteropTypes>
+      <Private>true</Private>
+    </ProjectReference>
     <ProjectReference Include="..\NekaraManagedClient\NekaraManagedClient.csproj" />
     <ProjectReference Include="..\NekaraModels\NekaraModels.csproj" />
   </ItemGroup>

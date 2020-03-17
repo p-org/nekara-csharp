@@ -24,7 +24,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
@@ -40,7 +40,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
@@ -56,7 +56,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
@@ -77,7 +77,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
@@ -98,7 +98,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
 
 
@@ -116,7 +116,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
@@ -133,7 +133,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
@@ -153,7 +153,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
@@ -173,7 +173,7 @@ namespace NekaraUnitTest
             nekara.Api.Assert(value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
         }
     }
 }

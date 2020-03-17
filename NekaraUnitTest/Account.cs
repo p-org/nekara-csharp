@@ -14,7 +14,7 @@ namespace NekaraUnitTest
         {
 
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             int x = 1;
             int y = 2;
@@ -68,7 +68,7 @@ namespace NekaraUnitTest
         public void AccountMinimalRunWithApi()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             balance = 0;
 
@@ -97,7 +97,7 @@ namespace NekaraUnitTest
         public void AccountMinimalRunWithTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             balance = 0;
 

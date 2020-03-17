@@ -7,7 +7,7 @@
 #include <stack>
 #include <mutex>
 #include <cassert>
-#include <windows.h>
+#include <condition_variable>
 
 namespace NS 
 {
@@ -17,7 +17,7 @@ namespace NS
 
 	public:
 		int numPendingTaskCreations;
-		std::map<int, HANDLE> _th_to_sem;
+		std::map<int, std::condition_variable*> _th_to_sem;
 		std::map<int, std::set<int>*> _blocked_task;
 		std::set<int> _resourceIDs;
 
@@ -39,7 +39,7 @@ namespace NS
 				abort();
 			}
 
-			std::map<int, HANDLE>::iterator _it1 = _th_to_sem.find(_threadID);
+			std::map<int, std::condition_variable*>::iterator _it1 = _th_to_sem.find(_threadID);
 			if (_it1 != _th_to_sem.end())
 			{
 				std::cerr << "ERROR: Duplicate declaration of Task/Thread id:" << _threadID << ".\n";
@@ -47,14 +47,15 @@ namespace NS
 			}
 
 			this->numPendingTaskCreations--;
-			HANDLE _obj1 = CreateSemaphore(NULL, 0, 1, NULL);
+
+			std::condition_variable* _obj1 = new std::condition_variable();
 			_th_to_sem[_threadID] = _obj1;
 
 		}
 
 		void ThreadEnded(int _threadID)
 		{
-			std::map<int, HANDLE>::iterator _it1 = _th_to_sem.find(_threadID);
+			std::map<int, std::condition_variable*>::iterator _it1 = _th_to_sem.find(_threadID);
 			if (_it1 == _th_to_sem.end())
 			{
 				std::cerr << "ERROR: EndTask/Thread called on unknown or already completed Task/Thread:" << _threadID << ".\n";

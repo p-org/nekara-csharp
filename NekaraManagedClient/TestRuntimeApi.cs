@@ -10,9 +10,7 @@ namespace NekaraManaged.Client
     public class TestRuntimeApi : ITestingService
     {
         [DllImport("NekaraCore.dll")]
-        public static extern void NS_WithoutSeed(int max_decisions);
-        [DllImport("NekaraCore.dll")]
-        public static extern void NS_WithSeed(int _seed, int max_decisions);
+        public static extern void NS_NekaraService();
         [DllImport("NekaraCore.dll")]
         public static extern void NS_CreateTask();
         [DllImport("NekaraCore.dll")]
@@ -43,24 +41,15 @@ namespace NekaraManaged.Client
         public static extern bool NS_Dispose();
         [DllImport("NekaraCore.dll")]
         public static extern void NS_BlockedOnResource(int _resourceID);
-        [DllImport("NekaraCore.dll")]
-        public static extern void NS_Test_forCS();
-        [DllImport("NekaraCore.dll")]
-        public static extern int NS_Test_Get_Seed();
 
         public TestRuntimeApi()
         {
            
         }
 
-        public void CreateSession(int max_decisions)
+        public void CreateSession()
         {
-            NS_WithoutSeed(max_decisions);
-        }
-
-        public void CreateSessionWithSeed(int _seed, int max_decisions)
-        {
-            NS_WithSeed(_seed, max_decisions);
+            NS_NekaraService();
         }
 
         public void CreateTask()

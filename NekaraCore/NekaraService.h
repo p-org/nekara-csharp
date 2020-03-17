@@ -7,73 +7,49 @@
 #include <chrono>
 #include <thread>
 
-#define MILLISEC 100
-#define SEMAPHORETIMESPAN 100000L
+#define WAITFORPENDINGTASKSLEEPTIME 1
 
 namespace NS 
 {
-
 	std::mutex _obj;
+
+	class TestVariables
+	{
+	public:
+		int test_seed;
+		int max_decisions;
+
+		TestVariables()
+		{
+			std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+			auto duration = now.time_since_epoch();
+			auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
+
+			test_seed = nanoseconds.count() % 9999;
+			max_decisions = INT_MAX;
+		}
+	};
 
 	class NekaraService 
 	{
-
 	private:
+		
 		ProjectState _projectState;
 		int _currentThread;
 		int _seed;
 		bool _debug = false;
 		int _max_decisions;
 
-		void WaitForPendingTaskCreations()
-		{
-			while (true)
-			{
-				_obj.lock();
-				if (_projectState.numPendingTaskCreations == 0)
-				{
-					_obj.unlock();
-					return;
-				}
-				_obj.unlock();
-
-				std::this_thread::sleep_for(std::chrono::milliseconds(MILLISEC));
-			}
-		}
-
 	public:
-		NekaraService(int max_decisions)
+		NekaraService()
 		{
-			// getting seed from Nanoseconds
-			std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
-			auto duration = now.time_since_epoch();
-			auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
-
-			_currentThread = 0;
-			_max_decisions = max_decisions;
-			_seed = nanoseconds.count() % 999;
-			std::cout << "Your Program is being tested with random seed: " << _seed <<  " with max decisions: " << _max_decisions <<"\n";
-			std::cout << "Give the same Seed and Max number of decision(s) to the Testing Service for a Re-Play." << "\n";
-			srand(_seed);
-
-			_obj.lock();
-			HANDLE _obj1 = CreateSemaphoreW(NULL, 0, 1, NULL);
-			_projectState._th_to_sem[0] = _obj1;
-			_obj.unlock();
+			NS::TestVariables test_variables;
+			this->InitializeNekaraService(test_variables);
 		}
 
-		NekaraService(int _seed, int max_decisions)
+		NekaraService(NS::TestVariables test_variables)
 		{
-			_currentThread = 0;
-			_max_decisions = max_decisions;
-			this->_seed = _seed;
-			std::cout << "Your Program is being tested with seed: " << this->_seed << "\n";
-			srand(_seed);
-
-			_obj.lock();
-			HANDLE _obj1 = CreateSemaphoreW(NULL, 0, 1, NULL);
-			_projectState._th_to_sem[0] = _obj1;
-			_obj.unlock();
+			this->InitializeNekaraService(test_variables);
 		}
 
 		void CreateThread()
@@ -103,15 +79,14 @@ namespace NS
 
 			_obj.lock();
 			_projectState.ThreadStarting(_threadID);
-			HANDLE _obj1 = _projectState._th_to_sem.find(_threadID)->second;
+			std::condition_variable* cv = _projectState._th_to_sem.find(_threadID)->second;
 			_obj.unlock();
 
-			DWORD _dwWaitResult = WaitForSingleObject(_obj1, SEMAPHORETIMESPAN);
-			if (_dwWaitResult == WAIT_TIMEOUT)
-			{
-				std::cerr << "Windows ERROR: Semaphore waiting Time-out." << ".\n";
-				abort();
-			}
+			std::mutex dummy_mutex;
+			std::unique_lock<std::mutex> unique_lock(dummy_mutex);
+
+			cv->wait(unique_lock);
+			unique_lock.unlock();
 
 			if (_debug) 
 			{
@@ -199,6 +174,15 @@ namespace NS
 			return _NondetInteger;
 		}
 
+		void Assert(bool value, std::string message)
+		{
+			if (!value)
+			{
+				std::cerr << message << ".\n";
+				abort();
+			}
+		}
+
 		void ContextSwitch()
 		{
 			if (_debug) 
@@ -211,8 +195,8 @@ namespace NS
 			int _next_threadID = -99;
 			int _current_thread;
 			bool _current_thread_running = false;
-			HANDLE _next_obj1 = NULL;
-			HANDLE _crr_obj1 = NULL;
+			std::condition_variable* _next_obj1 = NULL;
+			std::condition_variable* _crr_obj1 = NULL;
 
 			_obj.lock();
 
@@ -227,7 +211,7 @@ namespace NS
 
 			_current_thread = this->_currentThread;
 
-			std::map<int, HANDLE>::iterator _ct_it = _projectState._th_to_sem.find(_current_thread);
+			std::map<int, std::condition_variable*>::iterator _ct_it = _projectState._th_to_sem.find(_current_thread);
 			if (_ct_it != _projectState._th_to_sem.end())
 			{
 				_current_thread_running = true;
@@ -255,7 +239,7 @@ namespace NS
 
 			int _i = 0;
 
-			for (std::map<int, HANDLE>::iterator _it = _projectState._th_to_sem.begin(); _it != _projectState._th_to_sem.end(); ++_it)
+			for (std::map<int, std::condition_variable*>::iterator _it = _projectState._th_to_sem.begin(); _it != _projectState._th_to_sem.end(); ++_it)
 			{
 				std::map<int, std::set<int>*>::iterator _bt_it = _projectState._blocked_task.find(_it->first);
 
@@ -284,16 +268,14 @@ namespace NS
 				_currentThread = _next_threadID;
 				_obj.unlock();
 
-				ReleaseSemaphore(_next_obj1, 1, NULL);
+				_next_obj1->notify_one();
 
 				if (_current_thread_running)
 				{
-					DWORD _dwWaitResult = WaitForSingleObject(_crr_obj1, SEMAPHORETIMESPAN);
-					if (_dwWaitResult)
-					{
-						std::cerr << "Windows ERROR: Semaphore waiting Time-out." << ".\n";
-						abort();
-					}
+					std::mutex dummy_mutex;
+					std::unique_lock<std::mutex> unique_lock(dummy_mutex);
+					_crr_obj1->wait(unique_lock);
+					unique_lock.unlock();
 				}
 			}
 
@@ -316,6 +298,39 @@ namespace NS
 			{
 				std::cout << "WMT-exit" << "\n";
 			}
+		}
+
+	private:
+		void WaitForPendingTaskCreations()
+		{
+			while (true)
+			{
+				_obj.lock();
+				if (_projectState.numPendingTaskCreations == 0)
+				{
+					_obj.unlock();
+					return;
+				}
+				_obj.unlock();
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(WAITFORPENDINGTASKSLEEPTIME));
+			}
+		}
+
+		void InitializeNekaraService(NS::TestVariables test_variables)
+		{
+			_currentThread = 0;
+			_max_decisions = test_variables.max_decisions;
+			_seed = test_variables.test_seed;
+
+			std::cout << "Your Program is being tested with random seed: " << _seed << " with max decisions: " << _max_decisions << "\n";
+			std::cout << "Give the same Seed and Max number of decision(s) to the Testing Service for a Re-Play." << "\n";
+			srand(_seed);
+
+			_obj.lock();
+			std::condition_variable* cv = new std::condition_variable();
+			_projectState._th_to_sem[0] = cv;
+			_obj.unlock();
 		}
 	};
 }

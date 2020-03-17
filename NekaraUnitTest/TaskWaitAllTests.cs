@@ -27,7 +27,7 @@ namespace NekaraUnitTest
         public static void TestWaitAllWithTwoSynchronousTasks()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             SharedEntry entry = new SharedEntry();
             Task task1 = WriteAsync(entry, 5);
@@ -41,7 +41,7 @@ namespace NekaraUnitTest
         public static void TestWaitAllWithTwoAsynchronousTasks()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             SharedEntry entry = new SharedEntry();
             Task task1 = WriteWithDelayAsync(entry, 3);
@@ -55,7 +55,7 @@ namespace NekaraUnitTest
         public static void TestWaitAllWithTwoParallelTasks()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             SharedEntry entry = new SharedEntry();
 
@@ -91,7 +91,7 @@ namespace NekaraUnitTest
         public static void TestWaitAllWithTwoSynchronousTaskResults()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             Task<int> task1 = GetWriteResultAsync(5);
             Task<int> task2 = GetWriteResultAsync(3);
@@ -104,7 +104,7 @@ namespace NekaraUnitTest
         public static void TestWaitAllWithTwoAsynchronousTaskResults()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             Task<int> task1 = GetWriteResultWithDelayAsync(5);
             Task<int> task2 = GetWriteResultWithDelayAsync(3);
@@ -117,7 +117,7 @@ namespace NekaraUnitTest
         public static void TestWaitAllWithTwoParallelSynchronousTaskResults()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             Task<int> task1 = Task.Run(async () =>
             {
@@ -139,7 +139,7 @@ namespace NekaraUnitTest
         public static void TestWaitAllWithTwoParallelAsynchronousTaskResults()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession(1000);
+            nekara.Api.CreateSession();
 
             Task<int> task1 = Task.Run(async () =>
             {

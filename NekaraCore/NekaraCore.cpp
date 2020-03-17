@@ -7,12 +7,8 @@ NS::NekaraService* _nsj;
 
 // C# Bindings
 extern "C" {
-    __declspec(dllexport) void NS_WithoutSeed(int max_decisions) {
-        _ns = new NS::NekaraService(max_decisions);
-    }
-
-    __declspec(dllexport) void NS_WithSeed(int _seed, int max_decisions) {
-        _ns = new NS::NekaraService(_seed, max_decisions);
+    __declspec(dllexport) void NS_NekaraService() {
+        _ns = new NS::NekaraService();
     }
 
     __declspec(dllexport) void NS_CreateTask() {
