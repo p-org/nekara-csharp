@@ -151,6 +151,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Configuration.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Helpers.h" />
     <ClInclude Include="NekaraService.h" />
@@ -158,6 +159,7 @@
     <ClInclude Include="ProjectState.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Configuration.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="NekaraCore.cpp" />
     <ClCompile Include="pch.cpp">
