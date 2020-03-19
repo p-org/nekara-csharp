@@ -13,12 +13,12 @@ namespace NS
 	{
 	private:
 		
-		ProjectState _projectState;
-		int _currentThread;
-		int _seed;
+		ProjectState projectState;
+		int currentThread;
+		int seed;
 		bool _debug = false;
-		int _max_decisions;
-		std::mutex _obj;
+		int max_decisions;
+		std::mutex nsLock;
 
 	public:
 		NekaraService();
@@ -53,7 +53,5 @@ namespace NS
 
 	private:
 		void WaitForPendingTaskCreations();
-
-		void InitializeNekaraService(Configuration config);
 	};
 }

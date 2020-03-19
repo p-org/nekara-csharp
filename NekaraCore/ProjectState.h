@@ -17,9 +17,9 @@ namespace NS
 
 	public:
 		int numPendingTaskCreations;
-		std::map<int, std::condition_variable*> _th_to_sem;
-		std::map<int, std::set<int>*> _blocked_task;
-		std::set<int> _resourceIDs;
+		std::map<int, std::condition_variable*> threadToSem;
+		std::map<int, std::set<int>*> blockedTasks;
+		std::set<int> resourceIDs;
 
 		ProjectState();
 
