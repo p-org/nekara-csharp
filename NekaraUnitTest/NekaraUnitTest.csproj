@@ -22,4 +22,8 @@
     <ProjectReference Include="..\NekaraModels\NekaraModels.csproj" />
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy $(SolutionDir)\NekaraCore\x64\$(ConfigurationName)\NekaraCore.dll $(OutDir)" />
+  </Target>
+
 </Project>
