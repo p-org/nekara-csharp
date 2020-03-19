@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pch.h"
 #include "NekaraService.h"
 
 #define WAITFORPENDINGTASKSLEEPTIME 1
@@ -183,8 +184,8 @@ namespace NS
 			_crr_obj1 = _ct_it->second;
 		}
 
-		int _size_t_s = _projectState._th_to_sem.size();
-		int _size_b_t = _projectState._blocked_task.size();
+		int _size_t_s = (int) _projectState._th_to_sem.size();
+		int _size_b_t = (int) _projectState._blocked_task.size();
 		int _size = _size_t_s - _size_b_t;
 
 		if (_size == 0 && _size_t_s != 0)
