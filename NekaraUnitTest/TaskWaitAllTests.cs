@@ -33,6 +33,8 @@ namespace NekaraUnitTest
             Task task1 = WriteAsync(entry, 5);
             Task task2 = WriteAsync(entry, 3);
             Task.WaitAll(task1, task2);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task1.IsCompleted && task2.IsCompleted, "At least one task has not completed.");
             nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
         }
@@ -47,6 +49,8 @@ namespace NekaraUnitTest
             Task task1 = WriteWithDelayAsync(entry, 3);
             Task task2 = WriteWithDelayAsync(entry, 5);
             Task.WaitAll(task1, task2);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task1.IsCompleted && task2.IsCompleted, "At least one task has not completed.");
             nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
         }
@@ -71,6 +75,7 @@ namespace NekaraUnitTest
 
             Task.WaitAll(task1, task2);
 
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task1.IsCompleted && task2.IsCompleted, "At least one task has not completed.");
             nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
         }
@@ -96,6 +101,8 @@ namespace NekaraUnitTest
             Task<int> task1 = GetWriteResultAsync(5);
             Task<int> task2 = GetWriteResultAsync(3);
             Task.WaitAll(task1, task2);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task1.IsCompleted && task2.IsCompleted, "At least one task has not completed.");
             nekara.Api.Assert(task1.Result == 5 && task2.Result == 3, "Found unexpected value.");
         }
@@ -131,6 +138,7 @@ namespace NekaraUnitTest
 
             Task.WaitAll(task1, task2);
 
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task1.IsCompleted && task2.IsCompleted, "At least one task has not completed.");
             nekara.Api.Assert(task1.Result == 5 && task2.Result == 3, "Found unexpected value.");
         }
@@ -153,6 +161,7 @@ namespace NekaraUnitTest
 
             Task.WaitAll(task1, task2);
 
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task1.IsCompleted && task2.IsCompleted, "At least one task has not completed.");
             nekara.Api.Assert(task1.Result == 5 && task2.Result == 3, "Found unexpected value.");
         }

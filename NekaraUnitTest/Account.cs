@@ -12,7 +12,6 @@ namespace NekaraUnitTest
         [Fact(Timeout = 5000)]
         public void AccountTest()
         {
-
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
 
@@ -61,59 +60,80 @@ namespace NekaraUnitTest
 
             Task.WaitAll(t1, t2, t3);
 
+            nekara.Api.WaitForMainTask();
+
             return;
         }
 
         [Fact(Timeout = 5000)]
         public void AccountMinimalRunWithApi()
         {
-            NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession();
 
-            balance = 0;
+            bool bugfound = false;
 
-            nekara.Api.CreateTask();
-            var t1 = System.Threading.Tasks.Task.Run(() =>
+            while (!bugfound)
             {
-                nekara.Api.StartTask(1);
-                TransactWithApi(100);
-                nekara.Api.EndTask(1);
-            });
+                NekaraManagedClient nekara = RuntimeEnvironment.Client;
+                nekara.Api.CreateSession();
 
-            nekara.Api.CreateTask();
-            var t2 = System.Threading.Tasks.Task.Run(() =>
-            {
-                nekara.Api.StartTask(2);
-                TransactWithApi(200);
-                nekara.Api.EndTask(2);
-            });
+                balance = 0;
+                nekara.Api.CreateTask();
+                var t1 = System.Threading.Tasks.Task.Run(() =>
+                {
+                    nekara.Api.StartTask(1);
+                    TransactWithApi(100);
+                    nekara.Api.EndTask(1);
+                });
 
-            Task.Run(() => System.Threading.Tasks.Task.WaitAll(t1, t2));
+                nekara.Api.CreateTask();
+                var t2 = System.Threading.Tasks.Task.Run(() =>
+                {
+                    nekara.Api.StartTask(2);
+                    TransactWithApi(200);
+                    nekara.Api.EndTask(2);
+                });
 
-            nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}");
+                Task.Run(() => System.Threading.Tasks.Task.WaitAll(t1, t2));
+
+                nekara.Api.WaitForMainTask();
+
+                if (balance != 300)
+                {
+                    bugfound = true;
+                }
+            }
+            Assert.True(bugfound);
+
+            // nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}");
         }
 
         [Fact(Timeout = 5000)]
         public void AccountMinimalRunWithTask()
         {
-            NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession();
+            bool bugfound = false;
 
-            balance = 0;
+            while(!bugfound)
+            {
+                NekaraManagedClient nekara = RuntimeEnvironment.Client;
+                nekara.Api.CreateSession();
 
-            var t1 = Task.Run(() => TransactWithApi(100));
-            var t2 = Task.Run(() => TransactWithApi(200));
+                balance = 0;
 
-            Task.WaitAll(t1, t2);
-            nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}");
-        }
+                var t1 = Task.Run(() => TransactWithApi(100));
+                var t2 = Task.Run(() => TransactWithApi(200));
 
-        static void Transact(int amount)
-        {
-            //Monitor.Enter(balance);
-            int current = balance;
-            balance = current + amount;
-            //Monitor.Exit(balance);
+                Task.WaitAll(t1, t2);
+                nekara.Api.WaitForMainTask();
+
+                if (balance != 300)
+                {
+                    bugfound = true;
+                }
+            }
+
+            Assert.True(bugfound);
+
+            // nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}"); 
         }
 
         static void TransactWithApi(int amount)

@@ -30,6 +30,8 @@ namespace NekaraUnitTest
             var task = WriteAsync(entry, 5);
             await task;
 
+            nekara.Api.WaitForMainTask();
+
             nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
@@ -43,6 +45,8 @@ namespace NekaraUnitTest
             SharedEntry entry = new SharedEntry();
             var task = WriteWithDelayAsync(entry, 5);
             await task;
+
+            nekara.Api.WaitForMainTask();
 
             nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
@@ -62,6 +66,8 @@ namespace NekaraUnitTest
 
             await task;
 
+            nekara.Api.WaitForMainTask();
+
             nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
@@ -79,6 +85,8 @@ namespace NekaraUnitTest
                 await Task.Delay(1);
             });
             await task;
+
+            nekara.Api.WaitForMainTask();
 
             nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
@@ -99,6 +107,8 @@ namespace NekaraUnitTest
 
             var task = Task.Run(func);
             await task;
+
+            nekara.Api.WaitForMainTask();
 
             nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
@@ -137,6 +147,9 @@ namespace NekaraUnitTest
                 exception = ex;
             }
 
+            nekara.Api.WaitForMainTask();
+
+
             nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
             nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status.");
@@ -161,6 +174,8 @@ namespace NekaraUnitTest
             {
                 exception = ex;
             }
+
+            nekara.Api.WaitForMainTask();
 
             nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
@@ -191,6 +206,8 @@ namespace NekaraUnitTest
                 exception = ex;
             }
 
+            nekara.Api.WaitForMainTask();
+
             nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
             nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status.");
@@ -220,6 +237,8 @@ namespace NekaraUnitTest
             {
                 exception = ex;
             }
+
+            nekara.Api.WaitForMainTask();
 
             nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
@@ -252,6 +271,8 @@ namespace NekaraUnitTest
             {
                 exception = ex;
             }
+
+            nekara.Api.WaitForMainTask();
 
             nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");

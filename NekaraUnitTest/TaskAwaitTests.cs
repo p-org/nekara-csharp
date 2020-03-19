@@ -28,6 +28,8 @@ namespace NekaraUnitTest
         {
             SharedEntry entry = new SharedEntry();
             await WriteAsync(entry, 5);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -39,6 +41,8 @@ namespace NekaraUnitTest
         {
             SharedEntry entry = new SharedEntry();
             await WriteWithDelayAsync(entry, 5);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -62,6 +66,8 @@ namespace NekaraUnitTest
         {
             SharedEntry entry = new SharedEntry();
             await NestedWriteAsync(entry, 5);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -73,6 +79,8 @@ namespace NekaraUnitTest
         {
             SharedEntry entry = new SharedEntry();
             await NestedWriteWithDelayAsync(entry, 5);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -98,6 +106,8 @@ namespace NekaraUnitTest
         {
             SharedEntry entry = new SharedEntry();
             int value = await GetWriteResultAsync(entry, 5);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -109,6 +119,8 @@ namespace NekaraUnitTest
         {
             SharedEntry entry = new SharedEntry();
             int value = await GetWriteResultWithDelayAsync(entry, 5);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -132,6 +144,8 @@ namespace NekaraUnitTest
         {
             SharedEntry entry = new SharedEntry();
             int value = await NestedGetWriteResultAsync(entry, 5);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -143,6 +157,8 @@ namespace NekaraUnitTest
         {
             SharedEntry entry = new SharedEntry();
             int value = await NestedGetWriteResultWithDelayAsync(entry, 5);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp

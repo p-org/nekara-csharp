@@ -21,6 +21,8 @@ namespace NekaraUnitTest
                 entry.Value = 5;
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -37,6 +39,8 @@ namespace NekaraUnitTest
                 entry.Value = 5;
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -53,6 +57,8 @@ namespace NekaraUnitTest
                 entry.Value = 5;
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -74,6 +80,8 @@ namespace NekaraUnitTest
                 entry.Value = 5;
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -95,6 +103,8 @@ namespace NekaraUnitTest
                 entry.Value = 5;
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -113,6 +123,8 @@ namespace NekaraUnitTest
                 return entry.Value;
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -130,6 +142,8 @@ namespace NekaraUnitTest
                 return entry.Value;
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -150,6 +164,8 @@ namespace NekaraUnitTest
                 });
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp
@@ -170,6 +186,8 @@ namespace NekaraUnitTest
                 });
             });
 
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(value == 5, "Found unexpected value.");
 
             // TODO: Should be removed when session are implemented in NekaraCpp

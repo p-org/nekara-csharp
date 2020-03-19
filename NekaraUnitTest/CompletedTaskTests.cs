@@ -16,6 +16,8 @@ namespace NekaraUnitTest
             nekara.Api.CreateSession();
 
             Task task = Task.CompletedTask;
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task.IsCompleted, "The task has not completed.");
         }
 
@@ -27,6 +29,8 @@ namespace NekaraUnitTest
 
             CancellationToken token = new CancellationToken(true);
             Task task = Task.FromCanceled(token);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task.IsCanceled, "The task is not cancelled.");
         }
 
@@ -38,6 +42,10 @@ namespace NekaraUnitTest
 
             CancellationToken token = new CancellationToken(true);
             Task<int> task = Task.FromCanceled<int>(token);
+
+            // System.Threading.Tasks.Task<int> _t1 = task.InnerTask;
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task.IsCanceled, "The task is not cancelled.");
         }
 
@@ -48,6 +56,8 @@ namespace NekaraUnitTest
             nekara.Api.CreateSession();
 
             Task task = Task.FromException(new InvalidOperationException());
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task.IsFaulted, "The task is not faulted.");
             nekara.Api.Assert(task.Exception.GetType() == typeof(AggregateException), "The exception is not of the expected type.");
             nekara.Api.Assert(task.Exception.InnerException.GetType() == typeof(InvalidOperationException), "The exception is not of the expected type.");
@@ -60,6 +70,8 @@ namespace NekaraUnitTest
             nekara.Api.CreateSession();
 
             Task<int> task = Task.FromException<int>(new InvalidOperationException());
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(task.IsFaulted, "The task is not faulted.");
             nekara.Api.Assert(task.Exception.GetType() == typeof(AggregateException), "The exception is not of the expected type.");
             nekara.Api.Assert(task.Exception.InnerException.GetType() == typeof(InvalidOperationException), "The exception is not of the expected type.");

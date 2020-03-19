@@ -30,6 +30,8 @@ namespace NekaraUnitTest
             Task task1 = WriteAsync(entry, 5);
             Task task2 = WriteAsync(entry, 3);
             Task result = await Task.WhenAny(task1, task2);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
 
@@ -44,6 +46,8 @@ namespace NekaraUnitTest
             Task task1 = WriteWithDelayAsync(entry, 3);
             Task task2 = WriteWithDelayAsync(entry, 5);
             Task result = await Task.WhenAny(task1, task2);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
 
@@ -68,6 +72,7 @@ namespace NekaraUnitTest
 
             Task result = await Task.WhenAny(task1, task2);
 
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
 
@@ -93,6 +98,8 @@ namespace NekaraUnitTest
             Task<int> task1 = GetWriteResultAsync(5);
             Task<int> task2 = GetWriteResultAsync(3);
             Task<int> result = await Task.WhenAny(task1, task2);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(
                 (result.Id == task1.Id && result.Result == 5) ||
@@ -109,6 +116,8 @@ namespace NekaraUnitTest
             Task<int> task1 = GetWriteResultWithDelayAsync(5);
             Task<int> task2 = GetWriteResultWithDelayAsync(3);
             Task<int> result = await Task.WhenAny(task1, task2);
+
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(
                 (result.Id == task1.Id && result.Result == 5) ||
@@ -134,6 +143,7 @@ namespace NekaraUnitTest
 
             Task<int> result = await Task.WhenAny(task1, task2);
 
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(
                 (result.Id == task1.Id && result.Result == 5) ||
@@ -159,6 +169,7 @@ namespace NekaraUnitTest
 
             Task<int> result = await Task.WhenAny(task1, task2);
 
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(
                 (result.Id == task1.Id && result.Result == 5) ||
@@ -188,6 +199,7 @@ namespace NekaraUnitTest
 
             Task result = await Task.WhenAny(task1, task2);
 
+            nekara.Api.WaitForMainTask();
             nekara.Api.Assert(result.IsFaulted, "No task has faulted.");
             nekara.Api.Assert(result.Exception.InnerException.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
