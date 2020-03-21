@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <thread>
 #include "Configuration.h"
+#include "SchedulingStrategy.h"
 
 namespace NS 
 {
@@ -19,6 +20,7 @@ namespace NS
 		bool _debug = false;
 		int max_decisions;
 		std::mutex nsLock;
+		SchedulingStrategy* sch;
 
 	public:
 		NekaraService();

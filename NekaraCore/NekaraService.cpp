@@ -2,6 +2,8 @@
 
 #include "pch.h"
 #include "NekaraService.h"
+#include "RandomStrategy.h"
+#include "PctStrategy.h"
 
 #define WAITFORPENDINGTASKSLEEPTIME 1
 
@@ -23,6 +25,7 @@ namespace NS
 		srand(seed);
 
 		projectState.threadToSem[0] = new std::condition_variable();
+		sch = (SchedulingStrategy*) new RandomStrategy();
 	}
 
 	void NekaraService::CreateThread()
@@ -181,44 +184,37 @@ namespace NS
 			_crr_obj1 = _ct_it->second;
 		}
 
-		int _size_t_s = (int) projectState.threadToSem.size();
-		int _size_b_t = (int) projectState.blockedTasks.size();
-		int _size = _size_t_s - _size_b_t;
 
-		if (_size == 0 && _size_t_s != 0)
+		int numThreads = (int) projectState.threadToSem.size();
+		std::vector<int> enabledThreads;
+
+		for (std::map<int, std::condition_variable*>::iterator it = projectState.threadToSem.begin();
+			it != projectState.threadToSem.end(); ++it)
+		{
+			if (projectState.blockedTasks.find(it->first) == projectState.blockedTasks.end())
+			{
+				enabledThreads.push_back(it->first);
+			}
+		}
+		int numEnabledThreads = (int) enabledThreads.size();
+
+		if (numEnabledThreads == 0 && numThreads != 0)
 		{
 			std::cerr << "ERROR: Deadlock detected" << ".\n";
 			nsLock.unlock();
 			abort();
 		}
 
-		if (_size == 0 && _size_t_s == 0)
+		if (numEnabledThreads == 0 && numThreads == 0)
 		{
 			nsLock.unlock();
 			return;
 		}
 
-		int _randnum = rand() % _size;
+		int next = sch->GetNextThread(enabledThreads, projectState);
+		_next_threadID = enabledThreads[next];
+		_next_obj1 = projectState.threadToSem.find(_next_threadID)->second;
 
-		int _i = 0;
-
-		for (std::map<int, std::condition_variable*>::iterator _it = projectState.threadToSem.begin(); _it != projectState.threadToSem.end(); ++_it)
-		{
-			std::map<int, std::set<int>*>::iterator _bt_it = projectState.blockedTasks.find(_it->first);
-
-			if (_bt_it == projectState.blockedTasks.end())
-			{
-				if (_i == _randnum)
-				{
-					// std::cout << "Ctrl given to TaskID:" << _it->first << " Random:" << _t1 << " A:" << _size_t_s << " B: " << _size_b_t  <<  "\n";
-
-					_next_threadID = _it->first;
-					_next_obj1 = _it->second;
-					break;
-				}
-				_i++;
-			}
-		}
 		nsLock.unlock();
 
 		if (_next_threadID == _current_thread)
