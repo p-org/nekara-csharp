@@ -11,7 +11,6 @@ namespace Nekara.Networking
     {
         private string serverUri;
         private System.Net.Http.HttpClient client;
-        private WebSocketClient websocket;
         public readonly Task ReadyFlag;
 
         public HttpClient(string serverUri)

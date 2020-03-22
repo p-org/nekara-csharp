@@ -40,13 +40,13 @@ namespace Nekara
             {
                 HandleRequest(payload);
             }
-            catch (UnexpectedRequestException e1)
+            catch (UnexpectedRequestException)
             {
                 try
                 {
                     HandleResponse(payload);
                 }
-                catch (UnexpectedResponseException e2)
+                catch (UnexpectedResponseException)
                 {
                     throw new UnexpectedMessageException("Unexpected Message : " + payload);
                 }

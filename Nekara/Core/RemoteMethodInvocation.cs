@@ -16,7 +16,6 @@ namespace Nekara.Core
         // run-time data
         public dynamic Result;
         public event EventHandler OnBeforeInvoke;
-        public event EventHandler OnSuccess;
         public event EventHandler<Exception> OnError;
         public event EventHandler OnAfterInvoke;
         // private CancellationTokenSource Cts;

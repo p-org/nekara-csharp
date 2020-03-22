@@ -16,7 +16,6 @@ namespace Nekara.Client
     {
         public static Process currentProcess = Process.GetCurrentProcess();
         public static Helpers.MicroProfiler Profiler = new Helpers.MicroProfiler();
-        private static int gCount = 0;
 
         public IClient socket;
         public Dictionary<(string, int), ClientSession> sessions;

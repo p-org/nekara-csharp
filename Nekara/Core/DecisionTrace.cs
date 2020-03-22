@@ -92,5 +92,10 @@ namespace Nekara.Core
         {
             return !t1.Equals(t2);
         }
+
+        public override int GetHashCode()
+        {
+            return ToString().GetHashCode();
+        }
     }
 }
