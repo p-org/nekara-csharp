@@ -14,7 +14,7 @@ namespace NekaraUnitTest
         public static bool lck;
 
         [Fact(Timeout = 5000)]
-        public static void RunTwo()
+        public void RunTwo()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -27,7 +27,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunThree()
+        public void RunThree()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -40,7 +40,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunFour()
+        public void RunFour()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -53,7 +53,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunFive()
+        public void RunFive()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -65,7 +65,7 @@ namespace NekaraUnitTest
             nekara.Api.WaitForMainTask();
         }
 
-        public static void LockContender(int i)
+        public void LockContender(int i)
         {
             Acquire(i);
             Console.WriteLine("Task {0} acquired lock - lock value: {1}", i, lck);

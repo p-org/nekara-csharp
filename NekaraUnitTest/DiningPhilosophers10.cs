@@ -11,7 +11,7 @@ namespace NekaraUnitTest
         public static int phil;
 
         [Fact(Timeout = 50000)]
-        public static void Run()
+        public void Run()
         {
 
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
@@ -29,7 +29,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public static void RunBlocking()
+        public void RunBlocking()
         {
 
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
@@ -45,7 +45,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000000)]
-        public static System.Threading.Tasks.Task RunTask()
+        public System.Threading.Tasks.Task RunTask()
         {
 
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
@@ -63,7 +63,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public static System.Threading.Tasks.Task RunBlockingTask()
+        public System.Threading.Tasks.Task RunBlockingTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -77,7 +77,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public static Task RunNekaraTask()
+        public Task RunNekaraTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -94,7 +94,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public static Task RunBlockingNekaraTask()
+        public Task RunBlockingNekaraTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -108,7 +108,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public async static void RunAsync()
+        public async void RunAsync()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -122,7 +122,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public async static void RunBlockingAsync()
+        public async void RunBlockingAsync()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -136,7 +136,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public async static System.Threading.Tasks.Task RunTaskAsync()
+        public async System.Threading.Tasks.Task RunTaskAsync()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -151,7 +151,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public async static System.Threading.Tasks.Task RunBlockingTaskAsync()
+        public async System.Threading.Tasks.Task RunBlockingTaskAsync()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -165,7 +165,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public async static Task RunNekaraTaskAsync()
+        public async Task RunNekaraTaskAsync()
         {
 
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
@@ -181,7 +181,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 50000)]
-        public async static Task RunBlockingNekaraTaskAsync()
+        public async Task RunBlockingNekaraTaskAsync()
         {
 
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
@@ -196,7 +196,7 @@ namespace NekaraUnitTest
         }
 
 
-        public static Task[] Dine(int n)
+        public Task[] Dine(int n)
         {
 
             NekaraManagedClient nekara = RuntimeEnvironment.Client;

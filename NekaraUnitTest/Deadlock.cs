@@ -14,7 +14,7 @@ namespace NekaraUnitTest
         static bool bugfound = false;
 
         [Fact(Timeout = 5000)]
-        public static void Racebetween2Tasks()
+        public void Racebetween2Tasks()
         {
 
             while (!bugfound)

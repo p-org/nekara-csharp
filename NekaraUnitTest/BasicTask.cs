@@ -11,7 +11,7 @@ namespace NekaraUnitTest
     public class BasicTask
     {
         [Fact(Timeout = 5000)]
-        public static void RunOne()
+        public void RunOne()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -24,7 +24,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunOneBlocking()
+        public void RunOneBlocking()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -40,7 +40,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunMultiple()
+        public void RunMultiple()
         {
             // Console.WriteLine("Running {0} in AppDomain {1}", RuntimeEnvironment.SessionKey.Value, AppDomain.CurrentDomain.FriendlyName);
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
@@ -62,7 +62,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunMultipleBlocking()
+        public void RunMultipleBlocking()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -89,7 +89,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunMultipleAnyBlocking()
+        public void RunMultipleAnyBlocking()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -116,7 +116,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunOneControlled()
+        public void RunOneControlled()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -127,7 +127,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunOneControlledBlocking()
+        public void RunOneControlledBlocking()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -139,7 +139,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public async static void RunOneControlledAsync()
+        public async void RunOneControlledAsync()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -151,7 +151,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunOneControlledGeneric()
+        public void RunOneControlledGeneric()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -162,7 +162,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunOneControlledGenericBlocking()
+        public void RunOneControlledGenericBlocking()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -174,7 +174,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public async static void RunOneControlledGenericAsync()
+        public async void RunOneControlledGenericAsync()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -186,7 +186,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunMultipleControlledBlocking()
+        public void RunMultipleControlledBlocking()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -205,7 +205,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunMultipleControlledAnyBlocking()
+        public void RunMultipleControlledAnyBlocking()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -222,7 +222,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunMultipleControlledBlockingTask()
+        public void RunMultipleControlledBlockingTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -241,7 +241,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static void RunMultipleControlledAnyBlockingTask()
+        public void RunMultipleControlledAnyBlockingTask()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
             nekara.Api.CreateSession();
@@ -259,7 +259,7 @@ namespace NekaraUnitTest
             nekara.Api.WaitForMainTask();
         }
 
-        public static void FooInstrumented(int taskId = 1)
+        public void FooInstrumented(int taskId = 1)
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
@@ -275,14 +275,14 @@ namespace NekaraUnitTest
             nekara.Api.EndTask(taskId);
         }
 
-        public static void Foo()
+        public void Foo()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
             nekara.Api.ContextSwitch();
         }
 
-        public static int Bar()
+        public int Bar()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 

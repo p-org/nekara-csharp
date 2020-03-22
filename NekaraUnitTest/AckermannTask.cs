@@ -11,7 +11,7 @@ namespace NekaraUnitTest
         private static NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
         [Fact(Timeout = 5000)]
-        public async static NativeTasks.Task AckermannTestRun()
+        public async NativeTasks.Task AckermannTestRun()
         {
             int m = 2;
             int n = 2;
@@ -25,7 +25,7 @@ namespace NekaraUnitTest
             return;
         }
 
-        public async static Task<int> Ackermann(int m, int n)
+        public async Task<int> Ackermann(int m, int n)
         {
             if (m == 0) return n + 1;
             if (m > 0)

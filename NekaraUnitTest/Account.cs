@@ -136,7 +136,7 @@ namespace NekaraUnitTest
             // nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}"); 
         }
 
-        static void TransactWithApi(int amount)
+        void TransactWithApi(int amount)
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
