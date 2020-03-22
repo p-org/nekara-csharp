@@ -11,20 +11,20 @@ namespace NekaraUnitTest
     {
         private static NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
-        private static async Task WriteAsync(SharedEntry entry, int value)
+        private async Task WriteAsync(SharedEntry entry, int value)
         {
             await Task.CompletedTask;
             entry.Value = value;
         }
 
-        private static async Task WriteWithDelayAsync(SharedEntry entry, int value)
+        private async Task WriteWithDelayAsync(SharedEntry entry, int value)
         {
             await Task.Delay(1);
             entry.Value = value;
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestNoSynchronousTaskExceptionStatus()
+        public async Task TestNoSynchronousTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             var task = WriteAsync(entry, 5);
@@ -32,15 +32,18 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            // nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion);
+
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestNoAsynchronousTaskExceptionStatus()
+        public async Task TestNoAsynchronousTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             var task = WriteWithDelayAsync(entry, 5);
@@ -48,15 +51,17 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            // nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestNoParallelSynchronousTaskExceptionStatus()
+        public async Task TestNoParallelSynchronousTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             var task = Task.Run(() =>
@@ -68,15 +73,17 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            // nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestNoParallelAsynchronousTaskExceptionStatus()
+        public async Task TestNoParallelAsynchronousTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             var task = Task.Run(async () =>
@@ -88,15 +95,17 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            // nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestNoParallelFuncTaskExceptionStatus()
+        public async Task TestNoParallelFuncTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             async Task func()
@@ -110,21 +119,23 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            // nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion, "Found unexpected task status.");
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
-        private static async Task WriteWithExceptionAsync(SharedEntry entry, int value)
+        private async Task WriteWithExceptionAsync(SharedEntry entry, int value)
         {
             await Task.CompletedTask;
             entry.Value = value;
             throw new InvalidOperationException();
         }
 
-        private static async Task WriteWithDelayedExceptionAsync(SharedEntry entry, int value)
+        private async Task WriteWithDelayedExceptionAsync(SharedEntry entry, int value)
         {
             await Task.Delay(1);
             entry.Value = value;
@@ -132,7 +143,7 @@ namespace NekaraUnitTest
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestSynchronousTaskExceptionStatus()
+        public async Task TestSynchronousTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             var task = WriteWithExceptionAsync(entry, 5);
@@ -150,17 +161,20 @@ namespace NekaraUnitTest
             nekara.Api.WaitForMainTask();
 
 
-            nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
-                "The exception is not of the expected type.");
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            // nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
+               //  "The exception is not of the expected type.");
+            // nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status.");
+            Assert.True(exception.GetType() == typeof(InvalidOperationException));
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.Faulted);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestAsynchronousTaskExceptionStatus()
+        public async Task TestAsynchronousTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             var task = WriteWithDelayedExceptionAsync(entry, 5);
@@ -177,17 +191,20 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
+            /* nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status."); */
+            Assert.True(exception.GetType() == typeof(InvalidOperationException));
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.Faulted);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestParallelSynchronousTaskExceptionStatus()
+        public async Task TestParallelSynchronousTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             var task = Task.Run(() =>
@@ -208,17 +225,20 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
+            /* nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status."); */
+            Assert.True(exception.GetType() == typeof(InvalidOperationException));
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.Faulted);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestParallelAsynchronousTaskExceptionStatus()
+        public async Task TestParallelAsynchronousTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             var task = Task.Run(async () =>
@@ -240,17 +260,20 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
+            /* nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status."); */
+            Assert.True(exception.GetType() == typeof(InvalidOperationException));
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.Faulted);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestParallelFuncTaskExceptionStatus()
+        public async Task TestParallelFuncTaskExceptionStatus()
         {
             SharedEntry entry = new SharedEntry();
             async Task func()
@@ -274,10 +297,13 @@ namespace NekaraUnitTest
 
             nekara.Api.WaitForMainTask();
 
-            nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
+            /* nekara.Api.Assert(exception.GetType() == typeof(InvalidOperationException),
                 "The exception is not of the expected type.");
-            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status.");
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            nekara.Api.Assert(task.Status == System.Threading.Tasks.TaskStatus.Faulted, "Found unexpected task status."); */
+            Assert.True(exception.GetType() == typeof(InvalidOperationException));
+            Assert.True(task.Status == System.Threading.Tasks.TaskStatus.Faulted);
+            // nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();

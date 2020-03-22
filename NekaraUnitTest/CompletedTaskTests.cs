@@ -18,7 +18,8 @@ namespace NekaraUnitTest
             Task task = Task.CompletedTask;
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(task.IsCompleted, "The task has not completed.");
+            // nekara.Api.Assert(task.IsCompleted, "The task has not completed.");
+            Assert.True(task.IsCompleted);
         }
 
         [Fact(Timeout = 5000)]
@@ -31,7 +32,8 @@ namespace NekaraUnitTest
             Task task = Task.FromCanceled(token);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(task.IsCanceled, "The task is not cancelled.");
+            // nekara.Api.Assert(task.IsCanceled, "The task is not cancelled.");
+            Assert.True(task.IsCanceled);
         }
 
         [Fact(Timeout = 5000)]
@@ -46,7 +48,8 @@ namespace NekaraUnitTest
             // System.Threading.Tasks.Task<int> _t1 = task.InnerTask;
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(task.IsCanceled, "The task is not cancelled.");
+            // nekara.Api.Assert(task.IsCanceled, "The task is not cancelled.");
+            Assert.True(task.IsCanceled);
         }
 
         [Fact(Timeout = 5000)]
@@ -58,9 +61,12 @@ namespace NekaraUnitTest
             Task task = Task.FromException(new InvalidOperationException());
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(task.IsFaulted, "The task is not faulted.");
-            nekara.Api.Assert(task.Exception.GetType() == typeof(AggregateException), "The exception is not of the expected type.");
-            nekara.Api.Assert(task.Exception.InnerException.GetType() == typeof(InvalidOperationException), "The exception is not of the expected type.");
+            // nekara.Api.Assert(task.IsFaulted, "The task is not faulted.");
+            Assert.True(task.IsFaulted);
+            // nekara.Api.Assert(task.Exception.GetType() == typeof(AggregateException), "The exception is not of the expected type.");
+            Assert.True(task.Exception.GetType() == typeof(AggregateException));
+            // nekara.Api.Assert(task.Exception.InnerException.GetType() == typeof(InvalidOperationException), "The exception is not of the expected type.");
+            Assert.True(task.Exception.InnerException.GetType() == typeof(InvalidOperationException));
         }
 
         [Fact(Timeout = 5000)]
@@ -72,10 +78,12 @@ namespace NekaraUnitTest
             Task<int> task = Task.FromException<int>(new InvalidOperationException());
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(task.IsFaulted, "The task is not faulted.");
-            nekara.Api.Assert(task.Exception.GetType() == typeof(AggregateException), "The exception is not of the expected type.");
-            nekara.Api.Assert(task.Exception.InnerException.GetType() == typeof(InvalidOperationException), "The exception is not of the expected type.");
+            // nekara.Api.Assert(task.IsFaulted, "The task is not faulted.");
+            Assert.True(task.IsFaulted);
+            // nekara.Api.Assert(task.Exception.GetType() == typeof(AggregateException), "The exception is not of the expected type.");
+            // nekara.Api.Assert(task.Exception.InnerException.GetType() == typeof(InvalidOperationException), "The exception is not of the expected type.");
+            Assert.True(task.Exception.GetType() == typeof(AggregateException));
+            Assert.True(task.Exception.InnerException.GetType() == typeof(InvalidOperationException));
         }
-
     }
 }

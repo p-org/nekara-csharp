@@ -12,7 +12,7 @@ namespace NekaraUnitTest
         static NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
         [Fact(Timeout = 5000)]
-        public static async Task TestRunParallelTask()
+        public async Task TestRunParallelTask()
         {
 
             SharedEntry entry = new SharedEntry();
@@ -23,14 +23,14 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestRunParallelSynchronousTask()
+        public async Task TestRunParallelSynchronousTask()
         {
             SharedEntry entry = new SharedEntry();
             await Task.Run(async () =>
@@ -41,14 +41,14 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestRunParallelAsynchronousTask()
+        public async Task TestRunParallelAsynchronousTask()
         {
             SharedEntry entry = new SharedEntry();
             await Task.Run(async () =>
@@ -59,14 +59,14 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestRunNestedParallelSynchronousTask()
+        public async Task TestRunNestedParallelSynchronousTask()
         {
             SharedEntry entry = new SharedEntry();
             await Task.Run(async () =>
@@ -82,14 +82,14 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestAwaitNestedParallelAsynchronousTask()
+        public async Task TestAwaitNestedParallelAsynchronousTask()
         {
             SharedEntry entry = new SharedEntry();
             await Task.Run(async () =>
@@ -105,7 +105,7 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(entry.Value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
@@ -113,7 +113,7 @@ namespace NekaraUnitTest
 
 
         [Fact(Timeout = 5000)]
-        public static async Task TestRunParallelSynchronousTaskResult()
+        public async Task TestRunParallelSynchronousTaskResult()
         {
             SharedEntry entry = new SharedEntry();
             int value = await Task.Run(async () =>
@@ -125,14 +125,14 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestRunParallelAsynchronousTaskResult()
+        public async Task TestRunParallelAsynchronousTaskResult()
         {
             SharedEntry entry = new SharedEntry();
             int value = await Task.Run(async () =>
@@ -144,14 +144,14 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestRunNestedParallelSynchronousTaskResult()
+        public async Task TestRunNestedParallelSynchronousTaskResult()
         {
             SharedEntry entry = new SharedEntry();
             int value = await Task.Run(async () =>
@@ -166,14 +166,14 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestRunNestedParallelAsynchronousTaskResult()
+        public async Task TestRunNestedParallelAsynchronousTaskResult()
         {
             SharedEntry entry = new SharedEntry();
             int value = await Task.Run(async () =>
@@ -188,7 +188,7 @@ namespace NekaraUnitTest
 
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(value == 5, "Found unexpected value.");
+            Assert.True(entry.Value == 5);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();

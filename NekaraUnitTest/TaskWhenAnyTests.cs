@@ -11,20 +11,20 @@ namespace NekaraUnitTest
     {
         private static NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
-        private static async Task WriteAsync(SharedEntry entry, int value)
+        private async Task WriteAsync(SharedEntry entry, int value)
         {
             await Task.CompletedTask;
             entry.Value = value;
         }
 
-        private static async Task WriteWithDelayAsync(SharedEntry entry, int value)
+        private async Task WriteWithDelayAsync(SharedEntry entry, int value)
         {
             await Task.Delay(1);
             entry.Value = value;
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestWhenAnyWithTwoSynchronousTasks()
+        public async Task TestWhenAnyWithTwoSynchronousTasks()
         {
             SharedEntry entry = new SharedEntry();
             Task task1 = WriteAsync(entry, 5);
@@ -32,15 +32,18 @@ namespace NekaraUnitTest
             Task result = await Task.WhenAny(task1, task2);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(result.IsCompleted, "No task has completed.");
-            nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
+            /* nekara.Api.Assert(result.IsCompleted, "No task has completed.");
+            nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value."); */
+
+            Assert.True(result.IsCompleted);
+            Assert.True(entry.Value == 5 || entry.Value == 3);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestWhenAnyWithTwoAsynchronousTasks()
+        public async Task TestWhenAnyWithTwoAsynchronousTasks()
         {
             SharedEntry entry = new SharedEntry();
             Task task1 = WriteWithDelayAsync(entry, 3);
@@ -48,15 +51,18 @@ namespace NekaraUnitTest
             Task result = await Task.WhenAny(task1, task2);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(result.IsCompleted, "No task has completed.");
-            nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
+            // nekara.Api.Assert(result.IsCompleted, "No task has completed.");
+            // nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
+
+            Assert.True(result.IsCompleted);
+            Assert.True(entry.Value == 5 || entry.Value == 3);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestWhenAnyWithTwoParallelTasks()
+        public async Task TestWhenAnyWithTwoParallelTasks()
         {
             SharedEntry entry = new SharedEntry();
 
@@ -73,63 +79,74 @@ namespace NekaraUnitTest
             Task result = await Task.WhenAny(task1, task2);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(result.IsCompleted, "No task has completed.");
-            nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
+            // nekara.Api.Assert(result.IsCompleted, "No task has completed.");
+            // nekara.Api.Assert(entry.Value == 5 || entry.Value == 3, "Found unexpected value.");
+
+            Assert.True(result.IsCompleted);
+            Assert.True(entry.Value == 5 || entry.Value == 3);
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
-        private static async Task<int> GetWriteResultAsync(int value)
+        private async Task<int> GetWriteResultAsync(int value)
         {
             await Task.CompletedTask;
             return value;
         }
 
-        private static async Task<int> GetWriteResultWithDelayAsync(int value)
+        private async Task<int> GetWriteResultWithDelayAsync(int value)
         {
             await Task.Delay(1);
             return value;
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestWhenAnyWithTwoSynchronousTaskResults()
+        public async Task TestWhenAnyWithTwoSynchronousTaskResults()
         {
             Task<int> task1 = GetWriteResultAsync(5);
             Task<int> task2 = GetWriteResultAsync(3);
             Task<int> result = await Task.WhenAny(task1, task2);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(result.IsCompleted, "No task has completed.");
+            /* nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(
                 (result.Id == task1.Id && result.Result == 5) ||
                 (result.Id == task2.Id && result.Result == 3),
-                "Found unexpected value.");
+                "Found unexpected value."); */
+
+            Assert.True(result.IsCompleted);
+            Assert.True((result.Id == task1.Id && result.Result == 5) ||
+                (result.Id == task2.Id && result.Result == 3));
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestWhenAnyWithTwoAsynchronousTaskResults()
+        public async Task TestWhenAnyWithTwoAsynchronousTaskResults()
         {
             Task<int> task1 = GetWriteResultWithDelayAsync(5);
             Task<int> task2 = GetWriteResultWithDelayAsync(3);
             Task<int> result = await Task.WhenAny(task1, task2);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(result.IsCompleted, "No task has completed.");
+            /* nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(
                 (result.Id == task1.Id && result.Result == 5) ||
                 (result.Id == task2.Id && result.Result == 3),
-                "Found unexpected value.");
+                "Found unexpected value."); */
+
+            Assert.True(result.IsCompleted);
+            Assert.True((result.Id == task1.Id && result.Result == 5) ||
+                (result.Id == task2.Id && result.Result == 3));
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestWhenAnyWithTwoParallelSynchronousTaskResults()
+        public async Task TestWhenAnyWithTwoParallelSynchronousTaskResults()
         {
             Task<int> task1 = Task.Run(async () =>
             {
@@ -144,18 +161,22 @@ namespace NekaraUnitTest
             Task<int> result = await Task.WhenAny(task1, task2);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(result.IsCompleted, "No task has completed.");
+            /* nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(
                 (result.Id == task1.Id && result.Result == 5) ||
                 (result.Id == task2.Id && result.Result == 3),
-                "Found unexpected value.");
+                "Found unexpected value."); */
+
+            Assert.True(result.IsCompleted);
+            Assert.True((result.Id == task1.Id && result.Result == 5) ||
+                (result.Id == task2.Id && result.Result == 3));
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestWhenAnyWithTwoParallelAsynchronousTaskResults()
+        public async Task TestWhenAnyWithTwoParallelAsynchronousTaskResults()
         {
             Task<int> task1 = Task.Run(async () =>
             {
@@ -170,18 +191,22 @@ namespace NekaraUnitTest
             Task<int> result = await Task.WhenAny(task1, task2);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(result.IsCompleted, "No task has completed.");
+            /* nekara.Api.Assert(result.IsCompleted, "No task has completed.");
             nekara.Api.Assert(
                 (result.Id == task1.Id && result.Result == 5) ||
                 (result.Id == task2.Id && result.Result == 3),
-                "Found unexpected value.");
+                "Found unexpected value."); */
+
+            Assert.True(result.IsCompleted);
+            Assert.True((result.Id == task1.Id && result.Result == 5) ||
+                (result.Id == task2.Id && result.Result == 3));
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
         }
 
         [Fact(Timeout = 5000)]
-        public static async Task TestWhenAnyWithException()
+        public async Task TestWhenAnyWithException()
         {
             SharedEntry entry = new SharedEntry();
 
@@ -200,9 +225,12 @@ namespace NekaraUnitTest
             Task result = await Task.WhenAny(task1, task2);
 
             nekara.Api.WaitForMainTask();
-            nekara.Api.Assert(result.IsFaulted, "No task has faulted.");
+            /* nekara.Api.Assert(result.IsFaulted, "No task has faulted.");
             nekara.Api.Assert(result.Exception.InnerException.GetType() == typeof(InvalidOperationException),
-                "The exception is not of the expected type.");
+                "The exception is not of the expected type."); */
+
+            Assert.True(result.IsFaulted);
+            Assert.True(result.Exception.InnerException.GetType() == typeof(InvalidOperationException));
 
             // TODO: Should be removed when session are implemented in NekaraCpp
             nekara.Api.CreateSession();
