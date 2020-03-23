@@ -259,7 +259,7 @@ namespace NekaraUnitTest
             nekara.Api.WaitForMainTask();
         }
 
-        public void FooInstrumented(int taskId = 1)
+        internal void FooInstrumented(int taskId = 1)
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
@@ -275,7 +275,7 @@ namespace NekaraUnitTest
             nekara.Api.EndTask(taskId);
         }
 
-        public void Foo()
+        internal void Foo()
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 

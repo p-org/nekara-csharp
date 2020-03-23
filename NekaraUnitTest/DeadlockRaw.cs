@@ -12,7 +12,7 @@ namespace NekaraUnitTest
 
         static int x = 0;
         static bool lck = false;
-        static bool bugFound = false;
+        // static bool bugFound = false;
 
         [Fact(Timeout = 5000)]
         public void RunBasic()
@@ -174,7 +174,7 @@ namespace NekaraUnitTest
             Task.Run(() => UndeclaredTask());  // this is an undeclared Task, so we should expect the server to fail.
         } */
 
-        public void Foo()
+        internal void Foo()
         {
             nekara.Api.StartTask(1);
             Console.WriteLine("Foo/Acquire()");
@@ -192,16 +192,16 @@ namespace NekaraUnitTest
             Release();
 
             // nekara.Assert(lx1 == lx2, "Race!");
-            if (!(lx1 == lx2))
+            /* if (!(lx1 == lx2))
             {
                 bugFound = true;
-            }
+            } */
 
             Console.WriteLine("Foo EndTask");
             nekara.Api.EndTask(1);
         }
 
-        public void Bar()
+        internal void Bar()
         {
             nekara.Api.StartTask(2);
             Acquire();
@@ -215,21 +215,21 @@ namespace NekaraUnitTest
             nekara.Api.EndTask(2);
         }
 
-        public void Distraction()
+        internal void Distraction()
         {
             // nekara.Api.StartTask(3);
 
             nekara.Api.ContextSwitch();
         }
 
-        public void UndeclaredTask()
+        internal void UndeclaredTask()
         {
             nekara.Api.StartTask(3);
 
             nekara.Api.ContextSwitch();
         }
 
-        public void Acquire()
+        internal void Acquire()
         {
             Console.WriteLine("Acquire()");
             nekara.Api.ContextSwitch();
@@ -248,7 +248,7 @@ namespace NekaraUnitTest
             }
         }
 
-        public void Release()
+        internal void Release()
         {
             Console.WriteLine("Release()");
             nekara.Api.Assert(lck == true, "Release called on non-acquired lock");

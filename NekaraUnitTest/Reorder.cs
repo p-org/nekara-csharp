@@ -43,7 +43,7 @@ namespace NekaraUnitTest
             PerformReorder(19,1);
         }
 
-        public void PerformReorder(int numSTasks, int numCTasks)
+        internal void PerformReorder(int numSTasks, int numCTasks)
         {
             bool bugfound = false;
             while (!bugfound)

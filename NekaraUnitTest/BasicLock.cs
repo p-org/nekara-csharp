@@ -65,7 +65,7 @@ namespace NekaraUnitTest
             nekara.Api.WaitForMainTask();
         }
 
-        public void LockContender(int i)
+        internal void LockContender(int i)
         {
             Acquire(i);
             Console.WriteLine("Task {0} acquired lock - lock value: {1}", i, lck);
@@ -73,7 +73,7 @@ namespace NekaraUnitTest
             Console.WriteLine("Task {0} released lock - lock value: {1}", i, lck);
         }
 
-        static void Acquire(int taskId)
+        internal void Acquire(int taskId)
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
@@ -100,7 +100,7 @@ namespace NekaraUnitTest
             }
         }
 
-        static void Release(int taskId)
+        internal void Release(int taskId)
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 

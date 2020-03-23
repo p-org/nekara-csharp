@@ -319,7 +319,7 @@ namespace NekaraUnitTest
                 this.x = 0;
             }
 
-            public async Nekara.Models.Task Foo()
+            internal async Nekara.Models.Task Foo()
             {
                 Console.WriteLine("Foo/Acquire()");
                 this.lck.Acquire();
@@ -342,9 +342,11 @@ namespace NekaraUnitTest
                 }
 
                 Console.WriteLine("Foo EndTask");
+
+                await Task.Delay(1);
             }
 
-            public async Nekara.Models.Task Bar()
+            internal async Nekara.Models.Task Bar()
             {
                 //lck.Acquire();
 
@@ -354,6 +356,8 @@ namespace NekaraUnitTest
                 //lck.Release();
 
                 Console.WriteLine("Bar EndTask");
+
+                await Task.Delay(1);
             }
         }
 
@@ -366,17 +370,15 @@ namespace NekaraUnitTest
         [Fact(Timeout = 5000)]
         public void Deadlock3()
         {
-            // Console.WriteLine("  Starting Deadlock Benchmark ...");
-            // NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
-
+            nekara.Api.CreateSession();
             while (!bugFoundDl)
             {
                 nekara.Api.CreateResource(0);
                 nekara.Api.CreateResource(1);
 
                 int counter = 1;
-                Nekara.Models.Task t1 = Nekara.Models.Task.Run(async () =>
+                Nekara.Models.Task t1 = Nekara.Models.Task.Run( () =>
                 {
                     nekara.Api.ContextSwitch();
                     Acquire(true, 0);
@@ -399,7 +401,7 @@ namespace NekaraUnitTest
                     Release(true, 1);
                 });
 
-                Nekara.Models.Task t2 = Nekara.Models.Task.Run(async () =>
+                Nekara.Models.Task t2 = Nekara.Models.Task.Run( () =>
                 {
                     nekara.Api.ContextSwitch();
                     Acquire(false, 1);
@@ -436,7 +438,7 @@ namespace NekaraUnitTest
         }
 
 
-        public void Acquire(bool flag, int rid)
+        internal void Acquire(bool flag, int rid)
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
@@ -495,7 +497,7 @@ namespace NekaraUnitTest
             }
         }
 
-        public void Release(bool flag, int rid)
+        internal void Release(bool flag, int rid)
         {
             NekaraManagedClient nekara = RuntimeEnvironment.Client;
 
