@@ -17,8 +17,7 @@ namespace NS
 		ProjectState projectState;
 		int currentThread;
 		int seed;
-		bool _debug = false;
-		int max_decisions;
+		bool attach_ns = false;
 		std::mutex nsLock;
 		SchedulingStrategy* sch;
 
@@ -27,31 +26,35 @@ namespace NS
 
 		NekaraService(Configuration config);
 
+		void Attach();
+
+		void Detach();
+
+		bool IsDetached();
+
 		void CreateThread();
 
-		void StartThread(int _threadID);
+		std::error_code StartThread(int _threadID);
 
-		void EndThread(int _threadID);
+		std::error_code EndThread(int _threadID);
 
-		void CreateResource(int _resourceID);
+		std::error_code CreateResource(int _resourceID);
 
-		void DeleteResource(int _resourceID);
+		std::error_code DeleteResource(int _resourceID);
 
-		void BlockedOnResource(int _resourceID);
+		std::error_code BlockedOnResource(int _resourceID);
 
-		void BlockedOnAnyResource(int _resourceID[], int _size);
+		std::error_code BlockedOnAnyResource(int _resourceID[], int _size);
 
-		void SignalUpdatedResource(int _resourceID);
+		std::error_code SignalUpdatedResource(int _resourceID);
 
 		bool CreateNondetBool();
 
 		int CreateNondetInteger(int _maxValue);
 
-		void Assert(bool value, std::string message);
+		std::error_code ContextSwitch();
 
-		void ContextSwitch();
-
-		void WaitforMainTask();
+		std::error_code WaitforMainTask();
 
 	private:
 		void WaitForPendingTaskCreations();

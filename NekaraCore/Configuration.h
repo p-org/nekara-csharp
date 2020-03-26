@@ -7,7 +7,6 @@ namespace NS
 	{
 	public:
 		int test_seed;
-		int max_decisions;
 
 		Configuration();
 	};

@@ -17,117 +17,203 @@ namespace NS
 	NekaraService::NekaraService(Configuration config)
 	{
 		currentThread = 0;
-		max_decisions = config.max_decisions;
 		seed = config.test_seed;
 
-		std::cout << "Your Program is being tested with random seed: " << seed << " with max decisions: " << max_decisions << "\n";
-		std::cout << "Give the same Seed and Max number of decision(s) to the Testing Service for a Re-Play." << "\n";
+		std::cout << "Your Program is being tested with random seed: " << seed << ".\n";
+		std::cout << "Give the same Seed to the Testing Service for a Re-Play." << "\n";
 		srand(seed);
 
 		projectState.threadToSem[0] = new std::condition_variable();
 		sch = (SchedulingStrategy*) new RandomStrategy();
 	}
 
+	void NekaraService::Attach()
+	{
+		attach_ns = true;
+	}
+
+	void NekaraService::Detach()
+	{
+		attach_ns = false;
+
+		nsLock.lock();
+
+		std::map<int, std::condition_variable*>::iterator _it1 = projectState.threadToSem.find(currentThread);
+		if (_it1 != projectState.threadToSem.end())
+		{
+			projectState.threadToSem.erase(_it1);
+		}
+
+		for (std::map<int, std::condition_variable*>::iterator it = projectState.threadToSem.begin();
+			it != projectState.threadToSem.end(); ++it)
+		{
+			it->second->notify_one();
+		}
+
+		nsLock.unlock();
+	}
+
+	bool NekaraService::IsDetached()
+	{
+		return attach_ns;
+	}
+
 	void NekaraService::CreateThread()
 	{
-		if (_debug)
+		if (!attach_ns)
 		{
-			std::cout << "CT-entry" << "\n";
+			return;
 		}
 
 		nsLock.lock();
 		projectState.ThreadCreation();
 		nsLock.unlock();
-
-		if (_debug)
-		{
-			std::cout << "CT-exit" << "\n";
-		}
-
 	}
 
-	void NekaraService::StartThread(int _threadID)
+	std::error_code NekaraService::StartThread(int _threadID)
 	{
-		if (_debug)
+		if (!attach_ns)
 		{
-			std::cout << "ST-entry: " << _threadID << "\n";
+			return std::error_code(1012, *(projectState.nec));
 		}
 
 		nsLock.lock();
-		projectState.ThreadStarting(_threadID);
+		std::error_code ps_ec = projectState.ThreadStarting(_threadID);
+		if (ps_ec.value() != 0)
+		{
+			nsLock.unlock();
+			Detach();
+			return ps_ec;
+		}
 		std::condition_variable* cv = projectState.threadToSem.find(_threadID)->second;
 		nsLock.unlock();
 
 		std::mutex dummy_mutex;
 		std::unique_lock<std::mutex> unique_lock(dummy_mutex);
-
 		cv->wait(unique_lock);
 		unique_lock.unlock();
 
-		if (_debug)
-		{
-			std::cout << "ST-exit: " << _threadID << "\n";
-		}
-
+		return ps_ec;
 	}
 
-	void NekaraService::EndThread(int _threadID)
+	std::error_code NekaraService::EndThread(int _threadID)
 	{
-		if (_debug)
+		if (!attach_ns)
 		{
-			std::cout << "ET-entry: " << _threadID << "\n";
+			return std::error_code(1012, *(projectState.nec));
 		}
 
 		nsLock.lock();
-		projectState.ThreadEnded(_threadID);
+		std::error_code ps_ec = projectState.ThreadEnded(_threadID);
+		if (ps_ec.value() != 0)
+		{
+			nsLock.unlock();
+			Detach();
+			return ps_ec;
+		}
 		nsLock.unlock();
 
-		ContextSwitch();
+		return ContextSwitch();
+	}
 
-		if (_debug)
+	std::error_code NekaraService::CreateResource(int _resourceID)
+	{
+		if (!attach_ns)
 		{
-			std::cout << "ET-exit: " << _threadID << "\n";
+			return std::error_code(1012, *(projectState.nec));
 		}
 
-	}
-
-	void NekaraService::CreateResource(int _resourceID)
-	{
 		nsLock.lock();
-		projectState.AddResource(_resourceID);
-		nsLock.unlock();
-	}
-
-	void NekaraService::DeleteResource(int _resourceID)
-	{
-		nsLock.lock();
-		projectState.RemoveResource(_resourceID);
-		nsLock.unlock();
-	}
-
-	void NekaraService::BlockedOnResource(int _resourceID)
-	{
-		nsLock.lock();
-		projectState.BlockThreadOnResource(currentThread, _resourceID);
+		std::error_code ps_ec = projectState.AddResource(_resourceID);
+		if (ps_ec.value() != 0)
+		{
+			nsLock.unlock();
+			Detach();
+			return ps_ec;
+		}
 		nsLock.unlock();
 
-		ContextSwitch();
+		return ps_ec;
 	}
 
-	void NekaraService::BlockedOnAnyResource(int _resourceID[], int _size)
+	std::error_code NekaraService::DeleteResource(int _resourceID)
 	{
+		if (!attach_ns)
+		{
+			return std::error_code(1012, *(projectState.nec));
+		}
+
 		nsLock.lock();
-		projectState.BlockThreadonAnyResource(currentThread, _resourceID, _size);
+		std::error_code ps_ec = projectState.RemoveResource(_resourceID);
+		if (ps_ec.value() != 0)
+		{
+			nsLock.unlock();
+			Detach();
+			return ps_ec;
+		}
 		nsLock.unlock();
 
-		ContextSwitch();
+		return ps_ec;
 	}
 
-	void NekaraService::SignalUpdatedResource(int _resourceID)
+	std::error_code NekaraService::BlockedOnResource(int _resourceID)
 	{
+		if (!attach_ns)
+		{
+			return std::error_code(1012, *(projectState.nec));
+		}
+
 		nsLock.lock();
-		projectState.UnblockThreads(_resourceID);
+		std::error_code ps_ec = projectState.BlockThreadOnResource(currentThread, _resourceID);
+		if (ps_ec.value() != 0)
+		{
+			nsLock.unlock();
+			Detach();
+			return ps_ec;
+		}
 		nsLock.unlock();
+
+		return ContextSwitch();
+	}
+
+	std::error_code NekaraService::BlockedOnAnyResource(int _resourceID[], int _size)
+	{
+		if (!attach_ns)
+		{
+			return std::error_code(1012, *(projectState.nec));
+		}
+
+		nsLock.lock();
+		std::error_code ps_ec = projectState.BlockThreadonAnyResource(currentThread, _resourceID, _size);
+		if (ps_ec.value() != 0)
+		{
+			nsLock.unlock();
+			Detach();
+			return ps_ec;
+		}
+		nsLock.unlock();
+
+		return ContextSwitch();
+	}
+
+	std::error_code NekaraService::SignalUpdatedResource(int _resourceID)
+	{
+		if (!attach_ns)
+		{
+			return std::error_code(1012, *(projectState.nec));
+		}
+
+		nsLock.lock();
+		std::error_code ps_ec = projectState.UnblockThreads(_resourceID);
+		if (ps_ec.value() != 0)
+		{
+			nsLock.unlock();
+			Detach();
+			return ps_ec;
+		}
+		nsLock.unlock();
+
+		return ps_ec;
 	}
 
 	bool NekaraService::CreateNondetBool()
@@ -140,20 +226,11 @@ namespace NS
 		return rand() % _maxValue;
 	}
 
-	void NekaraService::Assert(bool value, std::string message)
+	std::error_code NekaraService::ContextSwitch()
 	{
-		if (!value)
+		if (!attach_ns)
 		{
-			std::cerr << message << ".\n";
-			abort();
-		}
-	}
-
-	void NekaraService::ContextSwitch()
-	{
-		if (_debug)
-		{
-			std::cout << "CS-entry" << "\n";
+			return std::error_code(1012, *(projectState.nec));
 		}
 
 		WaitForPendingTaskCreations();
@@ -165,15 +242,6 @@ namespace NS
 		std::condition_variable* _crr_obj1 = NULL;
 
 		nsLock.lock();
-
-
-		if (max_decisions < 0)
-		{
-			std::cerr << "ERROR: Maximum steps reached; the program might be in a live-lock state! (or the program might be a non-terminating program)" << ".\n";
-			nsLock.unlock();
-			abort();
-		}
-		max_decisions--;
 
 		_current_thread = this->currentThread;
 
@@ -200,15 +268,16 @@ namespace NS
 
 		if (numEnabledThreads == 0 && numThreads != 0)
 		{
-			std::cerr << "ERROR: Deadlock detected" << ".\n";
+			// std::cerr << "ERROR: Deadlock detected" << ".\n";
 			nsLock.unlock();
-			abort();
+			Detach();
+			return std::error_code(1011, *(projectState.nec));
 		}
 
 		if (numEnabledThreads == 0 && numThreads == 0)
 		{
 			nsLock.unlock();
-			return;
+			return std::error_code(0, *(projectState.nec));
 		}
 
 		int next = sch->GetNextThread(enabledThreads, projectState);
@@ -228,7 +297,6 @@ namespace NS
 			nsLock.unlock();
 
 			_next_obj1->notify_one();
-
 			if (_current_thread_running)
 			{
 				std::mutex dummy_mutex;
@@ -238,25 +306,19 @@ namespace NS
 			}
 		}
 
-		if (_debug)
-		{
-			std::cout << "CS-exit" << "\n";
-		}
+		return std::error_code(0, *(projectState.nec));
 	}
 
-	void NekaraService::WaitforMainTask()
+	std::error_code NekaraService::WaitforMainTask()
 	{
-		if (_debug)
+		if (!attach_ns)
 		{
-			std::cout << "WMT-entry" << "\n";
+			return std::error_code(1012, *(projectState.nec));
 		}
 
 		EndThread(0);
 
-		if (_debug)
-		{
-			std::cout << "WMT-exit" << "\n";
-		}
+		return std::error_code(0, *(projectState.nec));
 	}
 
 	void NekaraService::WaitForPendingTaskCreations()
@@ -274,5 +336,4 @@ namespace NS
 			std::this_thread::sleep_for(std::chrono::milliseconds(WAITFORPENDINGTASKSLEEPTIME));
 		}
 	}
-
 }

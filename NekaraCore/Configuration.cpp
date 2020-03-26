@@ -11,6 +11,5 @@ namespace NS
 		auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
 
 		test_seed = nanoseconds.count() % 9999;
-		max_decisions = INT_MAX;
 	}
 }
