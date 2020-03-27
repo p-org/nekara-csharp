@@ -8,15 +8,15 @@ namespace NekaraManaged.Client
     public class NekaraManagedClient // : IDisposable
     {
         [DllImport("NekaraCore.dll")]
-        public static extern void NS_NekaraService();
+        public static extern IntPtr NS_NekaraService();
 
         private readonly TestRuntimeApi testingApi;
         public Helpers IdGenerator;
 
         public NekaraManagedClient()
         {
-            NS_NekaraService();
             this.testingApi = new TestRuntimeApi();
+            this.testingApi.ns_handle = NS_NekaraService();
             this.IdGenerator = new Helpers();
         }
 
