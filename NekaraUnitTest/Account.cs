@@ -12,56 +12,66 @@ namespace NekaraUnitTest
         [Fact(Timeout = 5000)]
         public void AccountTest()
         {
-            NekaraManagedClient nekara = RuntimeEnvironment.Client;
-            nekara.Api.CreateSession();
 
-            int x = 1;
-            int y = 2;
-            int z = 4;
-            int balance = x;
-
-            bool depositDone = false;
-            bool withdrawDone = false;
-
-            var l = new Lock(1);
-
-            Task t1 = Task.Run(() =>
+            bool bugfound = false;
+            while(!bugfound)
             {
-                nekara.Api.ContextSwitch();
-                using (l.Acquire())
+                NekaraManagedClient nekara = RuntimeEnvironment.Client;
+                nekara.Api.CreateSession();
+                nekara.Api.Attach();
+
+                int x = 1;
+                int y = 2;
+                int z = 4;
+                int balance = x;
+
+                bool depositDone = false;
+                bool withdrawDone = false;
+
+                var l = new Lock(1);
+
+                Task t1 = Task.Run(() =>
                 {
-                    if (depositDone && withdrawDone)
+                    nekara.Api.ContextSwitch();
+                    using (l.Acquire())
                     {
-                        bool _m1 = balance == ((x - y) - z);
-                        nekara.Api.Assert(_m1, "Bug found!");
+                        if (depositDone && withdrawDone)
+                        {
+                            bool _m1 = balance == ((x - y) - z);
+                            // nekara.Api.Assert(_m1, "Bug found!");
+                            if (!_m1)
+                            {
+                                bugfound = true;
+                            }
+                        }
                     }
-                }
-            });
+                });
 
-            Task t2 = Task.Run(() =>
-            {
-                nekara.Api.ContextSwitch();
-                using (l.Acquire())
+                Task t2 = Task.Run(() =>
                 {
-                    balance += y;
-                    depositDone = true;
-                }
-            });
+                    nekara.Api.ContextSwitch();
+                    using (l.Acquire())
+                    {
+                        balance += y;
+                        depositDone = true;
+                    }
+                });
 
-            Task t3 = Task.Run(() =>
-            {
-                nekara.Api.ContextSwitch();
-                using (l.Acquire())
+                Task t3 = Task.Run(() =>
                 {
-                    balance -= z;
-                    withdrawDone = true;
-                }
-            });
+                    nekara.Api.ContextSwitch();
+                    using (l.Acquire())
+                    {
+                        balance -= z;
+                        withdrawDone = true;
+                    }
+                });
 
-            Task.WaitAll(t1, t2, t3);
+                Task.WaitAll(t1, t2, t3);
 
-            nekara.Api.WaitForMainTask();
-
+                nekara.Api.WaitForMainTask();
+                nekara.Api.Detach();
+            }
             return;
         }
 
@@ -75,6 +85,7 @@ namespace NekaraUnitTest
             {
                 NekaraManagedClient nekara = RuntimeEnvironment.Client;
                 nekara.Api.CreateSession();
+                nekara.Api.Attach();
 
                 balance = 0;
                 nekara.Api.CreateTask();
@@ -101,8 +112,8 @@ namespace NekaraUnitTest
                 {
                     bugfound = true;
                 }
+                nekara.Api.Detach();
             }
-            Assert.True(bugfound);
 
             // nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}");
         }
@@ -116,6 +127,9 @@ namespace NekaraUnitTest
             {
                 NekaraManagedClient nekara = RuntimeEnvironment.Client;
                 nekara.Api.CreateSession();
+                nekara.Api.Attach();
+
+                bool flag1 = nekara.Api.IsDetached();
 
                 balance = 0;
 
@@ -129,9 +143,9 @@ namespace NekaraUnitTest
                 {
                     bugfound = true;
                 }
-            }
 
-            Assert.True(bugfound);
+                nekara.Api.Detach();
+            }
 
             // nekara.Api.Assert(balance == 300, $"Bug Found! Balance does not equal 300 - it is {balance}"); 
         }

@@ -11,6 +11,21 @@ extern "C" {
         _ns = new NS::NekaraService();
     }
 
+    __declspec(dllexport) void NS_Attach() {
+        assert(_ns != NULL && "Nekara Testing Service not Initialized");
+        _ns->Attach();
+    }
+
+    __declspec(dllexport) void NS_Detach() {
+        assert(_ns != NULL && "Nekara Testing Service not Initialized");
+        _ns->Detach();
+    }
+
+    __declspec(dllexport) bool NS_IsDetached() {
+        assert(_ns != NULL && "Nekara Testing Service not Initialized");
+        return _ns->IsDetached();
+    }
+
     __declspec(dllexport) void NS_CreateTask() {
         assert(_ns != NULL && "Nekara Testing Service not Initialized");
         _ns->CreateThread();

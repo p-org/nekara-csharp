@@ -14,6 +14,12 @@ namespace NekaraManaged.Client
         [DllImport("NekaraCore.dll")]
         public static extern void NS_CreateTask();
         [DllImport("NekaraCore.dll")]
+        public static extern void NS_Attach();
+        [DllImport("NekaraCore.dll")]
+        public static extern void NS_Detach();
+        [DllImport("NekaraCore.dll")]
+        public static extern bool NS_IsDetached();
+        [DllImport("NekaraCore.dll")]
         public static extern void NS_StartTask(int _threadID);
         [DllImport("NekaraCore.dll")]
         public static extern void NS_EndTask(int _threadID);
@@ -50,6 +56,21 @@ namespace NekaraManaged.Client
         public void CreateSession()
         {
             NS_NekaraService();
+        }
+
+        public void Attach()
+        {
+            NS_Attach();
+        }
+
+        public void Detach()
+        {
+            NS_Detach();
+        }
+
+        public bool IsDetached()
+        {
+            return NS_IsDetached();
         }
 
         public void CreateTask()
