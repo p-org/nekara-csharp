@@ -7,7 +7,7 @@ namespace NS
 	class RandomStrategy : SchedulingStrategy
 	{
 	public:
-		virtual int GetNextThread(std::vector<int> enabledThreads, ProjectState projectState);
+		virtual int GetNextThread(const std::vector<int> &enabledThreads, const ProjectState &projectState);
 
 	};
 

@@ -8,6 +8,6 @@ namespace NS
 	class SchedulingStrategy
 	{
 	public:
-		virtual int GetNextThread(std::vector<int> enabledThreads, ProjectState projectState) = 0;
+		virtual int GetNextThread(const std::vector<int> &enabledThreads, const ProjectState &projectState) = 0;
 	};
 }

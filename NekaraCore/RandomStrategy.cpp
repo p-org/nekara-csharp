@@ -5,7 +5,7 @@
 
 namespace NS
 {
-	int RandomStrategy::GetNextThread(std::vector<int> enabledThreads, ProjectState projectState)
+	int RandomStrategy::GetNextThread(const std::vector<int> &enabledThreads, const ProjectState &projectState)
 	{
 		return rand() % enabledThreads.size();
 	}
