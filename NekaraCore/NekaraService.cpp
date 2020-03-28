@@ -37,7 +37,6 @@ namespace NS
 		attach_ns = false;
 
 		nsLock.lock();
-
 		std::map<int, std::condition_variable*>::iterator _it1 = projectState.threadToSem.find(currentThread);
 		if (_it1 != projectState.threadToSem.end())
 		{
@@ -49,6 +48,10 @@ namespace NS
 		{
 			it->second->notify_one();
 		}
+
+		projectState.Reset();
+		projectState.threadToSem[0] = new std::condition_variable();
+		currentThread = 0;
 
 		nsLock.unlock();
 	}
@@ -74,7 +77,7 @@ namespace NS
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
 		nsLock.lock();
@@ -100,7 +103,7 @@ namespace NS
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
 		nsLock.lock();
@@ -120,7 +123,7 @@ namespace NS
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
 		nsLock.lock();
@@ -140,7 +143,7 @@ namespace NS
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
 		nsLock.lock();
@@ -160,7 +163,7 @@ namespace NS
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
 		nsLock.lock();
@@ -180,7 +183,7 @@ namespace NS
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
 		nsLock.lock();
@@ -200,7 +203,7 @@ namespace NS
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
 		nsLock.lock();
@@ -230,7 +233,7 @@ namespace NS
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
 		WaitForPendingTaskCreations();
@@ -271,13 +274,13 @@ namespace NS
 			// std::cerr << "ERROR: Deadlock detected" << ".\n";
 			nsLock.unlock();
 			Detach();
-			return std::error_code(1011, *(projectState.nec));
+			return std::error_code(projectState.Deadlock, projectState.nec);
 		}
 
 		if (numEnabledThreads == 0 && numThreads == 0)
 		{
 			nsLock.unlock();
-			return std::error_code(0, *(projectState.nec));
+			return std::error_code(projectState.Success, projectState.nec);
 		}
 
 		int next = sch->GetNextThread(enabledThreads, projectState);
@@ -306,19 +309,17 @@ namespace NS
 			}
 		}
 
-		return std::error_code(0, *(projectState.nec));
+		return std::error_code(projectState.Success, projectState.nec);
 	}
 
 	std::error_code NekaraService::WaitforMainTask()
 	{
 		if (!attach_ns)
 		{
-			return std::error_code(1012, *(projectState.nec));
+			return std::error_code(projectState.NekaraServiceDetached, projectState.nec);
 		}
 
-		EndThread(0);
-
-		return std::error_code(0, *(projectState.nec));
+		return EndThread(0);
 	}
 
 	void NekaraService::WaitForPendingTaskCreations()

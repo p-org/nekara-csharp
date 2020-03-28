@@ -6,84 +6,82 @@ NS::NekaraService* _nsj;
 
 // C# Bindings
 extern "C" {
-    __declspec(dllexport) HANDLE NS_NekaraService() {
-        typedef NS::NekaraService* HANDLE;
-        HANDLE ns = new NS::NekaraService();
-        return ns;
+    __declspec(dllexport) void* NS_NekaraService() {
+        return new NS::NekaraService();
     }
 
-    __declspec(dllexport) void NS_Attach(HANDLE ns_hande) {
+    __declspec(dllexport) void NS_Attach(void* ns_hande) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->Attach();
     }
 
-    __declspec(dllexport) void NS_Detach(HANDLE ns_hande) {
+    __declspec(dllexport) void NS_Detach(void* ns_hande) {
         // assert(_ns != NULL && "Nekara Testing Service not Initialized");
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->Detach();
     }
 
-    __declspec(dllexport) bool NS_IsDetached(HANDLE ns_hande) {
+    __declspec(dllexport) bool NS_IsDetached(void* ns_hande) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         return ns->IsDetached();
     }
 
-    __declspec(dllexport) void NS_CreateTask(HANDLE ns_hande) {
+    __declspec(dllexport) void NS_CreateTask(void* ns_hande) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->CreateThread();
     }
 
-    __declspec(dllexport) void NS_StartTask(HANDLE ns_hande, int _threadID) {
+    __declspec(dllexport) void NS_StartTask(void* ns_hande, int _threadID) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->StartThread(_threadID);
     }
 
-    __declspec(dllexport) void NS_EndTask(HANDLE ns_hande, int _threadID) {
+    __declspec(dllexport) void NS_EndTask(void* ns_hande, int _threadID) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->EndThread(_threadID);
     }
 
-    __declspec(dllexport) void NS_CreateResource(HANDLE ns_hande, int _resourceID) {
+    __declspec(dllexport) void NS_CreateResource(void* ns_hande, int _resourceID) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->CreateResource(_resourceID);
     }
 
-    __declspec(dllexport) void NS_DeleteResource(HANDLE ns_hande, int _resourceID) {
+    __declspec(dllexport) void NS_DeleteResource(void* ns_hande, int _resourceID) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->DeleteResource(_resourceID);
     }
 
-    __declspec(dllexport) void NS_BlockedOnResource(HANDLE ns_hande, int _resourceID) {
+    __declspec(dllexport) void NS_BlockedOnResource(void* ns_hande, int _resourceID) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->BlockedOnResource(_resourceID);
     }
 
-    __declspec(dllexport) void NS_BlockedOnAnyResource(HANDLE ns_hande, int _resourceID[], int _size) {
+    __declspec(dllexport) void NS_BlockedOnAnyResource(void* ns_hande, int _resourceID[], int _size) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->BlockedOnAnyResource(_resourceID, _size);
     }
 
-    __declspec(dllexport) void NS_SignalUpdatedResource(HANDLE ns_hande, int _resourceID) {
+    __declspec(dllexport) void NS_SignalUpdatedResource(void* ns_hande, int _resourceID) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->SignalUpdatedResource(_resourceID);
     }
 
-    __declspec(dllexport) bool NS_CreateNondetBool(HANDLE ns_hande) {
+    __declspec(dllexport) bool NS_CreateNondetBool(void* ns_hande) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         return ns->CreateNondetBool();
     }
 
-    __declspec(dllexport) int NS_CreateNondetInteger(HANDLE ns_hande, int _maxvalue) {
+    __declspec(dllexport) int NS_CreateNondetInteger(void* ns_hande, int _maxvalue) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         return ns->CreateNondetInteger(_maxvalue);
     }
 
-    __declspec(dllexport) void NS_ContextSwitch(HANDLE ns_hande) {
+    __declspec(dllexport) void NS_ContextSwitch(void* ns_hande) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->ContextSwitch();
     }
 
-    __declspec(dllexport) void NS_WaitforMainTask(HANDLE ns_hande) {
+    __declspec(dllexport) void NS_WaitforMainTask(void* ns_hande) {
         NS::NekaraService* ns = (NS::NekaraService*)ns_hande;
         ns->WaitforMainTask();
     }

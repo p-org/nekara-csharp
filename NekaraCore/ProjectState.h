@@ -20,7 +20,23 @@ namespace NS
 		std::map<int, std::condition_variable*> threadToSem;
 		std::map<int, std::set<int>*> blockedTasks;
 		std::set<int> resourceIDs;
-		NekaraErrorCode* nec;
+		NekaraErrorCode nec;
+		enum error_id {
+			CreateThreadNotCalled = 1000,
+			DuplicateThread = 1001,
+			EndThreadError = 1002,
+			DuplicateResource = 1003,
+			ResourceAlreadyDeleted = 1004,
+			ThreadBlockedOnResource = 1005,
+			ResourceNotDecleared = 1006,
+			ThreadAlreadyBlocked = 1007,
+			ThreadAlreadyBlockedAnyResource = 1008,
+			ResourceNotDeclearedAnyResource = 1009,
+			DeletedResource = 1010,
+			Deadlock = 1011,
+			NekaraServiceDetached = 1012,
+			Success = 0
+		};
 
 		ProjectState();
 
@@ -39,5 +55,7 @@ namespace NS
 		std::error_code BlockThreadonAnyResource(int _threadID, int _resourceID[], int _size);
 
 		std::error_code UnblockThreads(int _resourceID);
+
+		void Reset();
 	};
 }
