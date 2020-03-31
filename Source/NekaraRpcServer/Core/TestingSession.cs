@@ -23,35 +23,31 @@ namespace Nekara.Core
         [DllImport("nekara.dll")]
         public static extern void NS_WithSeed(int _seed, int max_decisions);
         [DllImport("nekara.dll")]
-        public static extern void NS_CreateTask();
+        public static extern void CreateOperation(IntPtr ip);
         [DllImport("nekara.dll")]
-        public static extern void NS_StartTask(int _threadID);
+        public static extern void StartOperation(IntPtr ip, int _threadID);
         [DllImport("nekara.dll")]
-        public static extern void NS_EndTask(int _threadID);
+        public static extern void EndOperation(IntPtr ip, int _threadID);
         [DllImport("nekara.dll")]
-        public static extern void NS_ContextSwitch();
+        public static extern void ScheduleNextOperation(IntPtr ip);
         [DllImport("nekara.dll")]
-        public static extern void NS_WaitforMainTask();
+        public static extern void CreateResource(IntPtr ip, int _resourceID);
         [DllImport("nekara.dll")]
-        public static extern void NS_CreateResource(int _resourceID);
+        public static extern void DeleteResource(IntPtr ip, int _resourceID);
         [DllImport("nekara.dll")]
-        public static extern void NS_DeleteResource(int _resourceID);
+        public static extern void SignalUpdatedResource(IntPtr ip, int _resourceID);
         [DllImport("nekara.dll")]
-        public static extern void NS_SignalUpdatedResource(int _resourceID);
+        public static extern void BlockedOnAnyResource(IntPtr ip, int[] _resourceID, int _size);
         [DllImport("nekara.dll")]
-        public static extern void NS_BlockedOnAnyResource(int[] _resourceID, int _size);
+        public static extern void BlockedOnResource(IntPtr ip, int _resourceID);
         [DllImport("nekara.dll")]
-        public static extern int NS_GenerateResourceID();
+        public static extern bool GetNextBoolean(IntPtr ip);
         [DllImport("nekara.dll")]
-        public static extern int NS_GenerateThreadTD();
+        public static extern int GetNextInteger(IntPtr ip, int _maxvalue);
         [DllImport("nekara.dll")]
-        public static extern bool NS_CreateNondetBool();
+        public static extern void WaitforMainOperation(IntPtr ip);
         [DllImport("nekara.dll")]
-        public static extern int NS_CreateNondetInteger(int _maxvalue);
-        [DllImport("nekara.dll")]
-        public static extern bool NS_Dispose();
-        [DllImport("nekara.dll")]
-        public static extern void NS_BlockedOnResource(int _resourceID);
+        public static extern bool DisposeScheduler();
 
         // It appears that Process.GetCurrentProcess is a very expensive call
         // (makes the whole app 10 ~ 15x slower when called in AppendLog), so we save the reference here.
@@ -502,7 +498,8 @@ namespace Nekara.Core
                 programState.InitTaskCreation();
             } */
 
-            NS_CreateTask();
+            // TODO: add scheduler ptr
+            // CreateOperation();
 #if DEBUG
             stamp = Profiler.Update("CreateTaskEnd", stamp);
 #endif
@@ -528,7 +525,8 @@ namespace Nekara.Core
                 tcs = programState.AddTask(taskId);
             } */
 
-            NS_StartTask(taskId);
+            // TODO: add scheduler ptr
+            // StartOperation(taskId);
 
 #if DEBUG
             stamp = Profiler.Update("StartTaskUpdate", stamp);
@@ -576,7 +574,8 @@ namespace Nekara.Core
 #endif
 
             // ContextSwitch();
-            NS_EndTask(taskId);
+            // TODO: add scheduler ptr
+            // EndOperation(taskId);
 
 #if DEBUG
             stamp = Profiler.Update("EndTaskEnd", stamp);
@@ -600,7 +599,8 @@ namespace Nekara.Core
                 programState.AddResource(resourceId);
             } */
 
-            NS_CreateResource(resourceId);
+            // TODO: add scheduler ptr
+            // CreateResource(resourceId);
 
 #if DEBUG
             stamp = Profiler.Update("CreateResourceEnd", stamp);
@@ -623,7 +623,8 @@ namespace Nekara.Core
                 programState.resourceSet.Remove(resourceId);
             } */
 
-            NS_DeleteResource(resourceId);
+            // TODO: add scheduler ptr
+            // DeleteResource(resourceId);
 #if DEBUG
             stamp = Profiler.Update("DeleteResourceEnd", stamp);
 #endif
@@ -652,7 +653,8 @@ namespace Nekara.Core
 #if DEBUG
             stamp = Profiler.Update("BlockedOnResourceUpdate", stamp);
 #endif
-            NS_BlockedOnResource(resourceId);
+            // TODO: add scheduler ptr
+            // BlockedOnResource(resourceId);
             // ContextSwitch();
 #if DEBUG
             stamp = Profiler.Update("BlockedOnResourceEnd", stamp);
@@ -683,8 +685,8 @@ namespace Nekara.Core
 #endif
 
             // ContextSwitch();
-
-            NS_BlockedOnAnyResource(resourceIds, resourceIds.Length);
+            // TODO: add scheduler ptr
+            // BlockedOnAnyResource(resourceIds, resourceIds.Length);
 #if DEBUG
             stamp = Profiler.Update("BlockedOnResourceEnd", stamp);
 #endif
@@ -712,7 +714,8 @@ namespace Nekara.Core
                 }
             } */
 
-            NS_SignalUpdatedResource(resourceId);
+            // TODO: add scheduler ptr
+            // SignalUpdatedResource(resourceId);
 
 #if DEBUG
             stamp = Profiler.Update("SignalUpdatedResourceEnd", stamp);
@@ -737,7 +740,9 @@ namespace Nekara.Core
                 return value;
             } */
 
-            return NS_CreateNondetBool();
+            // TODO: add scheduler ptr
+            // return CreateNondetBool();
+            return false;
         }
 
         /// <summary>
@@ -758,7 +763,9 @@ namespace Nekara.Core
                 return value;
             } */
 
-            return NS_CreateNondetInteger(maxValue);
+            // TODO: add scheduler ptr
+            // return CreateNondetInteger(maxValue);
+            return 0;
         }
 
         /// <summary>
@@ -909,7 +916,9 @@ namespace Nekara.Core
                 }
             } */
 
-            NS_ContextSwitch();
+
+            // TODO: add scheduler ptr
+            // ScheduleNextOperation();
         }
 
         /// <summary>
@@ -947,7 +956,8 @@ namespace Nekara.Core
             try
             {
                 // this.EndTask(0);
-                NS_WaitforMainTask();
+                // TODO: add scheduler ptr
+                // WaitforMainOperation();
                 
                 programState.RemoveTask(0);
                 // this.Finish(TestResult.Pass);
