@@ -13,21 +13,19 @@ namespace NekaraManaged.Client
         [DllImport("nekara.dll")]
         public static extern IntPtr CreateScheduler();
         [DllImport("nekara.dll")]
-        public static extern void CreateTask(IntPtr ip);
-        [DllImport("nekara.dll")]
         public static extern void Attach(IntPtr ip);
         [DllImport("nekara.dll")]
         public static extern void Detach(IntPtr ip);
         [DllImport("nekara.dll")]
         public static extern bool IsDetached(IntPtr ip);
         [DllImport("nekara.dll")]
-        public static extern void StartTask(IntPtr ip, int _threadID);
+        public static extern void CreateOperation(IntPtr ip);
         [DllImport("nekara.dll")]
-        public static extern void EndTask(IntPtr ip, int _threadID);
+        public static extern void StartOperation(IntPtr ip, int _threadID);
         [DllImport("nekara.dll")]
-        public static extern void ContextSwitch(IntPtr ip);
+        public static extern void EndOperation(IntPtr ip, int _threadID);
         [DllImport("nekara.dll")]
-        public static extern void WaitforMainTask(IntPtr ip);
+        public static extern void ScheduleNextOperation(IntPtr ip);
         [DllImport("nekara.dll")]
         public static extern void CreateResource(IntPtr ip, int _resourceID);
         [DllImport("nekara.dll")]
@@ -37,11 +35,13 @@ namespace NekaraManaged.Client
         [DllImport("nekara.dll")]
         public static extern void BlockedOnAnyResource(IntPtr ip, int[] _resourceID, int _size);
         [DllImport("nekara.dll")]
-        public static extern bool CreateNondetBool(IntPtr ip);
-        [DllImport("nekara.dll")]
-        public static extern int CreateNondetInteger(IntPtr ip, int _maxvalue);
-        [DllImport("nekara.dll")]
         public static extern void BlockedOnResource(IntPtr ip, int _resourceID);
+        [DllImport("nekara.dll")]
+        public static extern bool GetNextBoolean(IntPtr ip);
+        [DllImport("nekara.dll")]
+        public static extern int GetNextInteger(IntPtr ip, int _maxvalue);
+        [DllImport("nekara.dll")]
+        public static extern void WaitforMainOperation(IntPtr ip);
 
         internal IntPtr ns_handle;
 
@@ -72,17 +72,17 @@ namespace NekaraManaged.Client
 
         public void CreateTask()
         {
-            CreateTask(ns_handle);
+            CreateOperation(ns_handle);
         }
 
         public void StartTask(int taskId)
         {
-            StartTask(ns_handle, taskId);
+            StartOperation(ns_handle, taskId);
         }
 
         public void EndTask(int taskId)
         {
-            EndTask(ns_handle, taskId);
+            EndOperation(ns_handle, taskId);
         }
 
         public void CreateResource(int resourceId)
@@ -112,12 +112,12 @@ namespace NekaraManaged.Client
 
         public bool CreateNondetBool()
         {
-            return CreateNondetBool(ns_handle);
+            return GetNextBoolean(ns_handle);
         }
 
         public int CreateNondetInteger(int maxValue)
         {
-            return CreateNondetInteger(ns_handle, maxValue);
+            return GetNextInteger(ns_handle, maxValue);
         }
 
         public void Assert(bool predicate, string s)
@@ -131,12 +131,12 @@ namespace NekaraManaged.Client
 
         public void ContextSwitch()
         {
-            ContextSwitch(ns_handle);
+            ScheduleNextOperation(ns_handle);
         }
 
         public string WaitForMainTask()
         {
-            WaitforMainTask(ns_handle);
+            WaitforMainOperation(ns_handle);
 
             return "";
         }
